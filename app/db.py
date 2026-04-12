@@ -307,6 +307,31 @@ class Database:
     def get_top_jobs(self, limit: int = 10) -> list[dict[str, Any]]:
         return self.list_jobs(status="open", limit=limit)
 
+    def get_recommended_jobs(self, limit: int = 5) -> list[dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT *
+            FROM jobs
+            WHERE status = 'open'
+            ORDER BY
+                CASE
+                    WHEN LOWER(consiglio) LIKE '%candidati subito%' THEN 0
+                    WHEN LOWER(consiglio) LIKE '%valutabile%' THEN 1
+                    ELSE 2
+                END,
+                punteggio_ai DESC,
+                last_seen_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        for row in rows:
+            row["is_favorite"] = bool(row.get("is_favorite", 0))
+            row["is_new"] = bool(row.get("is_new", 0))
+        return rows
+
     def get_job(self, job_id: int) -> dict[str, Any] | None:
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))

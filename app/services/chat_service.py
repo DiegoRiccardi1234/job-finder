@@ -54,6 +54,7 @@ def _fallback_answer(db: Database, message: str) -> str:
             lines.append(
                 f"{idx}. {job.get('titolo')} @ {job.get('azienda')} (score {job.get('punteggio_ai')}/10, {job.get('consiglio')})"
             )
+        lines.append("Suggerimento: apri Dettaglio sul primo e poi premi Candidata se confermi il fit.")
         return "\n".join(lines)
     return "Ho salvato il tuo messaggio. Posso consigliarti i lavori migliori o aggiornare le preferenze."
 

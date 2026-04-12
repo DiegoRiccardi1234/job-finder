@@ -10,16 +10,53 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+let selectedJobId = null;
+
+function activateView(viewName) {
+  document.querySelectorAll(".view").forEach((section) => {
+    section.classList.toggle("is-active", section.id === `view-${viewName}`);
+  });
+
+  document.querySelectorAll(".nav-link").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.view === viewName);
+  });
+
+  document.querySelectorAll(".rail-link").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.view === viewName);
+  });
+}
+
 function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value;
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function roleLabel(role) {
+  if (role === "assistant") return "Coach";
+  if (role === "user") return "Tu";
+  return "Sistema";
+}
+
 function appendChat(role, content) {
   const box = document.getElementById("chatBox");
+  if (!box) return;
+
   const item = document.createElement("div");
-  item.className = "chat-item";
-  item.innerHTML = `<div class="role">${role}</div><div>${content.replaceAll("\n", "<br>")}</div>`;
+  item.className = `chat-item ${role}`;
+  const safeContent = escapeHtml(content).replaceAll("\n", "<br>");
+  item.innerHTML = `
+    <div class="role">${roleLabel(role)}</div>
+    <div class="bubble">${safeContent}</div>
+  `;
   box.appendChild(item);
   box.scrollTop = box.scrollHeight;
 }
@@ -134,6 +171,170 @@ function truncate(value, max = 120) {
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
+async function showJobDetail(jobId) {
+  const payload = await api(`/api/jobs/${jobId}`);
+  const job = payload.job || {};
+  const analysis = job.analysis || {};
+  selectedJobId = job.id || null;
+
+  setText("detailStatus", `Stato: ${job.status || "open"}`);
+  setText("detailTitle", job.titolo || "Titolo non disponibile");
+  setText("detailCompany", job.azienda || "Azienda non disponibile");
+  setText(
+    "detailMeta",
+    `${job.sede || "Sede N/D"} | Score ${job.punteggio_ai || 0}/10 | ${job.modalita || "Modalita N/D"}`,
+  );
+  setText("detailAdvice", job.consiglio || "Valuta il fit e prepara una candidatura mirata.");
+
+  const detail = {
+    id: job.id,
+    titolo: job.titolo,
+    azienda: job.azienda,
+    status: job.status,
+    score: job.punteggio_ai,
+    consiglio: job.consiglio,
+    ricerca_usata: job.ricerca_usata,
+    modalita: job.modalita,
+    first_seen_at: job.first_seen_at,
+    last_seen_at: job.last_seen_at,
+    link: job.link,
+    analysis,
+  };
+  setText("jobDetail", JSON.stringify(detail, null, 2));
+  activateView("detail");
+}
+
+async function performJobAction(jobId, action) {
+  await api(`/api/jobs/${jobId}/action`, {
+    method: "POST",
+    body: JSON.stringify({ action, notes: "" }),
+  });
+  await Promise.all([loadJobs(), loadRecommendations()]);
+}
+
+async function toggleFavorite(jobId, isFavorite) {
+  await api(`/api/jobs/${jobId}/favorite`, {
+    method: "POST",
+    body: JSON.stringify({ is_favorite: isFavorite }),
+  });
+  await Promise.all([loadJobs(), loadRecommendations()]);
+}
+
+function recommendationCardHtml(job) {
+  const score = Number(job.punteggio_ai || 0);
+  const consiglio = escapeHtml(job.consiglio || "Valuta il match");
+  const title = escapeHtml(job.titolo || "Titolo non disponibile");
+  const company = escapeHtml(job.azienda || "Azienda non disponibile");
+  const newTag = job.is_new ? "<span class=\"pill-new\">Nuovo</span>" : "";
+  const favoriteText = job.is_favorite ? "Togli Preferito" : "Preferito";
+  const nextFavorite = job.is_favorite ? "0" : "1";
+
+  return `
+    <article class="rec-card" data-rec-id="${job.id}">
+      <div class="rec-head">
+        <div class="rec-title">${title}</div>
+        <span class="rec-score">${score}/10</span>
+      </div>
+      <div class="rec-company">${company} ${newTag}</div>
+      <div>${consiglio}</div>
+      <div class="rec-actions">
+        <button class="secondary" data-rec-action="detail" data-id="${job.id}">Dettaglio</button>
+        <button data-rec-action="applied" data-id="${job.id}">Candida ora</button>
+        <button class="danger" data-rec-action="rejected" data-id="${job.id}">Scarta</button>
+        <button class="secondary" data-rec-favorite="${nextFavorite}" data-id="${job.id}">${favoriteText}</button>
+      </div>
+    </article>
+  `;
+}
+
+async function loadRecommendations() {
+  const container = document.getElementById("recommendationsGrid");
+  if (!container) return;
+
+  container.innerHTML = "";
+  try {
+    const payload = await api("/api/recommendations?limit=5");
+    const jobs = payload.jobs || [];
+
+    if (!jobs.length) {
+      container.innerHTML = '<article class="rec-card"><div class="rec-title">Nessuna raccomandazione disponibile</div><div>Carica il CV e avvia una scansione per vedere i migliori job.</div></article>';
+      return;
+    }
+
+    container.innerHTML = jobs.map((job) => recommendationCardHtml(job)).join("");
+
+    container.querySelectorAll("button[data-rec-action]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const action = btn.dataset.recAction;
+        try {
+          if (action === "detail") {
+            await showJobDetail(id);
+            return;
+          }
+          await performJobAction(id, action);
+        } catch (error) {
+          appendChat("system", `Errore azione rapida: ${error.message}`);
+        }
+      });
+    });
+
+    container.querySelectorAll("button[data-rec-favorite]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const fav = btn.dataset.recFavorite === "1";
+        try {
+          await toggleFavorite(id, fav);
+        } catch (error) {
+          appendChat("system", `Errore preferito: ${error.message}`);
+        }
+      });
+    });
+  } catch (error) {
+    container.innerHTML = `<article class="rec-card"><div class="rec-title">Errore caricamento</div><div>${escapeHtml(error.message)}</div></article>`;
+  }
+}
+
+async function loadChatPrompts() {
+  const wrap = document.getElementById("chatQuickPrompts");
+  if (!wrap) return;
+
+  wrap.innerHTML = "";
+  try {
+    const payload = await api("/api/chat/prompts");
+    const prompts = payload.prompts || [];
+    for (const prompt of prompts) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip";
+      btn.textContent = prompt;
+      btn.addEventListener("click", async () => {
+        await sendChatMessage(prompt);
+      });
+      wrap.appendChild(btn);
+    }
+  } catch (error) {
+    appendChat("system", `Prompt rapidi non disponibili: ${error.message}`);
+  }
+}
+
+async function sendChatMessage(message) {
+  const text = String(message || "").trim();
+  if (!text) return;
+
+  appendChat("user", text);
+  activateView("detail");
+  try {
+    const result = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message: text, session_id: "default" }),
+    });
+    appendChat("assistant", result.answer || "Nessuna risposta disponibile.");
+  } catch (error) {
+    appendChat("assistant", `Errore chat: ${error.message}`);
+  }
+}
+
 async function loadJobs() {
   const onlyNew = document.getElementById("onlyNew").checked;
   const onlyFavorites = document.getElementById("onlyFavorites").checked;
@@ -182,11 +383,11 @@ async function loadJobs() {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
       const action = btn.dataset.action;
-      await api(`/api/jobs/${id}/action`, {
-        method: "POST",
-        body: JSON.stringify({ action, notes: "" }),
-      });
-      await loadJobs();
+      try {
+        await performJobAction(id, action);
+      } catch (error) {
+        appendChat("system", `Errore azione: ${error.message}`);
+      }
     });
   });
 
@@ -194,35 +395,22 @@ async function loadJobs() {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
       const fav = btn.dataset.favorite === "1";
-      await api(`/api/jobs/${id}/favorite`, {
-        method: "POST",
-        body: JSON.stringify({ is_favorite: fav }),
-      });
-      await loadJobs();
+      try {
+        await toggleFavorite(id, fav);
+      } catch (error) {
+        appendChat("system", `Errore preferito: ${error.message}`);
+      }
     });
   });
 
   body.querySelectorAll("button[data-detail-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.detailId;
-      const payload = await api(`/api/jobs/${id}`);
-      const job = payload.job || {};
-      const analysis = job.analysis || {};
-
-      const detail = {
-        id: job.id,
-        titolo: job.titolo,
-        azienda: job.azienda,
-        status: job.status,
-        score: job.punteggio_ai,
-        consiglio: job.consiglio,
-        ricerca_usata: job.ricerca_usata,
-        modalita: job.modalita,
-        first_seen_at: job.first_seen_at,
-        last_seen_at: job.last_seen_at,
-        analysis,
-      };
-      setText("jobDetail", JSON.stringify(detail, null, 2));
+      try {
+        await showJobDetail(id);
+      } catch (error) {
+        appendChat("system", `Errore dettaglio: ${error.message}`);
+      }
     });
   });
 }
@@ -256,6 +444,7 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   const payload = await response.json();
   setText("cvSummary", JSON.stringify(payload, null, 2));
   await loadProfiles();
+  await loadRecommendations();
 });
 
 document.getElementById("keysForm").addEventListener("submit", async (event) => {
@@ -289,7 +478,7 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
       body: JSON.stringify(payload),
     });
     setText("scanOutput", JSON.stringify(result, null, 2));
-    await loadJobs();
+    await Promise.all([loadJobs(), loadRecommendations()]);
   } catch (error) {
     setText("scanOutput", `Errore scansione: ${error.message}`);
   }
@@ -310,7 +499,7 @@ document.getElementById("manualForm").addEventListener("submit", async (event) =
     body: JSON.stringify(payload),
   });
 
-  await loadJobs();
+  await Promise.all([loadJobs(), loadRecommendations()]);
   appendChat("system", "Annuncio manuale aggiunto e analizzato.");
 });
 
@@ -319,18 +508,45 @@ document.getElementById("chatForm").addEventListener("submit", async (event) => 
   const input = document.getElementById("chatInput");
   const message = input.value.trim();
   if (!message) return;
-
-  appendChat("user", message);
   input.value = "";
+  await sendChatMessage(message);
+});
 
+document.getElementById("quickRecommendBtn").addEventListener("click", async () => {
+  activateView("detail");
+  await sendChatMessage("Consigliami i 5 lavori migliori da candidare oggi, in ordine di priorita.");
+});
+
+document.getElementById("refreshRecommendationsBtn").addEventListener("click", loadRecommendations);
+
+document.getElementById("focusOpenBtn").addEventListener("click", async () => {
+  const status = document.getElementById("statusFilter");
+  status.value = "open";
+  activateView("dashboard");
+  await loadJobs();
+});
+
+document.querySelectorAll("[data-view]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    activateView(btn.dataset.view || "dashboard");
+  });
+});
+
+document.getElementById("railRecommendBtn").addEventListener("click", async () => {
+  activateView("detail");
+  await sendChatMessage("Consigliami i lavori piu forti su cui candidarmi adesso, con ordine di priorita.");
+});
+
+document.getElementById("detailApplyNowBtn").addEventListener("click", async () => {
+  if (!selectedJobId) {
+    appendChat("system", "Apri prima un annuncio in dettaglio.");
+    return;
+  }
   try {
-    const result = await api("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({ message, session_id: "default" }),
-    });
-    appendChat("assistant", result.answer);
+    await performJobAction(selectedJobId, "applied");
+    appendChat("system", "Candidatura marcata come inviata.");
   } catch (error) {
-    appendChat("assistant", `Errore chat: ${error.message}`);
+    appendChat("system", `Errore candidatura: ${error.message}`);
   }
 });
 
@@ -351,10 +567,12 @@ document.getElementById("exportCsvBtn").addEventListener("click", async () => {
 });
 
 async function bootstrap() {
+  activateView("dashboard");
   await loadHealth();
   await loadKeysStatus();
   await loadProfiles();
-  await loadJobs();
+  await Promise.all([loadJobs(), loadRecommendations()]);
+  await loadChatPrompts();
   await loadChatHistory();
 }
 

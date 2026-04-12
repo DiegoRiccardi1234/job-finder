@@ -8,3 +8,4 @@ data/
 *.sqlite3
 groq key.txt
 *.log
+stitch

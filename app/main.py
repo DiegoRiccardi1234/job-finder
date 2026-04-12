@@ -189,6 +189,14 @@ def create_app(workspace_dir: Path) -> FastAPI:
             raise HTTPException(status_code=404, detail="Annuncio non trovato")
         return {"job": job}
 
+    @fastapi_app.get("/api/recommendations")
+    def recommendations(limit: int = Query(default=5, ge=1, le=20)) -> dict:
+        jobs = container.db.get_recommended_jobs(limit=limit)
+        return {
+            "jobs": jobs,
+            "message": "Ecco i lavori prioritari da valutare e candidare.",
+        }
+
     @fastapi_app.post("/api/jobs/manual")
     def add_manual_job(payload: ManualJobCreateRequest) -> dict:
         row = {
@@ -245,6 +253,17 @@ def create_app(workspace_dir: Path) -> FastAPI:
     def chat_history(session_id: str = "default", limit: int = 30) -> dict:
         items = container.db.list_chat_messages(session_id=session_id, limit=limit)
         return {"messages": items}
+
+    @fastapi_app.get("/api/chat/prompts")
+    def chat_prompts() -> dict:
+        return {
+            "prompts": [
+                "Consigliami i 5 lavori migliori da candidare oggi",
+                "Spiegami perche il primo lavoro ha rating alto",
+                "Dammi un piano candidature per questa settimana",
+                "Suggeriscimi quali lavori evitare e perche",
+            ]
+        }
 
     @fastapi_app.post("/api/preferences")
     def update_preference(payload: PreferenceUpdateRequest) -> dict:

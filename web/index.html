@@ -6,127 +6,235 @@
   <title>Job Finder Universale</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,700;1,400&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400" rel="stylesheet" />
   <link rel="stylesheet" href="/web/styles.css" />
 </head>
 <body>
-  <div class="bg-shape bg-shape-1"></div>
-  <div class="bg-shape bg-shape-2"></div>
+  <header class="topbar">
+    <div class="brand">The Curated Career</div>
+    <nav class="topnav">
+      <button type="button" class="nav-link is-active" data-view="dashboard">Dashboard</button>
+      <button type="button" class="nav-link" data-view="detail">Discover</button>
+      <button type="button" class="nav-link" data-view="settings">Settings</button>
+    </nav>
+    <div class="topbar-right">
+      <span class="material-symbols-outlined icon-btn">settings</span>
+      <div class="avatar">D</div>
+    </div>
+  </header>
 
-  <main class="layout">
-    <section class="hero card">
-      <div>
-        <h1>Job Finder Universale</h1>
-        <p>Upload CV, scansione LinkedIn/Indeed, rating AI, chat coaching, stato candidature persistente.</p>
-      </div>
-      <div class="meta">
-        <span id="providerBadge" class="badge">Provider: ...</span>
-        <span id="modelBadge" class="badge">Modello: ...</span>
-        <span class="badge">Profilo attivo: <select id="profileSelect"></select></span>
-      </div>
-    </section>
+  <main class="page-grid">
+    <section id="view-dashboard" class="view is-active">
+      <section class="hero-block">
+        <div>
+          <p class="eyebrow">Job Finder Universale</p>
+          <h1>Il tuo prossimo capitolo,<br /><em>curato con precisione.</em></h1>
+          <p class="hero-sub">Analisi CV, ranking AI e piano candidature pratico per decidere in pochi minuti dove candidarti oggi.</p>
+        </div>
+        <div class="hero-meta">
+          <article class="meta-card">
+            <span class="dot"></span>
+            <div>
+              <p class="micro">Modello Attivo</p>
+              <p id="modelBadge">Modello: ...</p>
+            </div>
+          </article>
+          <article class="meta-card">
+            <span class="material-symbols-outlined">memory</span>
+            <div>
+              <p class="micro">Provider</p>
+              <p id="providerBadge">Provider: ...</p>
+            </div>
+          </article>
+          <article class="meta-card">
+            <span class="material-symbols-outlined">person</span>
+            <div>
+              <p class="micro">Profilo Attivo</p>
+              <select id="profileSelect" class="profile-select"></select>
+            </div>
+          </article>
+        </div>
+      </section>
 
-    <section class="card">
-      <h2>0) Configura API Key (senza terminale)</h2>
-      <div id="keysCollapsedRow" class="row hidden">
-        <button id="showKeysFormBtn" type="button" class="secondary">Modifica API Key</button>
-      </div>
-      <form id="keysForm" class="column">
-        <input id="cerebrasKey" type="password" placeholder="CEREBRAS API Key (opzionale)" />
-        <input id="groqKey" type="password" placeholder="GROQ API Key (opzionale)" />
-        <button type="submit">Salva Key</button>
-      </form>
-      <pre id="keysStatus" class="output"></pre>
-    </section>
+      <section class="action-center">
+        <button id="quickRecommendBtn" type="button" class="action-main">
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <strong>Consigliami i Top 5</strong>
+          <small>Selezione basata su CV e obiettivi</small>
+        </button>
+        <button id="refreshRecommendationsBtn" type="button" class="action-alt">
+          <span class="material-symbols-outlined">refresh</span>
+          <strong>Aggiorna Raccomandazioni</strong>
+          <small>Sincronizza le offerte recenti</small>
+        </button>
+        <button id="focusOpenBtn" type="button" class="action-alt">
+          <span class="material-symbols-outlined">visibility</span>
+          <strong>Mostra Solo Open</strong>
+          <small>Filtra posizioni ancora aperte</small>
+        </button>
+      </section>
 
-    <section class="card split">
-      <div>
-        <h2>1) Carica CV</h2>
-        <form id="cvForm" class="row">
-          <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
-          <button type="submit">Upload</button>
-        </form>
-        <pre id="cvSummary" class="output"></pre>
-      </div>
-      <div>
-        <h2>2) Scansione</h2>
-        <form id="scanForm" class="column">
-          <textarea id="searchTerms" rows="4" placeholder="Una ricerca per riga (vuoto = default)"></textarea>
-          <div class="row">
-            <input id="locationInput" type="text" placeholder="Torino, Italy" />
-            <label class="toggle"><input id="remoteOnly" type="checkbox" /> Full remote</label>
-            <button type="submit">Avvia Scan</button>
+      <section class="recommendations-section">
+        <div class="section-head">
+          <h2>Consigliati per te</h2>
+          <p class="micro">Aggiornamento continuo</p>
+        </div>
+        <div id="recommendationsGrid" class="recommendations-grid"></div>
+      </section>
+
+      <section class="jobs-section">
+        <div class="section-head jobs-head">
+          <h2>Archivio Lavori</h2>
+          <div class="filters-row">
+            <input id="searchText" type="text" placeholder="Cerca titolo o azienda" />
+            <input id="minScore" type="number" min="0" max="10" placeholder="Score min" />
+            <select id="statusFilter">
+              <option value="">Tutti stati</option>
+              <option value="open">Open</option>
+              <option value="applied">Applied</option>
+              <option value="rejected">Rejected</option>
+              <option value="archived">Archived</option>
+            </select>
+            <input id="maxAgeDays" type="number" min="1" max="365" placeholder="Max giorni" />
+            <label class="tiny-toggle"><input id="onlyNew" type="checkbox" /> Solo nuovi</label>
+            <label class="tiny-toggle"><input id="onlyFavorites" type="checkbox" /> Solo preferiti</label>
+            <button id="refreshJobsBtn" type="button" class="secondary">Aggiorna</button>
+            <button id="exportCsvBtn" type="button" class="secondary">Export CSV</button>
           </div>
-        </form>
-        <pre id="scanOutput" class="output"></pre>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nuovo</th>
+                <th>Score</th>
+                <th>Consiglio</th>
+                <th>Titolo</th>
+                <th>Azienda</th>
+                <th>Status</th>
+                <th>Dettaglio</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="jobsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="view-detail" class="view">
+      <div class="detail-layout">
+        <article class="detail-main">
+          <p id="detailStatus" class="eyebrow">Stato: in revisione</p>
+          <h2 id="detailTitle">Seleziona un lavoro</h2>
+          <p id="detailCompany" class="detail-company">Apri un annuncio da Dashboard con il pulsante Dettaglio.</p>
+          <p id="detailMeta" class="detail-meta">Azienda, sede e score appariranno qui.</p>
+
+          <div class="next-action-banner">
+            <div>
+              <p class="banner-title">Prossimo Passo Consigliato</p>
+              <p id="detailAdvice">Quando selezioni un lavoro vedrai qui il consiglio AI per la candidatura.</p>
+            </div>
+            <button type="button" class="secondary" id="detailApplyNowBtn">Candida Ora</button>
+          </div>
+
+          <div class="detail-box-wrap">
+            <pre id="jobDetail" class="output detail-box">Seleziona un annuncio con il pulsante Dettaglio.</pre>
+          </div>
+        </article>
+
+        <aside class="coach-panel">
+          <div class="coach-head">
+            <div class="coach-icon"><span class="material-symbols-outlined">psychology</span></div>
+            <div>
+              <h3>AI Career Coach</h3>
+              <p>Assistente attivo ora</p>
+            </div>
+          </div>
+          <div id="chatBox" class="chat-box"></div>
+          <div id="chatQuickPrompts" class="chat-quick-prompts"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" type="text" placeholder="Scrivi al tuo coach..." required />
+            <button type="submit" aria-label="Invia messaggio"><span class="material-symbols-outlined">send</span></button>
+          </form>
+        </aside>
       </div>
     </section>
 
-    <section class="card split">
-      <div>
-        <h2>3) Aggiungi annuncio manuale</h2>
-        <form id="manualForm" class="column">
-          <input id="manualTitolo" type="text" placeholder="Titolo" required />
-          <input id="manualAzienda" type="text" placeholder="Azienda" required />
-          <input id="manualSede" type="text" placeholder="Sede" />
-          <input id="manualLink" type="url" placeholder="Link" />
-          <textarea id="manualDescrizione" rows="4" placeholder="Descrizione"></textarea>
-          <button type="submit">Aggiungi + Analizza</button>
-        </form>
-      </div>
-      <div>
-        <h2>4) Chat coach</h2>
-        <div id="chatBox" class="chat-box"></div>
-        <form id="chatForm" class="row">
-          <input id="chatInput" type="text" placeholder="Es: consigliami i migliori 3 lavori da candidare ora" required />
-          <button type="submit">Invia</button>
-        </form>
+    <section id="view-settings" class="view">
+      <header class="settings-hero">
+        <h2>Configurazione <em>Profilo</em></h2>
+        <p>Gestisci CV, scansioni e API key senza terminale.</p>
+      </header>
+
+      <div class="settings-grid">
+        <article class="card-block">
+          <h3>Area Caricamento CV</h3>
+          <form id="cvForm" class="column">
+            <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
+            <button type="submit">Upload CV</button>
+          </form>
+          <pre id="cvSummary" class="output"></pre>
+        </article>
+
+        <article class="card-block">
+          <h3>Configurazione API</h3>
+          <div id="keysCollapsedRow" class="row hidden">
+            <button id="showKeysFormBtn" type="button" class="secondary">Modifica API Key</button>
+          </div>
+          <form id="keysForm" class="column">
+            <input id="cerebrasKey" type="password" placeholder="Cerebras API Key (opzionale)" />
+            <input id="groqKey" type="password" placeholder="Groq API Key (opzionale)" />
+            <button type="submit">Salva Key</button>
+          </form>
+          <pre id="keysStatus" class="output"></pre>
+        </article>
+
+        <article class="card-block full-span">
+          <h3>Scansione Opportunita</h3>
+          <form id="scanForm" class="column">
+            <textarea id="searchTerms" rows="4" placeholder="Una ricerca per riga (vuoto = default)"></textarea>
+            <div class="row wrap">
+              <input id="locationInput" type="text" placeholder="Torino, Italy" />
+              <label class="tiny-toggle"><input id="remoteOnly" type="checkbox" /> Full remote</label>
+              <button type="submit">Avvia Scan</button>
+            </div>
+          </form>
+          <pre id="scanOutput" class="output"></pre>
+        </article>
+
+        <article class="card-block full-span">
+          <h3>Aggiungi Annuncio Manuale</h3>
+          <form id="manualForm" class="column">
+            <input id="manualTitolo" type="text" placeholder="Titolo" required />
+            <input id="manualAzienda" type="text" placeholder="Azienda" required />
+            <input id="manualSede" type="text" placeholder="Sede" />
+            <input id="manualLink" type="url" placeholder="Link" />
+            <textarea id="manualDescrizione" rows="4" placeholder="Descrizione"></textarea>
+            <button type="submit">Aggiungi + Analizza</button>
+          </form>
+        </article>
       </div>
     </section>
 
-    <section class="card">
-      <div class="jobs-header">
-        <h2>5) Lavori</h2>
-        <div class="row">
-          <input id="searchText" type="text" placeholder="Cerca titolo/azienda" />
-          <input id="minScore" type="number" min="0" max="10" placeholder="Score min" />
-          <select id="statusFilter">
-            <option value="">Tutti stati</option>
-            <option value="open">Open</option>
-            <option value="applied">Applied</option>
-            <option value="rejected">Rejected</option>
-            <option value="archived">Archived</option>
-          </select>
-          <input id="maxAgeDays" type="number" min="1" max="365" placeholder="Max giorni" />
-          <label class="toggle"><input id="onlyNew" type="checkbox" /> Solo nuovi</label>
-          <label class="toggle"><input id="onlyFavorites" type="checkbox" /> Solo preferiti</label>
-          <button id="refreshJobsBtn" type="button">Aggiorna</button>
-          <button id="exportCsvBtn" type="button">Export CSV</button>
+    <aside class="right-rail">
+      <div class="rail-header">
+        <div class="coach-icon"><span class="material-symbols-outlined">workspace_premium</span></div>
+        <div>
+          <h3>Career Coach</h3>
+          <p>Assistente Personale</p>
         </div>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Nuovo</th>
-              <th>Score</th>
-              <th>Consiglio</th>
-              <th>Titolo</th>
-              <th>Azienda</th>
-              <th>Status</th>
-              <th>Dettaglio</th>
-              <th>Azioni</th>
-            </tr>
-          </thead>
-          <tbody id="jobsTableBody"></tbody>
-        </table>
-      </div>
-    </section>
 
-    <section class="card">
-      <h2>6) Dettaglio rating</h2>
-      <pre id="jobDetail" class="output detail-box">Seleziona un annuncio con il pulsante Dettaglio.</pre>
-    </section>
+      <button type="button" class="new-analysis" id="railRecommendBtn">Nuova Analisi</button>
+
+      <nav class="rail-nav">
+        <button type="button" class="rail-link is-active" data-view="dashboard"><span class="material-symbols-outlined">stars</span> Top Picks</button>
+        <button type="button" class="rail-link" data-view="detail"><span class="material-symbols-outlined">chat</span> AI Coach</button>
+        <button type="button" class="rail-link" data-view="settings"><span class="material-symbols-outlined">tune</span> Settings</button>
+      </nav>
+    </aside>
   </main>
 
   <script src="/web/app.js"></script>
