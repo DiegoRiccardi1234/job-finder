@@ -11,6 +11,38 @@ async function api(path, options = {}) {
 }
 
 let selectedJobId = null;
+const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey"];
+
+function hasAnyProviderConfigured(keys) {
+  return Boolean(
+    keys.cerebras_configured
+      || keys.groq_configured
+      || keys.openai_configured
+      || keys.anthropic_configured
+      || keys.google_configured,
+  );
+}
+
+function normalizeKeyStatus(keys = {}, provider = {}) {
+  return {
+    cerebras_configured: !!keys.cerebras_configured,
+    groq_configured: !!keys.groq_configured,
+    openai_configured: !!keys.openai_configured,
+    anthropic_configured: !!keys.anthropic_configured,
+    google_configured: !!keys.google_configured,
+    primary_provider: keys.primary_provider || "",
+    active_provider: provider.active_provider || "none",
+    active_model: provider.active_model || "none",
+  };
+}
+
+function setPrimaryProviderValue(providerName) {
+  const select = document.getElementById("primaryProvider");
+  if (!select) return;
+  const normalized = String(providerName || "").trim().toLowerCase();
+  const exists = Array.from(select.options).some((opt) => opt.value === normalized);
+  select.value = exists ? normalized : "";
+}
 
 function activateView(viewName) {
   document.querySelectorAll(".view").forEach((section) => {
@@ -67,14 +99,10 @@ async function loadHealth() {
   setText("modelBadge", `Modello: ${health.provider.active_model}`);
 
   const keys = health.keys || {};
-  const configured = !!(keys.cerebras_configured || keys.groq_configured);
+  const configured = hasAnyProviderConfigured(keys);
   setKeysSectionMode(configured);
-  const status = {
-    cerebras_configured: !!keys.cerebras_configured,
-    groq_configured: !!keys.groq_configured,
-    active_provider: health.provider.active_provider,
-    active_model: health.provider.active_model,
-  };
+  const status = normalizeKeyStatus(keys, health.provider || {});
+  setPrimaryProviderValue(status.primary_provider);
   setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
@@ -98,33 +126,38 @@ async function loadKeysStatus() {
   const payload = await api("/api/providers/keys/status");
   const keys = payload.keys || {};
   const provider = payload.provider || {};
-  const configured = !!(keys.cerebras_configured || keys.groq_configured);
+  const configured = hasAnyProviderConfigured(keys);
   setKeysSectionMode(configured);
-  setText(
-    "keysStatus",
-    JSON.stringify(
-      {
-        cerebras_configured: !!keys.cerebras_configured,
-        groq_configured: !!keys.groq_configured,
-        active_provider: provider.active_provider,
-        active_model: provider.active_model,
-      },
-      null,
-      2,
-    ),
-  );
+  const status = normalizeKeyStatus(keys, provider);
+  setPrimaryProviderValue(status.primary_provider);
+  setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
 async function saveKeys() {
   const cerebras = document.getElementById("cerebrasKey").value.trim();
   const groq = document.getElementById("groqKey").value.trim();
+  const openai = document.getElementById("openaiKey").value.trim();
+  const anthropic = document.getElementById("anthropicKey").value.trim();
+  const google = document.getElementById("googleKey").value.trim();
+  const primaryProvider = document.getElementById("primaryProvider").value.trim();
 
   const payload = {};
   if (cerebras) payload.cerebras_api_key = cerebras;
   if (groq) payload.groq_api_key = groq;
+  if (openai) payload.openai_api_key = openai;
+  if (anthropic) payload.anthropic_api_key = anthropic;
+  if (google) payload.google_api_key = google;
+  payload.primary_provider = primaryProvider;
 
-  if (!payload.cerebras_api_key && !payload.groq_api_key) {
-    appendChat("system", "Inserisci almeno una key prima di salvare.");
+  if (
+    !payload.cerebras_api_key
+    && !payload.groq_api_key
+    && !payload.openai_api_key
+    && !payload.anthropic_api_key
+    && !payload.google_api_key
+    && !payload.primary_provider
+  ) {
+    appendChat("system", "Inserisci almeno una key o scegli un provider primario.");
     return;
   }
 
@@ -133,12 +166,14 @@ async function saveKeys() {
     body: JSON.stringify(payload),
   });
 
-  document.getElementById("cerebrasKey").value = "";
-  document.getElementById("groqKey").value = "";
+  for (const inputId of PROVIDER_KEY_IDS) {
+    const input = document.getElementById(inputId);
+    if (input) input.value = "";
+  }
   await loadHealth();
   await loadKeysStatus();
   setKeysSectionMode(true);
-  appendChat("system", "Key salvate. Provider ricaricato.");
+  appendChat("system", "Configurazione provider salvata. Motore AI ricaricato.");
 }
 
 async function loadProfiles() {

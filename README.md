@@ -19,7 +19,12 @@ Non ci sono piu file legacy, storico CSV, CV personale o test/dev script.
 
 - Python 3.11+
 - Connessione internet
-- Almeno una API key LLM (Cerebras o Groq), impostabile direttamente dalla pagina web
+- Almeno una API key LLM, impostabile direttamente dalla pagina web
+	- Cerebras
+	- Groq
+	- OpenAI
+	- Claude (Anthropic)
+	- Google Gemini
 
 ## Setup rapido (prima esecuzione)
 
@@ -31,7 +36,8 @@ Non ci sono piu file legacy, storico CSV, CV personale o test/dev script.
 python -m pip install -r requirements.txt
 ```
 
-4. Avvia l'app, poi inserisci le key direttamente dalla sezione web "0) Configura API Key".
+4. Avvia l'app, poi inserisci le key direttamente dalla sezione web "Configurazione API".
+	- Puoi anche scegliere il provider primario dalla UI.
 
 ## Avvio app
 
@@ -57,7 +63,7 @@ Deve risultare:
 - active_provider valorizzato
 - active_model valorizzato
 
-Se active_provider e "none", inserisci la key dalla UI e premi "Salva Key".
+Se active_provider e "none", inserisci una key dalla UI e premi "Salva Key".
 
 ## Test funzionale passo-passo
 
@@ -117,6 +123,28 @@ python run_webapp.py
 Checklist ultra rapida da mandare al tuo amico:
 
 - [CHECKLIST_INIZIALE_2_MIN.md](CHECKLIST_INIZIALE_2_MIN.md)
+
+## Test E2E con Playwright (consigliato per repo pubblica)
+
+1. Installa dipendenze frontend test:
+
+```powershell
+npm install
+```
+
+2. Installa browser Playwright:
+
+```powershell
+npx playwright install chromium
+```
+
+3. Lancia i test E2E:
+
+```powershell
+npm run test:e2e
+```
+
+I test verificano caricamento UI, navigazione Dashboard/Discover/Settings, presenza configurazione multi-provider e flusso chat base.
 
 ## Dati locali e backup
 

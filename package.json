@@ -1,0 +1,12 @@
+{
+  "name": "linkedin-searcher-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright E2E tests for Job Finder Universale",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1"
+  }
+}

@@ -9,3 +9,6 @@ data/
 groq key.txt
 *.log
 stitch
+node_modules/
+playwright-report/
+test-results/

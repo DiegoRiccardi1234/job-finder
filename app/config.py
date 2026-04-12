@@ -14,6 +14,7 @@ DEFAULT_SEARCH_TERMS = [
 ]
 
 LOCAL_SECRETS_FILE = "local_secrets.json"
+SUPPORTED_PROVIDERS = ["cerebras", "groq", "openai", "anthropic", "google"]
 
 
 @dataclass
@@ -34,6 +35,9 @@ class AppSettings:
     default_search_terms: list[str]
     cerebras_api_key: str | None
     groq_api_key: str | None
+    openai_api_key: str | None
+    anthropic_api_key: str | None
+    google_api_key: str | None
     model_selection_policy: dict
 
 
@@ -50,6 +54,10 @@ def save_local_provider_keys(
     data_dir: Path,
     cerebras_api_key: str | None = None,
     groq_api_key: str | None = None,
+    openai_api_key: str | None = None,
+    anthropic_api_key: str | None = None,
+    google_api_key: str | None = None,
+    primary_provider: str | None = None,
 ) -> dict:
     data_dir.mkdir(parents=True, exist_ok=True)
     secrets_path = data_dir / LOCAL_SECRETS_FILE
@@ -71,10 +79,42 @@ def save_local_provider_keys(
         else:
             current.pop("groq_api_key", None)
 
+    if openai_api_key is not None:
+        value = openai_api_key.strip()
+        if value:
+            current["openai_api_key"] = value
+        else:
+            current.pop("openai_api_key", None)
+
+    if anthropic_api_key is not None:
+        value = anthropic_api_key.strip()
+        if value:
+            current["anthropic_api_key"] = value
+        else:
+            current.pop("anthropic_api_key", None)
+
+    if google_api_key is not None:
+        value = google_api_key.strip()
+        if value:
+            current["google_api_key"] = value
+        else:
+            current.pop("google_api_key", None)
+
+    if primary_provider is not None:
+        normalized = primary_provider.strip().lower()
+        if normalized in SUPPORTED_PROVIDERS:
+            current["primary_provider"] = normalized
+        else:
+            current.pop("primary_provider", None)
+
     secrets_path.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
     return {
         "cerebras_configured": bool(current.get("cerebras_api_key")),
         "groq_configured": bool(current.get("groq_api_key")),
+        "openai_configured": bool(current.get("openai_api_key")),
+        "anthropic_configured": bool(current.get("anthropic_api_key")),
+        "google_configured": bool(current.get("google_api_key")),
+        "primary_provider": current.get("primary_provider", ""),
     }
 
 
@@ -95,10 +135,35 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         groq_api_key = groq_key_file.read_text(encoding="utf-8").strip()
 
     cerebras_api_key = local_secrets.get("cerebras_api_key") or os.getenv("CEREBRAS_API_KEY")
+    openai_api_key = local_secrets.get("openai_api_key") or os.getenv("OPENAI_API_KEY")
+    anthropic_api_key = local_secrets.get("anthropic_api_key") or os.getenv("ANTHROPIC_API_KEY")
+    google_api_key = (
+        local_secrets.get("google_api_key")
+        or os.getenv("GOOGLE_API_KEY")
+        or os.getenv("GEMINI_API_KEY")
+    )
 
-    provider_order = cfg.get("llm_provider_order", ["cerebras", "groq"])
+    provider_order = cfg.get("llm_provider_order", SUPPORTED_PROVIDERS)
     if not isinstance(provider_order, list) or not provider_order:
-        provider_order = ["cerebras", "groq"]
+        provider_order = list(SUPPORTED_PROVIDERS)
+
+    sanitized_order: list[str] = []
+    seen: set[str] = set()
+    for provider in provider_order:
+        name = str(provider).strip().lower()
+        if name in SUPPORTED_PROVIDERS and name not in seen:
+            sanitized_order.append(name)
+            seen.add(name)
+
+    for provider in SUPPORTED_PROVIDERS:
+        if provider not in seen:
+            sanitized_order.append(provider)
+
+    primary_provider = str(
+        local_secrets.get("primary_provider") or os.getenv("LLM_PROVIDER") or ""
+    ).strip().lower()
+    if primary_provider in SUPPORTED_PROVIDERS:
+        sanitized_order = [primary_provider] + [p for p in sanitized_order if p != primary_provider]
 
     terms = cfg.get("default_search_terms", DEFAULT_SEARCH_TERMS)
     if not isinstance(terms, list) or not terms:
@@ -139,7 +204,7 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         data_dir=data_dir,
         db_path=db_path,
         groq_key_file=groq_key_file,
-        llm_provider_order=[str(x).lower() for x in provider_order],
+        llm_provider_order=sanitized_order,
         preferred_model=cfg.get("preferred_model") or os.getenv("LLM_MODEL"),
         retention_days=int(cfg.get("retention_days", 15)),
         hours_old=int(cfg.get("hours_old", 336)),
@@ -151,5 +216,8 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         default_search_terms=[str(x) for x in terms],
         cerebras_api_key=cerebras_api_key,
         groq_api_key=groq_api_key,
+        openai_api_key=openai_api_key,
+        anthropic_api_key=anthropic_api_key,
+        google_api_key=google_api_key,
         model_selection_policy=merged_policy,
     )

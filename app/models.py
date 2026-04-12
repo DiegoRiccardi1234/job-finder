@@ -70,3 +70,7 @@ class PreferenceUpdateRequest(BaseModel):
 class ProviderKeysRequest(BaseModel):
     cerebras_api_key: str | None = None
     groq_api_key: str | None = None
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    google_api_key: str | None = None
+    primary_provider: str | None = None

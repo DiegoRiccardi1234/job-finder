@@ -54,9 +54,14 @@ class AppContainer:
         self.providers.initialize()
 
     def keys_status(self) -> dict:
+        primary = self.settings.llm_provider_order[0] if self.settings.llm_provider_order else ""
         return {
             "cerebras_configured": bool(self.settings.cerebras_api_key),
             "groq_configured": bool(self.settings.groq_api_key),
+            "openai_configured": bool(self.settings.openai_api_key),
+            "anthropic_configured": bool(self.settings.anthropic_api_key),
+            "google_configured": bool(self.settings.google_api_key),
+            "primary_provider": primary,
         }
 
 
@@ -100,6 +105,10 @@ def create_app(workspace_dir: Path) -> FastAPI:
             data_dir=container.settings.data_dir,
             cerebras_api_key=payload.cerebras_api_key,
             groq_api_key=payload.groq_api_key,
+            openai_api_key=payload.openai_api_key,
+            anthropic_api_key=payload.anthropic_api_key,
+            google_api_key=payload.google_api_key,
+            primary_provider=payload.primary_provider,
         )
         container.reload_providers()
         return {

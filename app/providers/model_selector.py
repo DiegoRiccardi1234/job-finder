@@ -31,6 +31,14 @@ def score_model_name(model_name: str, policy: dict | None = None) -> int:
         score += _weight(policy, "family", 40) - 15
     elif "qwen" in name:
         score += _weight(policy, "family", 40) - 2
+    elif "gpt-4.1" in name or "gpt-4o" in name:
+        score += _weight(policy, "family", 40) + 6
+    elif "gpt" in name:
+        score += _weight(policy, "family", 40)
+    elif "claude" in name:
+        score += _weight(policy, "family", 40) + 4
+    elif "gemini" in name:
+        score += _weight(policy, "family", 40) + 2
 
     parsed_sizes = [int(x) for x in re.findall(r"(\d{1,4})b", name)]
     size_b = max(parsed_sizes) if parsed_sizes else 0
@@ -46,6 +54,12 @@ def score_model_name(model_name: str, policy: dict | None = None) -> int:
 
     if "reason" in name:
         score += _weight(policy, "reasoning", 6)
+    if "sonnet" in name:
+        score += 4
+    if "opus" in name:
+        score += 5
+    if "pro" in name:
+        score += 2
     if "json" in name or "tool" in name:
         score += _weight(policy, "json", 12)
     if "turbo" in name or "instant" in name or "flash" in name:

@@ -1,9 +1,12 @@
 from typing import Any
 
 from app.config import AppSettings
+from app.providers.anthropic_provider import AnthropicProvider
 from app.providers.base import LLMProvider
 from app.providers.cerebras_provider import CerebrasProvider
+from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
+from app.providers.openai_provider import OpenAIProvider
 
 
 class ProviderManager:
@@ -12,6 +15,9 @@ class ProviderManager:
         self.providers: dict[str, LLMProvider] = {
             "cerebras": CerebrasProvider(api_key=settings.cerebras_api_key),
             "groq": GroqProvider(api_key=settings.groq_api_key),
+            "openai": OpenAIProvider(api_key=settings.openai_api_key),
+            "anthropic": AnthropicProvider(api_key=settings.anthropic_api_key),
+            "google": GoogleProvider(api_key=settings.google_api_key),
         }
         self.active_provider: LLMProvider | None = None
         self.active_provider_name: str = "none"
@@ -49,17 +55,30 @@ class ProviderManager:
         self.active_model = "none"
 
     def metadata(self) -> dict[str, Any]:
+        providers_metadata: dict[str, Any] = {}
+        for name, provider in self.providers.items():
+            try:
+                available = provider.is_available()
+            except Exception:
+                available = False
+
+            models: list[str] = []
+            if available:
+                try:
+                    models = provider.list_models()
+                except Exception:
+                    models = []
+
+            providers_metadata[name] = {
+                "available": available,
+                "models": models,
+            }
+
         return {
             "active_provider": self.active_provider_name,
             "active_model": self.active_model,
             "available": self.active_provider is not None,
-            "providers": {
-                name: {
-                    "available": provider.is_available(),
-                    "models": provider.list_models(),
-                }
-                for name, provider in self.providers.items()
-            },
+            "providers": providers_metadata,
         }
 
     def complete_json(self, prompt: str, max_tokens: int = 700) -> dict[str, Any]:

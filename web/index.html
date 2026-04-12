@@ -184,8 +184,20 @@
             <button id="showKeysFormBtn" type="button" class="secondary">Modifica API Key</button>
           </div>
           <form id="keysForm" class="column">
+            <label class="micro" for="primaryProvider">Provider Primario</label>
+            <select id="primaryProvider">
+              <option value="">Auto (ordine intelligente)</option>
+              <option value="cerebras">Cerebras</option>
+              <option value="groq">Groq</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Claude (Anthropic)</option>
+              <option value="google">Google Gemini</option>
+            </select>
             <input id="cerebrasKey" type="password" placeholder="Cerebras API Key (opzionale)" />
             <input id="groqKey" type="password" placeholder="Groq API Key (opzionale)" />
+            <input id="openaiKey" type="password" placeholder="OpenAI API Key (opzionale)" />
+            <input id="anthropicKey" type="password" placeholder="Claude/Anthropic API Key (opzionale)" />
+            <input id="googleKey" type="password" placeholder="Google API Key / Gemini API Key (opzionale)" />
             <button type="submit">Salva Key</button>
           </form>
           <pre id="keysStatus" class="output"></pre>
