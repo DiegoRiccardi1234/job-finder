@@ -1,11 +1,9 @@
 python-jobspy
 groq
 pandas
-colorama
 fastapi
 uvicorn
 openai
 python-multipart
 pypdf
 python-docx
-pytest

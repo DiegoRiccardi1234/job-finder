@@ -1,347 +1,158 @@
-# Job Finder Universale
+﻿# Linkedin Searcher - Runtime Clean
 
-Web app locale per cercare offerte LinkedIn/Indeed, analizzarle con AI, gestire candidatura e storico, e ricevere consigli via chat.
+Versione pulita della web app locale.
 
-Stato progetto: V1.5 funzionante locale (single user con multi profili CV locali).
+Obiettivo: cercare lavori, analizzarli con AI, gestire stato candidatura, usare chat coach.
+Uso previsto: 1 persona per PC (tu e il tuo amico ognuno sul proprio computer, con i propri dati locali).
 
-## 1) Cosa fa
+## Cosa c'e adesso nella cartella
 
-- Upload CV in formato md, txt, pdf, docx
-- Scansione offerte da LinkedIn e Indeed con python-jobspy
-- Pre-filtro veloce per scartare ruoli non target
-- Analisi AI con rating e consiglio candidatura
-- Chat coach per consigli e supporto decisionale
-- Persistenza locale su SQLite (annunci, preferenze, azioni, chat)
-- Gestione stato annuncio:
-  - Candidata
-  - Scarta
-  - Riapri
-  - Preferito
-- Retention annunci open non preferiti oltre N giorni
-- Badge Nuovo per annunci appena trovati
-- Export CSV compatibile con lo schema storico
-- Migrazione CSV storico a SQLite
-- Filtri avanzati in UI (status, score minimo, ricerca testo, eta max)
-- Dettaglio rating completo per singolo annuncio
+- app/: backend FastAPI e logica applicativa
+- web/: interfaccia browser
+- run_webapp.py: avvio server locale
+- requirements.txt: dipendenze runtime
+- README.md: guida uso
 
-## 2) Funzionalita principali richieste e coperte
+Non ci sono piu file legacy, storico CSV, CV personale o test/dev script.
 
-- App universale: si, con profilo candidato caricato da CV
-- Aggiunta annuncio manuale: si (da UI)
-- Chat per consigli lavoro: si
-- Salvataggio preferenze e storico: si
-- Rating e consiglio candidatura: si
-- Selezione modello dinamica all avvio: si (provider manager + policy)
-- Provider configurabile: si (ordine provider da settings)
+## Requisiti
 
-## 3) Architettura
-
-- Backend API: FastAPI
-- UI: HTML, CSS, JS statici serviti da FastAPI
-- Storage: SQLite locale
-- Provider AI: Cerebras e Groq con selezione modello automatica
-- Scraping: python-jobspy
-
-Struttura progetto:
-
-~~~text
-.
-|-- app
-|   |-- main.py
-|   |-- db.py
-|   |-- config.py
-|   |-- cv_ingest.py
-|   |-- lifecycle.py
-|   |-- models.py
-|   |-- providers
-|   |   |-- factory.py
-|   |   |-- model_selector.py
-|   |   |-- cerebras_provider.py
-|   |   |-- groq_provider.py
-|   |-- services
-|       |-- scanner_service.py
-|       |-- chat_service.py
-|-- web
-|   |-- index.html
-|   |-- styles.css
-|   |-- app.js
-|-- run_webapp.py
-|-- requirements.txt
-|-- job_analyzer.py
-|-- cv.md
-|-- groq key.txt
-|-- data
-|   |-- searcher.db
-~~~
-
-## 4) Requisiti
-
-- Windows 11 (testato)
 - Python 3.11+
-- Accesso internet
-- API key almeno per un provider AI
+- Connessione internet
+- Almeno una API key LLM:
+  - CEREBRAS_API_KEY (consigliata)
+  - oppure GROQ_API_KEY
 
-## 5) Installazione
+## Setup rapido (prima esecuzione)
 
-Dal path del progetto:
+1. Apri terminale nella cartella progetto.
+2. (Opzionale ma consigliato) attiva venv.
+3. Installa dipendenze:
 
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe -m pip install -r requirements.txt
-~~~
+```powershell
+python -m pip install -r requirements.txt
+```
 
-## 6) Configurazione provider AI
+4. Imposta chiavi API (sessione corrente):
 
-Opzione A (consigliata): variabili ambiente
+```powershell
+$env:CEREBRAS_API_KEY="LA_TUA_CHIAVE"
+$env:GROQ_API_KEY="LA_TUA_CHIAVE"
+```
 
-~~~powershell
-$env:CEREBRAS_API_KEY="la_tua_chiave"
-$env:GROQ_API_KEY="la_tua_chiave"
-~~~
+Nota: basta anche una sola chiave. Il sistema prova i provider in ordine configurato.
 
-Opzione B Groq da file gia presente:
+## Avvio app
 
-- Il file groq key.txt viene letto automaticamente se GROQ_API_KEY non e impostata.
-
-Ordine provider e parametri app in data/settings.json (opzionale). Esempio:
-
-~~~json
-{
-  "llm_provider_order": ["cerebras", "groq"],
-  "preferred_model": "",
-  "retention_days": 15,
-  "hours_old": 336,
-  "max_annunci": 20,
-  "delay_tra_chiamate": 1.5,
-  "delay_tra_ricerche": 4.0,
-  "location_default": "Torino, Italy",
-  "location_remote_default": "Italy",
-  "default_search_terms": [
-    "Analista Funzionale Junior",
-    "Junior QA Tester",
-    "Junior Cybersecurity Analyst"
-  ]
-}
-~~~
-
-Note:
-- Se non crei settings.json, vengono usati default interni.
-- All avvio il sistema prova i provider in ordine e seleziona il primo disponibile.
-
-Policy selezione modello (opzionale):
-
-~~~json
-{
-  "model_selection_policy": {
-    "prefer_fast": true,
-    "prefer_quality": true,
-    "prefer_json_reliability": true,
-    "max_cost_tier": "medium",
-    "weights": {
-      "instruct": 30,
-      "chat": 15,
-      "family": 40,
-      "size": 20,
-      "reasoning": 6,
-      "json": 12,
-      "speed": 8,
-      "vision_penalty": -8
-    }
-  }
-}
-~~~
-
-## 7) Avvio applicazione
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe run_webapp.py
-~~~
+```powershell
+python run_webapp.py
+```
 
 Apri nel browser:
 
 - http://127.0.0.1:8000
 
-Health API:
+## Verifica tecnica base
 
-- http://127.0.0.1:8000/api/health
+Controlla health endpoint:
 
-## 8) Flusso operativo consigliato
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/health | ConvertTo-Json -Depth 8
+```
 
-1. Carica il CV dalla sezione Upload CV
-2. Avvia una scansione con termini custom o default
-3. Controlla i risultati in tabella
-4. Usa filtri rapidi (status, score min, testo, eta max)
-5. Apri Dettaglio per vedere i campi completi del rating
-6. Usa i pulsanti per segnare Candidata, Scarta, Preferito
-5. Usa la chat per chiedere priorita candidatura
-6. Esporta CSV quando vuoi uno snapshot
+Deve risultare:
 
-Gestione profili CV:
+- ok: true
+- active_provider valorizzato
+- active_model valorizzato
 
-- Ogni upload crea un profilo
-- Puoi cambiare profilo attivo dal selettore in alto
-- Scan e chat usano il profilo attivo corrente
+## Test funzionale passo-passo
 
-## 9) Regole lifecycle annunci
+1. Carica CV
+- In UI: sezione "Carica CV"
+- Formati supportati: md, txt, pdf, docx
 
-- Nuovo:
-  - Ogni scansione azzera il flag Nuovo sugli annunci vecchi
-  - Gli annunci scoperti in scansione corrente sono marcati Nuovo
-- Stato:
-  - applied: candidatura inviata
-  - rejected: annuncio scartato o respinto
-  - open: attivo
-  - archived: archiviato da retention
-- Rianalisi:
-  - annunci applied, rejected, archived non vengono rianalizzati
-- Retention:
-  - annunci open non preferiti oltre retention_days vengono archiviati
-  - preferiti restano visibili
+2. Controlla profilo attivo
+- In alto deve apparire il profilo nel selettore
 
-## 10) API principali
+3. Aggiungi annuncio manuale
+- Compila titolo/azienda/descrizione
+- Premi "Aggiungi + Analizza"
+- Verifica comparsa in tabella con score e consiglio
 
-- GET /api/health
-  - stato app, provider attivo, modello attivo, preferenze
-- POST /api/upload-cv
-  - upload file CV (md, txt, pdf, docx)
-- GET /api/profile
-  - profilo attivo
-- GET /api/profiles
-  - lista profili candidato disponibili
-- POST /api/profiles/{profile_id}/activate
-  - imposta profilo attivo
-- POST /api/scan
-  - avvio scansione offerte
-- GET /api/jobs
-  - lista annunci con filtri only_new, only_favorites, status, search_text, min_score, max_age_days
-- GET /api/jobs/{job_id}
-  - dettaglio annuncio con analysis completa
-- POST /api/jobs/manual
-  - aggiunta annuncio manuale e analisi AI
-- POST /api/jobs/{job_id}/action
-  - azioni: applied, rejected, reopened
-- POST /api/jobs/{job_id}/favorite
-  - set preferito true o false
-- POST /api/chat
-  - messaggio chat coach
-- GET /api/chat/history
-  - storico chat sessione
-- GET /api/preferences
-  - preferenze salvate
-- POST /api/preferences
-  - aggiorna una preferenza
-- POST /api/export/csv
-  - esporta CSV con schema compatibile storico
+4. Apri dettaglio rating
+- Premi "Dettaglio" su una riga
+- Verifica JSON con campi analisi (consiglio, punti forza/deboli, ral, ecc.)
 
-## 11) Database SQLite
+5. Prova azioni stato
+- Candidata
+- Scarta
+- Riapri
+- Preferito
 
-File DB:
+6. Prova filtri
+- Solo nuovi
+- Solo preferiti
+- Score minimo
+- Stato
+- Ricerca testo
+- Max giorni
+
+7. Prova chat coach
+- Messaggio esempio: "consigliami i 3 lavori migliori da candidare"
+- Verifica risposta e storico chat
+
+8. Esegui scansione reale
+- Inserisci 1-3 query nel box scansione
+- Avvia scan
+- Verifica nuovi annunci e badge "Nuovo"
+
+9. Export CSV
+- Premi "Export CSV"
+- Verifica file creato in root progetto
+
+## Aggiornare app in futuro (tu push, lui pull)
+
+Sul PC del tuo amico:
+
+```powershell
+git pull
+python -m pip install -r requirements.txt
+python run_webapp.py
+```
+
+## Dati locali e backup
+
+Il database locale viene salvato in:
 
 - data/searcher.db
 
-Tabelle principali:
+Backup consigliato prima di update grossi:
 
-- jobs
-- scan_runs
-- candidate_profiles
-- chat_messages
-- preferences
-- job_actions
+```powershell
+Copy-Item data/searcher.db data/searcher_backup.db
+```
 
-## 12) Migrazione CSV storico
+## Troubleshooting rapido
 
-Comando:
+1. Modulo mancante
 
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe scripts/migrate_csv_to_sqlite.py --csv lavori_20260303_1626.csv --db data/searcher.db
-~~~
+```powershell
+python -m pip install -r requirements.txt
+```
 
-Effetto:
+2. Porta 8000 occupata
+- Chiudi il processo che usa la porta
 
-- importa annunci dal CSV nello storage SQLite
-- conserva punteggio/consiglio e campi analisi principali
-- se "Mandata candidatura?" e valorizzato, imposta stato applied
+3. Provider non attivo
+- Verifica variabili API key
+- Ricontrolla /api/health
 
-## 13) Compatibilita con script storico
-
-- job_analyzer.py resta nel progetto come baseline storica
-- la web app esporta CSV con colonne compatibili per continuita workflow
-
-## 14) Test automatici
-
-Esegui i test:
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe -m pytest -q
-~~~
-
-Copertura attuale:
-
-- policy selezione modello
-- filtri DB e stato azioni
-- smoke API (health, job manuale, dettaglio)
-
-## 15) Troubleshooting
-
-Errore import moduli mancanti:
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe -m pip install -r requirements.txt
-~~~
-
-Porta 8000 occupata:
-
-- Chiudi il processo esistente oppure avvia uvicorn su porta differente.
-
-Provider non disponibile:
-
-- Controlla API key ambiente
-- Verifica /api/health per provider attivo e modelli rilevati
-
-PDF DOCX non letti:
-
+4. PDF o DOCX non letto
 - Verifica installazione pypdf e python-docx
 
-## 16) Sicurezza e privacy
+## Sicurezza minima
 
-- Non committare groq key.txt
-- Non committare API key in chiaro
-- Il database locale puo contenere dati sensibili del CV
-- Usa machine locale fidata
-
-## 17) Roadmap consigliata (next)
-
-- Alert automatici candidature prioritarie (digest giornaliero)
-- Miglior parser preferenze da chat (intent avanzati)
-- Dashboard analytics candidature (conversione, response rate)
-
-## 18) Comandi rapidi
-
-Install:
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe -m pip install -r requirements.txt
-~~~
-
-Run:
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe run_webapp.py
-~~~
-
-Health:
-
-~~~powershell
-Invoke-RestMethod http://127.0.0.1:8000/api/health | ConvertTo-Json -Depth 8
-~~~
-
-Migrazione CSV:
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe scripts/migrate_csv_to_sqlite.py --csv lavori_20260303_1626.csv --db data/searcher.db
-~~~
-
-Test:
-
-~~~powershell
-C:/Users/diego/AppData/Local/Programs/Python/Python311/python.exe -m pytest -q
-~~~
+- Non committare API key
+- Non caricare CV personali sensibili in repo pubbliche
+- Usa il DB solo su macchina fidata
