@@ -15,5 +15,4 @@ node_modules/
 playwright-report/
 test-results/
 screenshots/readme/*.json
-screenshots
 tests
