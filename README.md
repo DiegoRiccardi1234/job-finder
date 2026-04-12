@@ -15,6 +15,42 @@ Uso previsto: 1 persona per PC (tu e il tuo amico ognuno sul proprio computer, c
 
 Non ci sono piu file legacy, storico CSV, CV personale o test/dev script.
 
+## Screenshot Reali Desktop (CV IT + EN)
+
+Queste immagini sono state generate con test browser automatici Playwright usando i tuoi PDF locali IT/EN.
+
+CV Italiano caricato (Settings):
+
+![Settings CV IT](screenshots/readme/settings-cv-it.png)
+
+Dashboard con raccomandazioni (profilo IT):
+
+![Dashboard Recommendations IT](screenshots/readme/dashboard-recommendations-it.png)
+
+Dettaglio top job (profilo IT):
+
+![Discover Top Job IT](screenshots/readme/discover-top-job-it.png)
+
+CV Inglese caricato (Settings):
+
+![Settings CV EN](screenshots/readme/settings-cv-en.png)
+
+Dashboard con raccomandazioni (profilo EN):
+
+![Dashboard Recommendations EN](screenshots/readme/dashboard-recommendations-en.png)
+
+Dettaglio top job (profilo EN):
+
+![Discover Top Job EN](screenshots/readme/discover-top-job-en.png)
+
+Lavori consigliati mostrati nei test:
+
+- Data & Automation Specialist (Nordic Operations)
+- AI Product Engineer (NextWave Talent)
+- Senior Backend Python Engineer (Alpine Data Labs)
+
+Nota: con API key non valida il sistema mostra consiglio "Da verificare manualmente" e punteggio 0/10. Con key corretta gli score e i consigli AI vengono calcolati normalmente.
+
 ## Requisiti
 
 - Python 3.11+
