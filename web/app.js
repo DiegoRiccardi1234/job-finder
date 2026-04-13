@@ -20,13 +20,13 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Errore API ${response.status}`);
+    throw new Error(text || `API Error ${response.status}`);
   }
   return response.json();
 }
 
 let selectedJobId = null;
-const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey"];
+const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey", "openrouterKey"];
 
 function hasAnyProviderConfigured(keys) {
   return Boolean(
@@ -34,7 +34,8 @@ function hasAnyProviderConfigured(keys) {
       || keys.groq_configured
       || keys.openai_configured
       || keys.anthropic_configured
-      || keys.google_configured,
+      || keys.google_configured
+      || keys.openrouter_configured,
   );
 }
 
@@ -45,6 +46,7 @@ function normalizeKeyStatus(keys = {}, provider = {}) {
     openai_configured: !!keys.openai_configured,
     anthropic_configured: !!keys.anthropic_configured,
     google_configured: !!keys.google_configured,
+    openrouter_configured: !!keys.openrouter_configured,
     primary_provider: keys.primary_provider || "",
     active_provider: provider.active_provider || "none",
     active_model: provider.active_model || "none",
@@ -89,8 +91,8 @@ function escapeHtml(value) {
 
 function roleLabel(role) {
   if (role === "assistant") return "Coach";
-  if (role === "user") return "Tu";
-  return "Sistema";
+  if (role === "user") return "You";
+  return "System";
 }
 
 function appendChat(role, content) {
@@ -111,7 +113,7 @@ function appendChat(role, content) {
 async function loadHealth() {
   const health = await api("/api/health");
   setText("providerBadge", `Provider: ${health.provider.active_provider}`);
-  setText("modelBadge", `Modello: ${health.provider.active_model}`);
+  setText("modelBadge", `Model: ${health.provider.active_model}`);
 
   const prefs = health.preferences || {};
   const linkedinInput = document.getElementById("linkedinUrl");
@@ -160,6 +162,7 @@ async function saveKeys() {
   const openai = document.getElementById("openaiKey").value.trim();
   const anthropic = document.getElementById("anthropicKey").value.trim();
   const google = document.getElementById("googleKey").value.trim();
+  const openrouter = document.getElementById("openrouterKey").value.trim();
   const primaryProvider = document.getElementById("primaryProvider").value.trim();
 
   const payload = {};
@@ -168,6 +171,7 @@ async function saveKeys() {
   if (openai) payload.openai_api_key = openai;
   if (anthropic) payload.anthropic_api_key = anthropic;
   if (google) payload.google_api_key = google;
+  if (openrouter) payload.openrouter_api_key = openrouter;
   payload.primary_provider = primaryProvider;
 
   if (
@@ -176,6 +180,7 @@ async function saveKeys() {
     && !payload.openai_api_key
     && !payload.anthropic_api_key
     && !payload.google_api_key
+    && !payload.openrouter_api_key
     && !payload.primary_provider
   ) {
     showToast("Inserisci almeno una key o scegli un provider primario.", "info");
@@ -194,7 +199,7 @@ async function saveKeys() {
   await loadHealth();
   await loadKeysStatus();
   setKeysSectionMode(true);
-  showToast("Configurazione provider salvata. Motore AI ricaricato.", "info");
+  showToast("Provider config saved. AI engine reloaded.", "info");
 }
 
 async function loadProfiles() {
@@ -234,13 +239,13 @@ async function showJobDetail(jobId) {
   selectedJobId = job.id || null;
 
   setText("detailStatus", `Stato: ${job.status || "open"}`);
-  setText("detailTitle", job.titolo || "Titolo non disponibile");
-  setText("detailCompany", job.azienda || "Azienda non disponibile");
+  setText("detailTitle", job.titolo || "Title unavailable");
+  setText("detailCompany", job.azienda || "Company unavailable");
   setText(
     "detailMeta",
     `${job.sede || "Sede N/D"} | Score ${job.punteggio_ai || 0}/10 | ${job.modalita || "Modalita N/D"}`,
   );
-  setText("detailAdvice", job.consiglio || "Valuta il fit e prepara una candidatura mirata.");
+  setText("detailAdvice", job.consiglio || "Evaluate the fit and prepare a targeted application.");
 
   const detailLinkBtn = document.getElementById("detailLinkBtn");
   if (detailLinkBtn) {
@@ -277,28 +282,28 @@ async function showJobDetail(jobId) {
             <div class="text-sm mt-8 text-center">${escapeHtml((analysis ? analysis.consiglio : null) || job.consiglio || "")}</div>
           </div>
           <div class="info-card">
-            <h4>Dettagli Posizione</h4>
+            <h4>Position Details</h4>
             ${ralSpan}
-            <div class="info-tag"><strong>Contratto:</strong> ${escapeHtml((analysis ? analysis.contratto : null) || "N/D")}</div>
-            <div class="info-tag"><strong>Remote:</strong> ${escapeHtml((analysis ? analysis.smart_working : null) || job.modalita || "N/D")}</div>
-            <div class="info-tag"><strong>Esperienza:</strong> ${escapeHtml((analysis ? analysis.anni_esperienza_richiesti : null) || "N/D")}</div>
-            <div class="info-tag"><strong>Skill Code:</strong> ${escapeHtml((analysis ? analysis.programmazione_richiesta : null) || "N/D")}</div>
-            <div class="info-tag"><strong>Neolaureati:</strong> ${escapeHtml((analysis ? analysis.adatta_neolaureati : null) || "N/D")}</div>
+            <div class="info-tag"><strong>Contract:</strong> ${escapeHtml((analysis ? analysis.contratto : null) || "N/A")}</div>
+            <div class="info-tag"><strong>Remote:</strong> ${escapeHtml((analysis ? analysis.smart_working : null) || job.modalita || "N/A")}</div>
+            <div class="info-tag"><strong>Experience:</strong> ${escapeHtml((analysis ? analysis.anni_esperienza_richiesti : null) || "N/A")}</div>
+            <div class="info-tag"><strong>Coding Skills:</strong> ${escapeHtml((analysis ? analysis.programmazione_richiesta : null) || "N/A")}</div>
+            <div class="info-tag"><strong>Graduate-friendly:</strong> ${escapeHtml((analysis ? analysis.adatta_neolaureati : null) || "N/A")}</div>
           </div>
         </div>
         <div class="mt-16">
-          <h4>Vantaggi e Svantaggi</h4>
+          <h4>Pros &amp; Cons</h4>
           <ul class="pros-cons">
-            <li class="pro">✅ ${escapeHtml((analysis ? analysis.punti_forza_per_diego : null) || "N/D")}</li>
-            <li class="con">❌ ${escapeHtml((analysis ? analysis.punti_deboli_per_diego : null) || "N/D")}</li>
+            <li class="pro">✅ ${escapeHtml((analysis ? analysis.punti_forza_per_diego : null) || "N/A")}</li>
+            <li class="con">❌ ${escapeHtml((analysis ? analysis.punti_deboli_per_diego : null) || "N/A")}</li>
           </ul>
         </div>
         <div class="info-card mt-8">
-            <p class="text-sm">💡 <strong>Giudizio AI:</strong> ${escapeHtml((analysis ? analysis.riassunto : null) || "")}</p>
+            <p class="text-sm">💡 <strong>AI Verdict:</strong> ${escapeHtml((analysis ? analysis.riassunto : null) || "")}</p>
         </div>
         <div class="mt-16">
-          <h4>Meta Annuncio</h4>
-          <p class="text-sm text-dim">Ricerca: ${escapeHtml(job.ricerca_usata)} | Fonte: ${escapeHtml(job.fonte || "App")} | Rilevato: ${escapeHtml(job.first_seen_at || "")} | Azienda Rep: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/D")}</p>
+          <h4>Listing Meta</h4>
+          <p class="text-sm text-dim">Search: ${escapeHtml(job.ricerca_usata)} | Source: ${escapeHtml(job.fonte || "App")} | Found: ${escapeHtml(job.first_seen_at || "")} | Company Rep: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
         </div>
       </div>
     `;
@@ -329,9 +334,9 @@ async function toggleFavorite(jobId, isFavorite) {
 
 function recommendationCardHtml(job) {
   const score = Number(job.punteggio_ai || 0);
-  const consiglio = escapeHtml(job.consiglio || "Valuta il match");
-  const title = escapeHtml(job.titolo || "Titolo non disponibile");
-  const company = escapeHtml(job.azienda || "Azienda non disponibile");
+  const consiglio = escapeHtml(job.consiglio || "Evaluate match");
+  const title = escapeHtml(job.titolo || "Title unavailable");
+  const company = escapeHtml(job.azienda || "Company unavailable");
   const newTag = job.is_new ? "<span class=\"pill-new\">Nuovo</span>" : "";
   const favoriteText = job.is_favorite ? "Togli Preferito" : "Preferito";
   const nextFavorite = job.is_favorite ? "0" : "1";
@@ -347,9 +352,9 @@ function recommendationCardHtml(job) {
       <div>${consiglio}</div>
       ${linkHtml}
       <div class="rec-actions">
-        <button class="secondary" data-rec-action="detail" data-id="${job.id}">Dettaglio</button>
-        <button data-rec-action="applied" data-id="${job.id}">Candida ora</button>
-        <button class="danger" data-rec-action="rejected" data-id="${job.id}">Scarta</button>
+        <button class="secondary" data-rec-action="detail" data-id="${job.id}">Details</button>
+        <button data-rec-action="applied" data-id="${job.id}">Apply</button>
+        <button class="danger" data-rec-action="rejected" data-id="${job.id}">Skip</button>
         <button class="secondary" data-rec-favorite="${nextFavorite}" data-id="${job.id}">${favoriteText}</button>
       </div>
     </article>
@@ -366,7 +371,7 @@ async function loadRecommendations() {
     const jobs = payload.jobs || [];
 
     if (!jobs.length) {
-      container.innerHTML = '<article class="rec-card"><div class="rec-title">Nessuna raccomandazione disponibile</div><div>Carica il CV e avvia una scansione per vedere i migliori job.</div></article>';
+      container.innerHTML = '<article class="rec-card"><div class="rec-title">No recommendations yet</div><div>Upload your CV and run a scan to see top job picks.</div></article>';
       return;
     }
 
@@ -383,7 +388,7 @@ async function loadRecommendations() {
           }
           await performJobAction(id, action);
         } catch (error) {
-          showToast(`Errore azione rapida: ${error.message}`, "info");
+          showToast(`Quick action error: ${error.message}`, "info");
         }
       });
     });
@@ -395,12 +400,12 @@ async function loadRecommendations() {
         try {
           await toggleFavorite(id, fav);
         } catch (error) {
-          showToast(`Errore preferito: ${error.message}`, "info");
+          showToast(`Favorite error: ${error.message}`, "info");
         }
       });
     });
   } catch (error) {
-    container.innerHTML = `<article class="rec-card"><div class="rec-title">Errore caricamento</div><div>${escapeHtml(error.message)}</div></article>`;
+    container.innerHTML = `<article class="rec-card"><div class="rec-title">Loading error</div><div>${escapeHtml(error.message)}</div></article>`;
   }
 }
 
@@ -423,7 +428,7 @@ async function loadChatPrompts() {
       wrap.appendChild(btn);
     }
   } catch (error) {
-    showToast(`Prompt rapidi non disponibili: ${error.message}`, "info");
+    showToast(`Quick prompts unavailable: ${error.message}`, "info");
   }
 }
 
@@ -439,13 +444,30 @@ async function sendChatMessage(message) {
   }
 
   try {
+    const providerSelector = document.getElementById("chatModelSelector");
+    const providerVal = providerSelector && providerSelector.value ? providerSelector.value : null;
+
     const result = await api("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message: text, session_id: "default" }),
+      body: JSON.stringify({ message: text, session_id: "default", provider: providerVal }),
     });
-    appendChat("assistant", result.answer || "Nessuna risposta disponibile.");
+    appendChat("assistant", result.answer || "No response available.");
+
+    if (result.action && result.action.type === "FILL_SCAN_FORM") {
+      // populate tags
+      if (typeof getKeywords !== "function" || typeof getLocations !== "function") {
+          console.warn("Tag setups not ready");
+      } else {
+         const kwTags = getKeywords.addMultiple(result.action.keywords || []);
+         const locTags = getLocations.addMultiple(result.action.locations || []);
+         if (kwTags || locTags) {
+           showToast("Form compilato, clicca 'Start Scan' nelle impostazioni", "info");
+           activateView("settings");
+         }
+      }
+    }
   } catch (error) {
-    appendChat("assistant", `Errore chat: ${error.message}`);
+    appendChat("assistant", `Chat error: ${error.message}`);
   }
 }
 
@@ -481,15 +503,15 @@ async function loadJobs() {
       <td>${truncate(job.azienda || "")}</td>
       <td>${job.status}</td>
       <td>
-        <button data-detail-id="${job.id}" class="secondary">Dettaglio</button>
+        <button data-detail-id="${job.id}" class="secondary">Details</button>
         ${job.link ? `<a href="${job.link}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ''}
       </td>
       <td>
         <div class="mini">
-          <button data-action="applied" data-id="${job.id}">Candidata</button>
-          <button data-action="rejected" data-id="${job.id}" class="danger">Scarta</button>
-          <button data-action="reopened" data-id="${job.id}" class="secondary">Riapri</button>
-          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary">${job.is_favorite ? "Togli Preferito" : "Preferito"}</button>
+          <button data-action="applied" data-id="${job.id}">Apply</button>
+          <button data-action="rejected" data-id="${job.id}" class="danger">Skip</button>
+          <button data-action="reopened" data-id="${job.id}" class="secondary">Reopen</button>
+          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary">${job.is_favorite ? "Unfavorite" : "Favorite"}</button>
         </div>
       </td>
     `;
@@ -503,7 +525,7 @@ async function loadJobs() {
       try {
         await performJobAction(id, action);
       } catch (error) {
-        showToast(`Errore azione: ${error.message}`, "info");
+        showToast(`Action error: ${error.message}`, "info");
       }
     });
   });
@@ -515,7 +537,7 @@ async function loadJobs() {
       try {
         await toggleFavorite(id, fav);
       } catch (error) {
-        showToast(`Errore preferito: ${error.message}`, "info");
+        showToast(`Favorite error: ${error.message}`, "info");
       }
     });
   });
@@ -526,7 +548,7 @@ async function loadJobs() {
       try {
         await showJobDetail(id);
       } catch (error) {
-        showToast(`Errore dettaglio: ${error.message}`, "info");
+        showToast(`Detail error: ${error.message}`, "info");
       }
     });
   });
@@ -550,12 +572,12 @@ document.getElementById("linkedinForm").addEventListener("submit", async (event)
       body: JSON.stringify({ key: "linkedin_url", value: url }),
     });
     const status = document.getElementById("linkedinStatus");
-    status.textContent = "URL LinkedIn salvato con successo.";
+    status.textContent = "LinkedIn URL saved successfully.";
     status.classList.remove("hidden");
     setTimeout(() => status.classList.add("hidden"), 3000);
-    showToast("URL di LinkedIn salvato. L'AI lo userà nelle prossime analisi.", "info");
+    showToast("LinkedIn URL saved. AI will use it in future analyses.", "info");
   } catch (error) {
-    showToast(`Errore salvataggio LinkedIn: ${error.message}`, "info");
+    showToast(`LinkedIn save error: ${error.message}`, "info");
   }
 });
 
@@ -572,7 +594,7 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
     body: formData,
   });
   if (!response.ok) {
-    setText("cvSummary", `Errore upload: ${await response.text()}`);
+    setText("cvSummary", `Upload error: ${await response.text()}`);
     return;
   }
 
@@ -587,7 +609,7 @@ document.getElementById("keysForm").addEventListener("submit", async (event) => 
   try {
     await saveKeys();
   } catch (error) {
-    setText("keysStatus", `Errore salvataggio key: ${error.message}`);
+    setText("keysStatus", `Key save error: ${error.message}`);
   }
 });
 
@@ -597,30 +619,84 @@ document.getElementById("showKeysFormBtn").addEventListener("click", () => {
 
 document.getElementById("scanForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const termsText = document.getElementById("searchTerms").value.trim();
-  const terms = termsText ? termsText.split("\n").map((x) => x.trim()).filter(Boolean) : [];
   
+  // Add any pending typed text that wasn't entered
+  const kwInputRaw = document.getElementById("keywordsInput").value.trim();
+  if (kwInputRaw) {
+    getKeywords.addMultiple([kwInputRaw]);
+    document.getElementById("keywordsInput").value = '';
+  }
+  const locInputRaw = document.getElementById("locationsInput").value.trim();
+  if (locInputRaw) {
+    getLocations.addMultiple([locInputRaw]);
+    document.getElementById("locationsInput").value = '';
+  }
+
+  const termsText = getKeywords.getTags().join(", ");
   const siteCheckboxes = document.querySelectorAll('input[name="scanSites"]:checked');
   const selectedSites = Array.from(siteCheckboxes).map(cb => cb.value);
+  const isRemote = document.getElementById("remoteToggle")?.checked || false;
+  const location = getLocations.getTags().join(", ");
 
-  const payload = {
-    search_terms: terms,
-    location: document.getElementById("locationInput").value.trim() || null,
-    is_remote: document.getElementById("remoteOnly").checked,
-    sites: selectedSites.length > 0 ? selectedSites : ["linkedin", "indeed"],
+  const params = new URLSearchParams();
+  if (termsText) params.set("search_terms", termsText);
+  if (location) params.set("location", location);
+  params.set("is_remote", isRemote);
+  params.set("sites", (selectedSites.length > 0 ? selectedSites : ["linkedin", "indeed"]).join(","));
+
+  // Show scan overlay
+  const overlay = document.getElementById("scanOverlay");
+  const progressText = document.getElementById("scanProgressText");
+  const progressFill = document.getElementById("scanProgressFill");
+  overlay.style.display = "flex";
+  progressFill.style.width = "5%";
+  progressText.textContent = "Connecting to job portals...";
+
+  let analysisCount = 0;
+  let totalFound = 0;
+
+  const evtSource = new EventSource(`/api/scan/stream?${params.toString()}`);
+  evtSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.status === "started") {
+        progressText.textContent = `Searching: ${(data.terms || []).join(", ")}`;
+        progressFill.style.width = "10%";
+      } else if (data.status === "scraped") {
+        totalFound += data.found || 0;
+        progressText.textContent = `Found ${totalFound} jobs — analyzing with AI...`;
+        progressFill.style.width = "30%";
+      } else if (data.status === "analyzed") {
+        analysisCount++;
+        const pct = Math.min(30 + (analysisCount * 3), 90);
+        progressFill.style.width = pct + "%";
+        const j = data.job || {};
+        progressText.textContent = `Analyzed: ${j.titolo || "?"} @ ${j.azienda || "?"} — Score ${j.score || 0}/10`;
+      } else if (data.status === "complete") {
+        progressFill.style.width = "100%";
+        progressText.textContent = `Done! ${data.totale_nuovi || 0} new jobs, ${data.totale_analizzati || 0} analyzed.`;
+        evtSource.close();
+        setTimeout(() => { overlay.style.display = "none"; }, 2000);
+        Promise.all([loadJobs(), loadRecommendations()]);
+      } else if (data.error) {
+        progressText.textContent = `Error: ${data.error}`;
+        evtSource.close();
+        setTimeout(() => { overlay.style.display = "none"; }, 3000);
+      }
+    } catch (_) {}
+  };
+  evtSource.onerror = () => {
+    evtSource.close();
+    progressText.textContent = "Connection lost. Check results below.";
+    setTimeout(() => { overlay.style.display = "none"; }, 2000);
+    Promise.all([loadJobs(), loadRecommendations()]);
   };
 
-  setText("scanOutput", "Scansione in corso...");
-  try {
-    const result = await api("/api/scan", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setText("scanOutput", JSON.stringify(result, null, 2));
-    await Promise.all([loadJobs(), loadRecommendations()]);
-  } catch (error) {
-    setText("scanOutput", `Errore scansione: ${error.message}`);
-  }
+  document.getElementById("cancelScanBtn").onclick = () => {
+    evtSource.close();
+    overlay.style.display = "none";
+    Promise.all([loadJobs(), loadRecommendations()]);
+  };
 });
 
 document.getElementById("manualForm").addEventListener("submit", async (event) => {
@@ -639,7 +715,7 @@ document.getElementById("manualForm").addEventListener("submit", async (event) =
   });
 
   await Promise.all([loadJobs(), loadRecommendations()]);
-  showToast("Annuncio manuale aggiunto e analizzato.", "info");
+  showToast("Manual job added and analyzed.", "info");
 });
 
 const _chatForm = document.getElementById("chatForm");
@@ -660,7 +736,7 @@ if (_quickRecommendBtn) _quickRecommendBtn.addEventListener("click", async () =>
     offcanvas.classList.add('is-open');
   }
 
-  await sendChatMessage("Consigliami i 5 lavori migliori da candidare oggi, in ordine di priorita.");
+  await sendChatMessage("Recommend the top 5 jobs I should apply for today, in priority order.");
 });
 
 const _refreshRecommendationsBtn = document.getElementById("refreshRecommendationsBtn");
@@ -687,19 +763,19 @@ document.getElementById("railRecommendBtn").addEventListener("click", async () =
     offcanvas.classList.add('is-open');
   }
 
-  await sendChatMessage("Consigliami i lavori piu forti su cui candidarmi adesso, con ordine di priorita.");
+  await sendChatMessage("Recommend the strongest jobs I should apply for right now, in priority order.");
 });
 
 document.getElementById("detailApplyNowBtn").addEventListener("click", async () => {
   if (!selectedJobId) {
-    showToast("Apri prima un annuncio in dettaglio.", "info");
+    showToast("Open a job detail first.", "info");
     return;
   }
   try {
     await performJobAction(selectedJobId, "applied");
-    showToast("Candidatura marcata come inviata.", "info");
+    showToast("Application marked as sent.", "info");
   } catch (error) {
-    showToast(`Errore candidatura: ${error.message}`, "info");
+    showToast(`Application error: ${error.message}`, "info");
   }
 });
 
@@ -711,14 +787,14 @@ if (genCovBtn) {
     const outTxt = document.getElementById("coverLetterOutput");
     
     outBox.style.display = "block";
-    outTxt.value = "Generazione in corso (potrebbe richiedere qualche secondo)...";
+    outTxt.value = "Generating (may take a few seconds)...";
     genCovBtn.disabled = true;
 
     try {
       const payload = await api(`/api/jobs/${selectedJobId}/cover-letter`, { method: "POST" });
-      outTxt.value = payload.cover_letter || "Nessun risultato ricevuto.";
+      outTxt.value = payload.cover_letter || "No result received.";
     } catch (error) {
-      outTxt.value = `Errore generazione: ${error.message}`;
+      outTxt.value = `Generation error: ${error.message}`;
     } finally {
       genCovBtn.disabled = false;
     }
@@ -753,7 +829,7 @@ async function bootstrap() {
 
 bootstrap().catch((error) => {
   console.error(error);
-  showToast(`Errore inizializzazione: ${error.message}`, "info");
+  showToast(`Initialization error: ${error.message}`, "info");
 });
 
 
@@ -853,3 +929,63 @@ activateView = function(viewName) {
         loadAnalytics();
     }
 };
+// Tag Input UI Logic
+function setupTagInput(containerId, inputId) {
+    const container = document.getElementById(containerId);
+    const input = document.getElementById(inputId);
+    const tags = [];
+
+    if (!container || !input) return { getTags: () => [], addMultiple: () => false };
+
+    function renderTags() {
+        container.querySelectorAll('.tag').forEach(el => el.remove());
+        tags.forEach((tagText, index) => {
+            const tagEl = document.createElement('span');
+            tagEl.className = 'tag';
+            tagEl.textContent = tagText;
+            
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'remove-tag material-symbols-outlined';
+            removeBtn.textContent = 'close';
+            removeBtn.onclick = () => {
+                tags.splice(index, 1);
+                renderTags();
+            };
+            
+            tagEl.appendChild(removeBtn);
+            container.insertBefore(tagEl, input);
+        });
+    }
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = input.value.trim();
+            if (val && !tags.includes(val)) {
+                tags.push(val);
+                input.value = '';
+                renderTags();
+            }
+        }
+    });
+
+    return {
+        getTags: () => tags,
+        addMultiple: (newTags) => {
+            if (!Array.isArray(newTags)) return false;
+            let added = false;
+            for(const nt of newTags) {
+                const val = (nt||'').trim();
+                if(val && !tags.includes(val)) {
+                    tags.push(val);
+                    added = true;
+                }
+            }
+            if(added) renderTags();
+            return added;
+        }
+    };
+}
+
+const getKeywords = setupTagInput('keywordsContainer', 'keywordsInput');
+const getLocations = setupTagInput('locationsContainer', 'locationsInput');

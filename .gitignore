@@ -16,3 +16,8 @@ playwright-report/
 test-results/
 screenshots/readme/*.json
 tests
+.playwright-mcp/
+CLAUDE.md
+phase*.png
+verify*.png
+snapshot-*.md

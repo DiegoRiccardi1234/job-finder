@@ -7,7 +7,7 @@ def _extract_text_pdf(data: bytes) -> str:
     try:
         from pypdf import PdfReader
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("Per i PDF installa pypdf") from exc
+        raise RuntimeError("Install pypdf for PDF support") from exc
 
     reader = PdfReader(BytesIO(data))
     chunks: list[str] = []
@@ -20,7 +20,7 @@ def _extract_text_docx(data: bytes) -> str:
     try:
         from docx import Document
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("Per i DOCX installa python-docx") from exc
+        raise RuntimeError("Install python-docx for DOCX support") from exc
 
     doc = Document(BytesIO(data))
     lines = [p.text for p in doc.paragraphs]
@@ -35,33 +35,38 @@ def extract_markdown_from_upload(filename: str, data: bytes) -> str:
         return _extract_text_pdf(data)
     if lower.endswith(".docx"):
         return _extract_text_docx(data)
-    raise RuntimeError("Formato CV non supportato. Usa .md, .txt, .pdf o .docx")
+    raise RuntimeError("Unsupported CV format. Use .md, .txt, .pdf or .docx")
 
 
 def summarize_profile(markdown_text: str) -> dict[str, Any]:
+    """Keyword-based profile summary (fast, no LLM needed)."""
     lower = markdown_text.lower()
 
-    keywords = [
-        "qa",
-        "analista",
-        "cybersecurity",
-        "soc",
-        "python",
-        "typescript",
-        "react",
-        "java",
-        "sql",
-        "automation",
+    skill_keywords = [
+        "qa", "testing", "analista", "analyst", "cybersecurity", "soc",
+        "python", "typescript", "javascript", "react", "java", "sql",
+        "automation", "devops", "docker", "kubernetes", "git",
+        "machine learning", "data analysis", "agile", "scrum",
+        "api", "rest", "graphql", "node", "fastapi", "django",
+        "c#", ".net", "azure", "aws", "gcp", "linux",
     ]
-    found_skills = [kw for kw in keywords if kw in lower]
+    found_skills = [kw for kw in skill_keywords if kw in lower]
 
     preferred_roles: list[str] = []
     role_map = [
-        ("analista", "Analista Funzionale Junior"),
+        ("analyst", "Junior Business Analyst"),
+        ("analista", "Junior Business Analyst"),
         ("qa", "Junior QA Tester"),
+        ("testing", "Junior QA Tester"),
         ("cybersecurity", "Junior Cybersecurity Analyst"),
         ("soc", "Junior SOC Analyst"),
-        ("automation", "AI Automation Specialist Junior"),
+        ("data analy", "Junior Data Analyst"),
+        ("machine learning", "Junior ML Engineer"),
+        ("automation", "Junior Automation Engineer"),
+        ("devops", "Junior DevOps Engineer"),
+        ("python", "Junior Python Developer"),
+        ("react", "Junior Frontend Developer"),
+        ("full stack", "Junior Full Stack Developer"),
     ]
     for trigger, role in role_map:
         if trigger in lower and role not in preferred_roles:
@@ -73,7 +78,33 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
         graduation_year = years[-1]
 
     return {
-        "skills_rilevate": found_skills,
-        "ruoli_preferiti": preferred_roles,
-        "anno_riferimento_cv": graduation_year,
+        "skills": found_skills,
+        "preferred_roles": preferred_roles,
+        "graduation_year": graduation_year,
     }
+
+
+def summarize_profile_with_llm(
+    markdown_text: str, provider_manager: "Any"
+) -> dict[str, Any]:
+    """Rich profile summary using LLM. Falls back to keyword-based if LLM fails."""
+    prompt = (
+        "You are an expert career advisor. Analyze this CV/resume and extract a structured profile.\n"
+        "Return a JSON object with these fields:\n"
+        "- skills: list of technical and soft skills found\n"
+        "- preferred_roles: list of 3-5 job titles that best match this candidate\n"
+        "- experience_level: 'entry' | 'junior' | 'mid' | 'senior'\n"
+        "- years_experience: estimated years of professional experience (number)\n"
+        "- strengths: list of 3 key strengths\n"
+        "- industries: list of industries the candidate has experience in\n"
+        "- education: highest education level and field\n"
+        "- summary: 2-3 sentence professional summary\n\n"
+        f"CV Content:\n{markdown_text[:3000]}"
+    )
+    try:
+        result = provider_manager.complete_json(prompt=prompt, max_tokens=600)
+        if isinstance(result, dict):
+            return result
+    except Exception:
+        pass
+    return summarize_profile(markdown_text)

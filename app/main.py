@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import AppSettings, load_settings, save_local_provider_keys
-from app.cv_ingest import extract_markdown_from_upload, summarize_profile
+from app.cv_ingest import extract_markdown_from_upload, summarize_profile, summarize_profile_with_llm
 from app.db import Database
 from app.models import (
     ChatRequest,
@@ -61,6 +61,7 @@ class AppContainer:
             "openai_configured": bool(self.settings.openai_api_key),
             "anthropic_configured": bool(self.settings.anthropic_api_key),
             "google_configured": bool(self.settings.google_api_key),
+            "openrouter_configured": bool(self.settings.openrouter_api_key),
             "primary_provider": primary,
         }
 
@@ -73,7 +74,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         yield
         container.shutdown()
 
-    fastapi_app = FastAPI(title="Job Finder Universale", version="0.2.0", lifespan=lifespan)
+    fastapi_app = FastAPI(title="The Curated Career", version="0.3.0", lifespan=lifespan)
     web_dir = workspace_dir / "web"
     fastapi_app.mount("/web", StaticFiles(directory=web_dir), name="web")
 
@@ -108,6 +109,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
             openai_api_key=payload.openai_api_key,
             anthropic_api_key=payload.anthropic_api_key,
             google_api_key=payload.google_api_key,
+            openrouter_api_key=payload.openrouter_api_key,
             primary_provider=payload.primary_provider,
         )
         container.reload_providers()
@@ -121,9 +123,12 @@ def create_app(workspace_dir: Path) -> FastAPI:
     async def upload_cv(file: UploadFile = File(...)) -> dict:
         data = await file.read()
         if not data:
-            raise HTTPException(status_code=400, detail="File CV vuoto")
+            raise HTTPException(status_code=400, detail="Empty CV file")
         markdown = extract_markdown_from_upload(file.filename or "cv", data)
-        summary = summarize_profile(markdown)
+        try:
+            summary = summarize_profile_with_llm(markdown, container.providers)
+        except Exception:
+            summary = summarize_profile(markdown)
         profile_id = container.db.save_candidate_profile(
             source_name=file.filename or "cv_upload",
             markdown=markdown,
@@ -156,7 +161,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
     def activate_profile(profile_id: int) -> dict:
         profile = container.db.get_candidate_profile(profile_id)
         if not profile:
-            raise HTTPException(status_code=404, detail="Profilo non trovato")
+            raise HTTPException(status_code=404, detail="Profile not found")
         container.db.set_active_profile(profile_id)
         return {"ok": True, "active_profile_id": profile_id}
 
@@ -231,14 +236,14 @@ def create_app(workspace_dir: Path) -> FastAPI:
     def get_job_detail(job_id: int) -> dict:
         job = container.db.get_job_with_analysis(job_id)
         if not job:
-            raise HTTPException(status_code=404, detail="Annuncio non trovato")
+            raise HTTPException(status_code=404, detail="Job not found")
         return {"job": job}
 
     @fastapi_app.post("/api/jobs/{job_id}/cover-letter")
     def generate_cover_letter(job_id: int) -> dict:
         job = container.db.get_job_with_analysis(job_id)
         if not job:
-            raise HTTPException(status_code=404, detail="Annuncio non trovato")
+            raise HTTPException(status_code=404, detail="Job not found")
             
         profile = container.db.get_active_candidate_profile()
         profile_markdown = profile["markdown"] if profile else "CV non disponibile."
@@ -277,7 +282,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
                 cover_letter = str(result)
             container.db.save_cover_letter(job_id, cover_letter)
         except Exception as e:
-            cover_letter = f"Errore durante la generazione: {e}"
+            cover_letter = f"Error generating cover letter: {e}"
             
         return {"cover_letter": cover_letter}
 
@@ -308,7 +313,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         job_id = container.db.add_manual_job(row)
 
         profile = container.db.get_active_candidate_profile()
-        profile_markdown = profile["markdown"] if profile else "Profilo non caricato"
+        profile_markdown = profile["markdown"] if profile else "Profile not loaded"
         
         linkedin_url = container.db.get_preference("linkedin_url", "")
         if linkedin_url:
@@ -328,7 +333,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     def set_job_action(job_id: int, payload: JobActionRequest) -> dict:
         job = container.db.get_job(job_id)
         if not job:
-            raise HTTPException(status_code=404, detail="Annuncio non trovato")
+            raise HTTPException(status_code=404, detail="Job not found")
         container.db.set_job_action(job_id=job_id, action=payload.action.value, notes=payload.notes)
         return {"ok": True}
 
@@ -336,7 +341,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     def set_favorite(job_id: int, payload: FavoriteRequest) -> dict:
         job = container.db.get_job(job_id)
         if not job:
-            raise HTTPException(status_code=404, detail="Annuncio non trovato")
+            raise HTTPException(status_code=404, detail="Job not found")
         container.db.set_favorite(job_id=job_id, is_favorite=payload.is_favorite)
         return {"ok": True}
 
@@ -347,6 +352,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
             provider_manager=container.providers,
             message=payload.message,
             session_id=payload.session_id,
+            provider=payload.provider,
         )
         return ChatResponse(**result)
 
@@ -359,10 +365,10 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     def chat_prompts() -> dict:
         return {
             "prompts": [
-                "Consigliami i 5 lavori migliori da candidare oggi",
-                "Spiegami perche il primo lavoro ha rating alto",
-                "Dammi un piano candidature per questa settimana",
-                "Suggeriscimi quali lavori evitare e perche",
+                "Recommend the top 5 jobs I should apply for today",
+                "Explain why the first job has a high rating",
+                "Give me an application plan for this week",
+                "Which jobs should I skip and why?",
             ]
         }
 
@@ -379,7 +385,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     def export_csv() -> dict:
         rows = container.db.export_jobs_for_csv()
         if not rows:
-            raise HTTPException(status_code=400, detail="Nessun annuncio da esportare")
+            raise HTTPException(status_code=400, detail="No jobs to export")
 
         output_name = f"lavori_webapp_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
         output_path = container.workspace_dir / output_name

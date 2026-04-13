@@ -101,7 +101,7 @@ def analyze_offer(
     try:
         result = provider_manager.complete_json(prompt=prompt, max_tokens=500)
         if not isinstance(result, dict):
-            return _fallback_analysis("risposta non valida")
+            return _fallback_analysis("invalid response")
         return result
     except Exception as exc:
         return _fallback_analysis(str(exc))
@@ -114,11 +114,11 @@ def run_scan(
     payload: ScanRequest,
 ):
     if scrape_jobs is None:
-        yield {"error": "python-jobspy non installato"}
+        yield {"error": "python-jobspy not installed"}
         return
 
     profile = db.get_active_candidate_profile()
-    profile_markdown = profile["markdown"] if profile else "Profilo non caricato."
+    profile_markdown = profile["markdown"] if profile else "Profile not loaded."
 
     linkedin_url = db.get_preference("linkedin_url", "")
     if linkedin_url:

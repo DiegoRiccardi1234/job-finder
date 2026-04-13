@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Job Finder Universale</title>
+  <title>The Curated Career — AI Job Finder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,700;1,400&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -13,159 +13,173 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">The Curated Career</div>
+    <div class="brand"><span class="brand-icon material-symbols-outlined">work</span> The Curated Career</div>
     <nav class="topnav">
-      <button type="button" class="nav-link is-active" data-view="dashboard">Dashboard</button>
-      <button type="button" class="nav-link" data-view="settings">Settings</button>
+      <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> Dashboard</button>
+      <button type="button" class="nav-link" data-view="settings"><span class="material-symbols-outlined">settings</span> Settings</button>
     </nav>
     <div class="topbar-right">
-      <button type="button" id="themeToggle" class="icon-btn" title="Toggle Tema" style="background:none;border:none;cursor:pointer;color:inherit;"><span class="material-symbols-outlined">light_mode</span></button>
-      <span class="material-symbols-outlined icon-btn">settings</span>
+      <button type="button" id="themeToggle" class="icon-btn" title="Toggle Theme" style="background:none;border:none;cursor:pointer;color:inherit;"><span class="material-symbols-outlined">light_mode</span></button>
       <div class="avatar">D</div>
     </div>
   </header>
 
   <main class="page-grid">
     <section id="view-dashboard" class="view is-active">
+
+      <!-- Hero -->
       <section class="hero-block">
-        <div>
-          <p class="eyebrow">Job Finder Universale</p>
-          <h1>Il tuo prossimo capitolo,<br /><em>curato con precisione.</em></h1>
-          <p class="hero-sub">Analisi CV, ranking AI e piano candidature pratico per decidere in pochi minuti dove candidarti oggi.</p>
+        <div class="hero-text">
+          <p class="eyebrow">AI-Powered Job Search</p>
+          <h1>Your next chapter,<br /><em>curated with precision.</em></h1>
+          <p class="hero-sub">CV analysis, AI ranking &amp; a practical application plan — decide where to apply in minutes.</p>
         </div>
         <div class="hero-meta">
           <article class="meta-card">
-            <span class="dot"></span>
+            <span class="meta-icon material-symbols-outlined">auto_awesome</span>
             <div>
-              <p class="micro">Modello Attivo</p>
-              <p id="modelBadge">Modello: ...</p>
+              <p class="micro">Active Model</p>
+              <p id="modelBadge">Model: ...</p>
             </div>
           </article>
           <article class="meta-card">
-            <span class="material-symbols-outlined">memory</span>
+            <span class="meta-icon material-symbols-outlined">memory</span>
             <div>
               <p class="micro">Provider</p>
               <p id="providerBadge">Provider: ...</p>
             </div>
           </article>
           <article class="meta-card">
-            <span class="material-symbols-outlined">person</span>
+            <span class="meta-icon material-symbols-outlined">person</span>
             <div>
-              <p class="micro">Profilo Attivo</p>
+              <p class="micro">Active Profile</p>
               <select id="profileSelect" class="profile-select"></select>
             </div>
           </article>
         </div>
       </section>
 
+      <!-- Action Center -->
       <section class="action-center">
         <button id="quickRecommendBtn" type="button" class="action-main">
           <span class="material-symbols-outlined">auto_awesome</span>
-          <strong>Consigliami i Top 5</strong>
-          <small>Selezione basata su CV e obiettivi</small>
+          <strong>Get Top 5 Picks</strong>
+          <small>AI selection based on your CV &amp; goals</small>
+        </button>
+        <button id="focusOpenBtn" type="button" class="action-alt">
+          <span class="material-symbols-outlined">inbox</span>
+          <strong>Open Jobs</strong>
+          <small>View all new opportunities</small>
+        </button>
+        <button type="button" class="action-alt" data-view="settings">
+          <span class="material-symbols-outlined">tune</span>
+          <strong>Configure</strong>
+          <small>CV, API keys &amp; search</small>
         </button>
       </section>
 
-      <section class="analytics-section" style="margin-top: 32px;">
+      <!-- Analytics -->
+      <section class="analytics-section">
         <div class="section-head">
-          <h2>Dashboard Analytics</h2>
+          <h2>Analytics</h2>
         </div>
-        <div style="display:flex; gap: 32px; flex-wrap: wrap;">
-          <div style="flex:1; min-width:300px; background:var(--surface); padding:16px; border-radius:8px; border:1px solid var(--border);">
-            <h4>Stato Candidature</h4>
+        <div class="analytics-grid">
+          <div class="analytics-card">
+            <h4><span class="material-symbols-outlined">bar_chart</span> Application Status</h4>
             <canvas id="statusChart"></canvas>
           </div>
-          <div style="flex:1; min-width:300px; background:var(--surface); padding:16px; border-radius:8px; border:1px solid var(--border);">
-            <h4>Andamento AI Score</h4>
+          <div class="analytics-card">
+            <h4><span class="material-symbols-outlined">insights</span> AI Score Distribution</h4>
             <canvas id="scoreChart"></canvas>
           </div>
         </div>
       </section>
 
+      <!-- Recommendations -->
       <section class="recommendations-section">
         <div class="section-head">
-          <h2>Consigliati per te</h2>
-          <p class="micro">Aggiornamento continuo</p>
+          <h2>Top Picks for You</h2>
+          <button id="refreshRecommendationsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span> Refresh</button>
         </div>
         <div id="recommendationsGrid" class="recommendations-grid"></div>
       </section>
 
-      <section class="jobs-section" style="margin-top: 32px;">
+      <!-- Jobs Archive -->
+      <section class="jobs-section">
         <div class="section-head jobs-head">
-          <h2>Archivio Lavori</h2>
-          <div class="view-toggles" style="display:flex; gap:8px;">
-            <button id="viewTableBtn" type="button" class="tab-pill is-active">Tabella</button>
-            <button id="viewKanbanBtn" type="button" class="tab-pill">Kanban</button>
+          <h2>Job Archive</h2>
+          <div class="view-toggles">
+            <button id="viewTableBtn" type="button" class="tab-pill is-active"><span class="material-symbols-outlined">table_rows</span> Table</button>
+            <button id="viewKanbanBtn" type="button" class="tab-pill"><span class="material-symbols-outlined">view_kanban</span> Kanban</button>
           </div>
         </div>
-        <div class="filters-row" style="margin-bottom:16px;">
-            <input id="searchText" type="text" placeholder="Cerca titolo o azienda" />
-            <input id="minScore" type="number" min="0" max="10" placeholder="Score min" />
-            <select id="statusFilter">
-              <option value="">Tutti stati</option>
-              <option value="open">Open</option>
-              <option value="applied">Applied</option>
-              <option value="rejected">Rejected</option>
-              <option value="archived">Archived</option>
-            </select>
-            <input id="maxAgeDays" type="number" min="1" max="365" placeholder="Max giorni" />
-            <label class="tiny-toggle"><input id="onlyNew" type="checkbox" /> Solo nuovi</label>
-            <label class="tiny-toggle"><input id="onlyFavorites" type="checkbox" /> Solo preferiti</label>
-            <button id="refreshJobsBtn" type="button" class="secondary">Aggiorna</button>
-            <button id="exportCsvBtn" type="button" class="secondary">Export CSV</button>
-            <button id="bulkActionBtn" type="button" class="secondary" title="Applica azione ai selezionati">Azione Massiva su Selezione (Applica Open/Scarta/etc dal filtro)</button>
+        <div class="filters-row">
+          <input id="searchText" type="text" placeholder="Search title or company..." />
+          <input id="minScore" type="number" min="0" max="10" placeholder="Min score" />
+          <input id="maxAgeDays" type="number" min="1" placeholder="Max age (days)" />
+          <label class="filter-check"><input id="onlyFavorites" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">favorite</span> Favorites</label>
+          <label class="filter-check"><input id="onlyNew" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">fiber_new</span> New</label>
+          <label class="filter-check"><input id="remoteOnly" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">home_work</span> Remote</label>
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="applied">Applied</option>
+            <option value="interviewing">Interviewing</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <button id="refreshJobsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span></button>
+          <button id="exportCsvBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">download</span> CSV</button>
         </div>
-        
-        <div id="tableView" class="table-wrap">
+
+        <div id="tableView" class="table-wrap is-active">
           <table>
             <thead>
               <tr>
-                <th><input type="checkbox" id="selectAllJobsCheckbox"/></th>
-                <th>Nuovo</th>
-                <th class="sortable" data-sort="score">Score ▼</th>
-                <th>Consiglio</th>
-                <th>Titolo</th>
-                <th>Azienda</th>
-                <th>Status</th>
-                <th>Dettaglio</th>
-                <th>Azioni</th>
+                <th>Score</th>
+                <th>Title</th>
+                <th>Company</th>
+                <th>Location</th>
+                <th>Source</th>
+                <th>Advice</th>
+                <th>Detail</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="jobsTableBody"></tbody>
           </table>
         </div>
-        
-        <div id="kanbanView" class="kanban-board" style="display:none;">
+
+        <div id="kanbanView" class="kanban-board">
           <div class="kanban-col" data-status="open">
-            <h3>Open <span class="badge" id="k-count-open">0</span></h3>
+            <div class="kanban-col-header open"><span class="material-symbols-outlined">inbox</span> Open <span class="badge" id="k-count-open">0</span></div>
             <div class="cards-container"></div>
           </div>
           <div class="kanban-col" data-status="applied">
-            <h3>Applied <span class="badge" id="k-count-applied">0</span></h3>
+            <div class="kanban-col-header applied"><span class="material-symbols-outlined">send</span> Applied <span class="badge" id="k-count-applied">0</span></div>
             <div class="cards-container"></div>
           </div>
           <div class="kanban-col" data-status="interview">
-            <h3>Archived <span class="badge" id="k-count-archived">0</span></h3>
+            <div class="kanban-col-header interview"><span class="material-symbols-outlined">groups</span> Interview <span class="badge" id="k-count-archived">0</span></div>
             <div class="cards-container"></div>
           </div>
           <div class="kanban-col" data-status="rejected">
-            <h3>Rejected <span class="badge" id="k-count-rejected">0</span></h3>
+            <div class="kanban-col-header rejected"><span class="material-symbols-outlined">block</span> Rejected <span class="badge" id="k-count-rejected">0</span></div>
             <div class="cards-container"></div>
           </div>
         </div>
       </section>
     </section>
 
-    
+    <!-- Settings View -->
     <section id="view-settings" class="view">
       <header class="settings-hero">
-        <h2>Configurazione <em>Profilo</em></h2>
-        <p>Gestisci CV, scansioni e API key senza terminale.</p>
+        <h2>Profile <em>Settings</em></h2>
+        <p>Manage your CV, search scans &amp; API keys — no terminal needed.</p>
       </header>
 
       <div class="settings-grid">
         <article class="card-block">
-          <h3>Area Caricamento CV</h3>
+          <h3><span class="material-symbols-outlined">description</span> CV Upload</h3>
           <form id="cvForm" class="column">
             <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
             <button type="submit" class="secondary">Upload CV</button>
@@ -174,84 +188,95 @@
         </article>
 
         <article class="card-block">
-          <h3>Profilo LinkedIn</h3>
-          <p class="micro">Integrazione nel contesto dell'Intelligenza Artificiale</p>
+          <h3><span class="material-symbols-outlined">link</span> LinkedIn Profile</h3>
+          <p class="micro">Enhances AI context for better matching</p>
           <form id="linkedinForm" class="column">
             <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." required />
-            <button type="submit" class="secondary">Salva URL</button>
+            <button type="submit" class="secondary">Save URL</button>
           </form>
           <pre id="linkedinStatus" class="output hidden"></pre>
         </article>
 
         <article class="card-block">
-          <h3>Configurazione API</h3>
+          <h3><span class="material-symbols-outlined">key</span> LLM Provider Keys</h3>
           <div id="keysCollapsedRow" class="row hidden">
-            <button id="showKeysFormBtn" type="button" class="secondary">Modifica API Key</button>
+            <p id="keysStatus" class="micro"></p>
+            <button id="showKeysFormBtn" type="button" class="ghost-btn">Edit Keys</button>
           </div>
           <form id="keysForm" class="column">
-            <label class="micro" for="primaryProvider">Provider Primario</label>
-            <select id="primaryProvider">
-              <option value="">Auto (ordine intelligente)</option>
-              <option value="cerebras">Cerebras</option>
-              <option value="groq">Groq</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Claude (Anthropic)</option>
-              <option value="google">Google Gemini</option>
-            </select>
-            <input id="cerebrasKey" type="password" placeholder="Cerebras API Key (opzionale)" />
-            <input id="groqKey" type="password" placeholder="Groq API Key (opzionale)" />
-            <input id="openaiKey" type="password" placeholder="OpenAI API Key (opzionale)" />
-            <input id="anthropicKey" type="password" placeholder="Claude/Anthropic API Key (opzionale)" />
-            <input id="googleKey" type="password" placeholder="Google API Key / Gemini API Key (opzionale)" />
-            <button type="submit">Salva Key</button>
+            <label class="field-label">Primary Provider
+              <select id="primaryProvider">
+                <option value="">Auto (fallback chain)</option>
+                <option value="cerebras">Cerebras</option>
+                <option value="groq">Groq</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="google">Google</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </label>
+            <label class="field-label">Cerebras <input id="cerebrasKey" type="password" placeholder="sk-..." /></label>
+            <label class="field-label">Groq <input id="groqKey" type="password" placeholder="gsk_..." /></label>
+            <label class="field-label">OpenAI <input id="openaiKey" type="password" placeholder="sk-..." /></label>
+            <label class="field-label">Anthropic <input id="anthropicKey" type="password" placeholder="sk-ant-..." /></label>
+            <label class="field-label">Google <input id="googleKey" type="password" placeholder="AI..." /></label>
+            <label class="field-label">OpenRouter <input id="openrouterKey" type="password" placeholder="sk-or-v1-..." /></label>
+            <button type="submit" class="secondary">Save Keys</button>
           </form>
-          <pre id="keysStatus" class="output"></pre>
         </article>
 
-        <article class="card-block full-span">
-          <h3>Scansione Opportunita</h3>
+        <article class="card-block">
+          <h3><span class="material-symbols-outlined">search</span> Job Scan</h3>
           <form id="scanForm" class="column">
-            <textarea id="searchTerms" rows="4" placeholder="Una ricerca per riga (vuoto = default)"></textarea>
-            <div class="row wrap" style="gap: 16px; margin: 8px 0;">
-              <div><strong>Portali:</strong></div>
-              <label class="tiny-toggle"><input type="checkbox" name="scanSites" value="linkedin" checked /> LinkedIn</label>
-              <label class="tiny-toggle"><input type="checkbox" name="scanSites" value="indeed" checked /> Indeed</label>
-              <label class="tiny-toggle"><input type="checkbox" name="scanSites" value="glassdoor" /> Glassdoor</label>
-              <label class="tiny-toggle"><input type="checkbox" name="scanSites" value="zip_recruiter" /> ZipRecruiter</label>
+            <div class="form-group row">
+              <div class="tag-input-container field-label" id="keywordsContainer">
+                  <span>Parole Chiave:</span>
+                  <input type="text" id="keywordsInput" placeholder="Premi invio...">
+              </div>
             </div>
-            <div class="row wrap">
-              <input id="locationInput" type="text" placeholder="Torino, Italy" />
-              <label class="tiny-toggle"><input id="remoteOnly" type="checkbox" /> Full remote</label>
-              <button type="submit">Avvia Scan</button>
+            <div class="form-group row">
+              <div class="tag-input-container field-label" id="locationsContainer">
+                  <span>Località:</span>
+                  <input type="text" id="locationsInput" placeholder="Premi invio...">
+              </div>
             </div>
+            <div class="scan-options-row">
+              <label class="check-label"><input type="checkbox" name="scanSites" value="linkedin" checked /> LinkedIn</label>
+              <label class="check-label"><input type="checkbox" name="scanSites" value="indeed" checked /> Indeed</label>
+              <label class="check-label"><input type="checkbox" id="remoteToggle" /> Remote only</label>
+            </div>
+            <button type="submit" class="action-main" style="border:0">
+              <span class="material-symbols-outlined">rocket_launch</span>
+              <strong>Start Scan</strong>
+            </button>
           </form>
-          <pre id="scanOutput" class="output"></pre>
         </article>
 
-        <article class="card-block full-span">
-          <h3>Aggiungi Annuncio Manuale</h3>
+        <article class="card-block">
+          <h3><span class="material-symbols-outlined">edit_note</span> Add Job Manually</h3>
           <form id="manualForm" class="column">
-            <input id="manualTitolo" type="text" placeholder="Titolo" required />
-            <input id="manualAzienda" type="text" placeholder="Azienda" required />
-            <input id="manualSede" type="text" placeholder="Sede" />
-            <input id="manualLink" type="url" placeholder="Link" />
-            <textarea id="manualDescrizione" rows="4" placeholder="Descrizione"></textarea>
-            <button type="submit">Aggiungi + Analizza</button>
+            <input id="manualTitolo" type="text" placeholder="Job Title" required />
+            <input id="manualAzienda" type="text" placeholder="Company" />
+            <input id="manualSede" type="text" placeholder="Location" />
+            <input id="manualLink" type="url" placeholder="URL" />
+            <textarea id="manualDescrizione" rows="4" placeholder="Description"></textarea>
+            <button type="submit" class="secondary">Add + Analyze</button>
           </form>
         </article>
       </div>
     </section>
 
+    <!-- Right Rail -->
     <aside class="right-rail">
       <div class="rail-header">
         <div class="coach-icon"><span class="material-symbols-outlined">workspace_premium</span></div>
         <div>
           <h3>Career Coach</h3>
-          <p>Assistente Personale</p>
+          <p>Your AI Assistant</p>
         </div>
       </div>
 
-      <button type="button" class="new-analysis" id="railRecommendBtn">Nuova Analisi</button>
+      <button type="button" class="new-analysis" id="railRecommendBtn"><span class="material-symbols-outlined">auto_awesome</span> New Analysis</button>
 
       <nav class="rail-nav">
         <button type="button" class="rail-link is-active" data-view="dashboard"><span class="material-symbols-outlined">stars</span> Top Picks</button>
@@ -261,52 +286,70 @@
     </aside>
   </main>
 
+  <!-- Offcanvas Detail -->
   <aside id="jobOffcanvas" class="offcanvas">
     <div class="offcanvas-header">
-      <h2 id="detailTitle">Dettagli</h2>
+      <h2 id="detailTitle">Details</h2>
       <button id="closeOffcanvasBtn" class="icon-btn" style="background:none;border:none;cursor:pointer"><span class="material-symbols-outlined">close</span></button>
     </div>
-    <div class="offcanvas-body" style="padding: 16px; overflow-y:auto;">
-      <p id="detailStatus" class="eyebrow" style="margin-bottom:8px">Stato: in revisione</p>
+    <div class="offcanvas-body">
+      <p id="detailStatus" class="eyebrow" style="margin-bottom:8px">Status: reviewing</p>
       <p id="detailCompany" class="detail-company"></p>
       <p id="detailMeta" class="detail-meta"></p>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <button id="detailApplyNowBtn" class="secondary">Candida Ora</button>
-        <a id="detailLinkBtn" target="_blank" class="button secondary" style="display:none;align-items:center;justify-content:center;text-decoration:none;">Vedi Offerta</a>
+      <div class="offcanvas-actions">
+        <button id="detailApplyNowBtn" class="secondary">Apply Now</button>
+        <a id="detailLinkBtn" target="_blank" class="button secondary" style="display:none;align-items:center;justify-content:center;gap:4px;">
+          <span class="material-symbols-outlined" style="font-size:18px">open_in_new</span> View Listing
+        </a>
       </div>
       <div id="jobDetailContainer"></div>
-      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-        <button id="generateCoverLetterBtn" class="secondary" style="width:100%;margin-bottom:8px;">Genera / Aggiorna Cover Letter AI</button>
+      <div class="cover-letter-section">
         <div id="coverLetterBox" style="display:none;">
-          <textarea id="coverLetterOutput" rows="8" style="width:100%;padding:8px;border-radius:6px;font-family:inherit;"></textarea>
-          <div style="display:flex; align-items:center; margin-top:8px;">
-            <button id="saveCoverLetterBtn" class="secondary">Salva Bozze</button>
+          <h4>Cover Letter</h4>
+          <pre id="coverLetterOutput" class="output"></pre>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button id="saveCoverLetterBtn" class="secondary">Save Draft</button>
             <span id="clSaveStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
           </div>
         </div>
       </div>
-      <div class="coach-panel" style="margin-top:24px;border:1px solid var(--border);border-radius:6px;">
-          <div class="coach-head" style="padding:12px;background:var(--surface);">
-            <h3>AI Career Coach</h3>
-          </div>
-          <div id="chatBox" class="chat-box" style="height:200px"></div>
-          <div id="chatQuickPrompts" class="chat-quick-prompts"></div>
-          <form id="chatForm" class="chat-form">
-            <input id="chatInput" type="text" placeholder="Scrivi al coach..." required />
-            <button type="submit"><span class="material-symbols-outlined">send</span></button>
-          </form>
+      <div class="coach-panel">
+        <div class="coach-head" style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0;"><span class="material-symbols-outlined">smart_toy</span> AI Career Coach</h3>
+          <select id="chatModelSelector" class="mini-select" title="Select Chat API">
+            <option value="">Auto API</option>
+            <option value="groq">Groq</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="google">Google</option>
+            <option value="cerebras">Cerebras</option>
+            <option value="openrouter">OpenRouter</option>
+          </select>
+        </div>
+        <div id="chatBox" class="chat-box"></div>
+        <div id="chatQuickPrompts" class="chat-quick-prompts"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" type="text" placeholder="Ask the coach..." required />
+          <button type="submit"><span class="material-symbols-outlined">send</span></button>
+        </form>
       </div>
     </div>
   </aside>
+
+  <!-- Toast -->
   <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scan Overlay -->
   <div id="scanOverlay" class="scan-overlay" style="display:none;">
     <div class="scan-modal">
-      <h3>Scansione in corso...</h3>
+      <span class="material-symbols-outlined scan-spinner">hourglass_top</span>
+      <h3>Scanning job portals...</h3>
       <div class="progress-bar"><div class="progress-fill" id="scanProgressFill"></div></div>
-      <p id="scanProgressText" class="micro" style="margin-top:8px;">Inizializzazione...</p>
-      <button id="cancelScanBtn" class="secondary" style="margin-top:16px;">Chiudi/Sospendi</button>
+      <p id="scanProgressText" class="micro" style="margin-top:8px;">Initializing...</p>
+      <button id="cancelScanBtn" class="secondary" style="margin-top:16px;">Close / Pause</button>
     </div>
   </div>
+
   <script src="/web/app.js"></script>
 </body>
 </html>

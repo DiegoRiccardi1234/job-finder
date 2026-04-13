@@ -1,95 +1,184 @@
-﻿# Job Finder Universale (Pro Max Edition)
+# The Curated Career — AI-Powered Job Finder
 
-Versione potenziata della web app locale per la ricerca, l'analisi AI e la gestione delle candidature.
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![AI Powered](https://img.shields.io/badge/AI-Multi--LLM-blueviolet)](#supported-llm-providers)
 
-Obiettivo: cercare lavori, analizzarli con AI, gestire lo stato tramite Kanban, estrarre Analytics e usare il Chat Coach In-Place.
-Uso previsto: Personale (ogni utente esegue l'app sul proprio computer, con i propri dati locali).
+> A local-first, AI-powered job search assistant that scrapes LinkedIn & Indeed, analyzes offers against your CV, and coaches you through the application process — all from a single glassmorphism dashboard.
 
-## Novita della Versione "Pro Max"
-- **UI All-in-One**: La navigazione è stata unificata. Niente piu tab "Discover" full-page. I dettagli annuncio si aprono comodamente in un **Pannello Offcanvas** laterale scorrevole.
-- **Vista Kanban**: Trascinamento Drag & Drop nativo. Organizza i lavori in colonne: *Open*, *Applied*, *Interviewing*, *Rejected*.
-- **Analytics Dashboard**: Grafici Chart.js per monitorare statistiche di stato e distribuzione dell'AI Match Score.
-- **Server-Sent Events (SSE)**: La scansione dei portali (LinkedIn, Indeed, ecc.) non blocca piu la pagina. Una barra di caricamento Overlay mostra il progresso reale dello scraping in background.
-- **Dark Mode Nativa**: Toggle istantaneo tra Light e Dark mode (`[data-theme="dark"]`).
-- **Toast Notifications**: Feedback non intrusivi (errori, successi, info) senza i vecchi alert bloccanti.
+---
 
-## Cosa c'e nella cartella
+## Features
 
-- `app/`: backend FastAPI e logica applicativa
-- `web/`: interfaccia browser
-- `run_webapp.py`: script launcher
-- `requirements.txt`: dipendenze runtime Python
-- `package.json` / `playwright.config.js`: setup test E2E
-- `README.md`: questa guida
+- **Smart CV Analysis** — Upload your CV (PDF, DOCX, TXT) and the AI extracts skills, experience level, and ideal roles
+- **AI Career Coach** — Conversational chatbot that learns your preferences, suggests search terms, and recommends which jobs to apply for, with autonomous form-filling
+- **Model Selection & Tag-Based Search** — Pick your preferred LLM provider directly from the UI and search precisely using dynamic tags
+- **Multi-Source Scan** — Scrapes LinkedIn and Indeed simultaneously with real-time SSE progress
+- **Personalized Rating** — Each job gets a 1-10 AI score based on your profile, with pros/cons and actionable advice
+- **Kanban Board** — Drag & drop jobs across columns: Open → Applied → Interviewing → Rejected
+- **Cover Letter Generator** — One-click AI-generated cover letters tailored to each job + your CV
+- **Analytics Dashboard** — Track application stats, score distributions, and scan history
+- **Dark Mode** — Full dark/light theme with glassmorphism UI
+- **Multi-LLM Support** — Works with OpenRouter, Groq, Anthropic (Claude 3.7 Sonnet), OpenAI (GPT-4.5 / 4o), Google (Gemini 1.5 Pro) and Cerebras.
 
-## Screenshot Reali Desktop (CV IT + EN)
+## Media
 
-Queste immagini sono generate con test automatici Playwright usando PDF locali.
+> **Demo Video**
+> 
+> *A brief demo video/GIF showcasing the Tag Search, Kanban drag-and-drop, and the AI Chatbot autocomplete will be available here soon.*
 
-**Dashboard Tabellare / Kanban (Dark/Light Mode)**
+**Dashboard — Job Table & Recommendations**
 
-![Dashboard Recommendations IT](screenshots/readme/dashboard-recommendations-it.png)
+![Dashboard](screenshots/readme/dashboard-recommendations-en.png)
 
-**Dettaglio Offcanvas con Generatore Cover Letter**
+## Tech Stack
 
-![Discover Top Job IT](screenshots/readme/discover-top-job-it.png)
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.11+, FastAPI, SQLite |
+| Frontend | Vanilla JS, CSS3 (Glassmorphism) |
+| AI/LLM | Multi-provider (OpenRouter, Groq, OpenAI, Anthropic, Google, Cerebras) |
+| Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) (LinkedIn, Indeed) |
+| Streaming | Server-Sent Events (SSE) |
+| Testing | Playwright (E2E), pytest |
 
-**Impostazioni e Provider LLM Multipli (CV EN)**
+## Quick Start
 
-![Settings CV EN](screenshots/readme/settings-cv-en.png)
-
-**Visualizzazione Statistiche & Analytics**
-
-![Dashboard Recommendations EN](screenshots/readme/dashboard-recommendations-en.png)
-
-*(Tutte le interfacce si adattano dinamicamente al profilo CV inserito)*
-
-## Requisiti
+### Prerequisites
 
 - Python 3.11+
-- Node.js (solo per test E2E opzionali)
-- Almeno una API key LLM, impostabile dalla pagina web (Groq, OpenAI, Anthropic, Cerebras, Google)
+- At least one LLM API key (Cerebras, Groq, OpenAI, Anthropic, or Google)
+- Node.js (optional, for E2E tests only)
 
-## Setup rapido (Prima esecuzione)
+### Installation
 
-1. Crea e attiva un virtual environment:
-```powershell
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/the-curated-career.git
+cd the-curated-career
+
+# Create and activate virtual environment
 python -m venv .venv
+
+# Windows
 .\.venv\Scripts\Activate.ps1
-```
-2. Installa dipendenze:
-```powershell
+
+# macOS/Linux
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
-3. Avvia l'app:
-```powershell
+
+### Run
+
+```bash
 python run_webapp.py
 ```
-4. Apri nel browser: **http://127.0.0.1:8000**
-5. Inserisci le tue API Key nel tab "Settings".
 
-## Funzionalita Principali
+Open **http://127.0.0.1:8000** in your browser.
 
-1. **Gestione CV**: Carica il tuo CV in PDF, DOCX o TXT per fornire il contesto all'AI.
-2. **Kanban & Drag'n'Drop**: Sposta le schede candidatura da "Open" ad "Applied" o "Rejected".
-3. **Scansione Streaming**: Digita job title e location, e guarda l'output real-time scorrere grazie ai Server-Sent Events (SSE).
-4. **Offcanvas Dettaglio**: Clicca "Dettagli" per aprire la scheda laterale. Include Score, consigli, URL offerta e bottone per generare la *Cover Letter*.
-5. **AI Career Coach**: Pannello Chat integrato in basso a destra. Chiedi analisi o mock interview.
+### First-Time Setup
 
-## Test E2E con Playwright (Per rigenerare gli screen)
+1. Go to **Settings** and enter your LLM API key
+2. Upload your CV (PDF, DOCX, or TXT)
+3. Chat with the AI Coach — it will ask about your preferences
+4. Run a job scan from Settings or let the chatbot suggest search terms
+5. Review results on the Dashboard, drag jobs across the Kanban board
 
-Se modifichi l'interfaccia e vuoi aggiornare gli screenshot di questa documentazione:
+## Architecture
 
-```powershell
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│  Browser UI  │────▶│  FastAPI API  │────▶│  SQLite DB  │
+│  (Vanilla JS)│◀────│  + SSE Stream │◀────│  (Local)    │
+└─────────────┘     └──────┬───────┘     └─────────────┘
+                           │
+                    ┌──────▼───────┐
+                    │  LLM Provider │
+                    │  (Multi-API)  │
+                    └──────┬───────┘
+                           │
+                    ┌──────▼───────┐
+                    │  Job Scraper  │
+                    │  (JobSpy)     │
+                    └──────────────┘
+```
+
+## Supported LLM Providers
+
+| Provider | Selectable Models / Notes |
+|----------|---------------------------------------------------------|
+| **OpenRouter** | Access almost any standard model (Claude 3.7, GPT-4.5, Llama 3) |
+| **Cerebras** | Llama 3.3 70B (Fast inference, free tier available) |
+| **Groq** | Llama / Mixtral (Very fast, generous free tier) |
+| **OpenAI** | GPT-4o, GPT-4.5, o1, o3-mini |
+| **Anthropic** | Claude 3.7 Sonnet, Claude 3.5 Haiku |
+| **Google** | Gemini 1.5 Pro, Gemini 2.0 Flash |
+
+Configure your preferred provider in Settings. The app automatically falls back to the next available provider if one fails or hits rate-limits.
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check + provider status |
+| POST | `/api/upload-cv` | Upload CV for AI analysis |
+| GET | `/api/profile` | Get active candidate profile |
+| GET | `/api/scan/stream` | SSE streaming job scan |
+| GET | `/api/jobs` | List jobs with filters |
+| GET | `/api/jobs/{id}` | Job detail with AI analysis |
+| POST | `/api/jobs/{id}/cover-letter` | Generate cover letter |
+| POST | `/api/jobs/{id}/action` | Set job status (apply/skip) |
+| POST | `/api/chat` | Chat with AI Career Coach |
+| GET | `/api/analytics` | Dashboard statistics |
+| GET | `/api/recommendations` | AI-recommended top jobs |
+
+## E2E Tests
+
+```bash
 npm install
 npx playwright install chromium
 npm run test:e2e
-npx playwright test tests/e2e/readme-cv-showcase.spec.js
 ```
 
-## Dati locali e backup
+## Local Data
 
-L'intero database SQLite risiede in:
-- `data/searcher.db`
+All data is stored locally in `data/searcher.db` (SQLite). Back up the `data/` folder before major updates.
 
-Backup consigliato prima di procedere con l'aggiornamento del codice (copia la cartella `data/`).
+---
+
+# Italiano
+
+## Avvio Rapido
+
+```bash
+# Clona il repository
+git clone https://github.com/YOUR_USERNAME/the-curated-career.git
+cd the-curated-career
+
+# Crea e attiva l'ambiente virtuale
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1  # Windows
+
+# Installa le dipendenze
+pip install -r requirements.txt
+
+# Avvia l'app
+python run_webapp.py
+```
+
+Apri **http://127.0.0.1:8000** nel browser.
+
+### Primo Utilizzo
+
+1. Vai in **Settings** e inserisci la tua API key LLM
+2. Carica il tuo CV (PDF, DOCX o TXT)
+3. Parla con l'AI Coach — ti fara domande sulle tue preferenze
+4. Lancia una scansione da Settings o lascia che il chatbot suggerisca i termini di ricerca
+5. Consulta i risultati nella Dashboard, trascina i lavori nella board Kanban
+
+## Licenza / License
+
+MIT — See [LICENSE](LICENSE) for details.

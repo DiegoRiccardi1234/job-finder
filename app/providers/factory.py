@@ -7,6 +7,7 @@ from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
 from app.providers.openai_provider import OpenAIProvider
+from app.providers.openrouter_provider import OpenRouterProvider
 
 
 class ProviderManager:
@@ -18,6 +19,7 @@ class ProviderManager:
             "openai": OpenAIProvider(api_key=settings.openai_api_key),
             "anthropic": AnthropicProvider(api_key=settings.anthropic_api_key),
             "google": GoogleProvider(api_key=settings.google_api_key),
+            "openrouter": OpenRouterProvider(api_key=settings.openrouter_api_key),
         }
         self.active_provider: LLMProvider | None = None
         self.active_provider_name: str = "none"
@@ -81,12 +83,16 @@ class ProviderManager:
             "providers": providers_metadata,
         }
 
-    def complete_json(self, prompt: str, max_tokens: int = 700) -> dict[str, Any]:
-        if not self.active_provider:
+    def complete_json(self, prompt: str, max_tokens: int = 700, provider_name: str | None = None, model_name: str | None = None) -> dict[str, Any]:
+        provider = self.providers.get(provider_name) if provider_name else self.active_provider
+        active_model = model_name if model_name else self.active_model
+        if not provider:
             raise RuntimeError("Nessun provider LLM disponibile")
-        return self.active_provider.complete_json(prompt=prompt, model=self.active_model, max_tokens=max_tokens)
+        return provider.complete_json(prompt=prompt, model=active_model, max_tokens=max_tokens)
 
-    def chat(self, messages: list[dict[str, str]], max_tokens: int = 700) -> str:
-        if not self.active_provider:
+    def chat(self, messages: list[dict[str, str]], max_tokens: int = 700, provider_name: str | None = None, model_name: str | None = None) -> str:
+        provider = self.providers.get(provider_name) if provider_name else self.active_provider
+        active_model = model_name if model_name else self.active_model
+        if not provider:
             raise RuntimeError("Nessun provider LLM disponibile")
-        return self.active_provider.chat(messages=messages, model=self.active_model, max_tokens=max_tokens)
+        return provider.chat(messages=messages, model=active_model, max_tokens=max_tokens)

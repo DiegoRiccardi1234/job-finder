@@ -55,12 +55,14 @@ class ScanResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
+    provider: str | None = None
 
 
 class ChatResponse(BaseModel):
     session_id: str
     answer: str
     updated_preferences: dict[str, Any] = Field(default_factory=dict)
+    action: dict[str, Any] | None = None
 
 
 class PreferenceUpdateRequest(BaseModel):
@@ -74,4 +76,5 @@ class ProviderKeysRequest(BaseModel):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     google_api_key: str | None = None
+    openrouter_api_key: str | None = None
     primary_provider: str | None = None

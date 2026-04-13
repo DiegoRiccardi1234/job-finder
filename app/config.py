@@ -14,7 +14,7 @@ DEFAULT_SEARCH_TERMS = [
 ]
 
 LOCAL_SECRETS_FILE = "local_secrets.json"
-SUPPORTED_PROVIDERS = ["cerebras", "groq", "openai", "anthropic", "google"]
+SUPPORTED_PROVIDERS = ["cerebras", "groq", "openai", "anthropic", "google", "openrouter"]
 
 
 @dataclass
@@ -38,6 +38,7 @@ class AppSettings:
     openai_api_key: str | None
     anthropic_api_key: str | None
     google_api_key: str | None
+    openrouter_api_key: str | None
     model_selection_policy: dict
 
 
@@ -57,6 +58,7 @@ def save_local_provider_keys(
     openai_api_key: str | None = None,
     anthropic_api_key: str | None = None,
     google_api_key: str | None = None,
+    openrouter_api_key: str | None = None,
     primary_provider: str | None = None,
 ) -> dict:
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -100,6 +102,20 @@ def save_local_provider_keys(
         else:
             current.pop("google_api_key", None)
 
+    if openrouter_api_key is not None:
+        value = openrouter_api_key.strip()
+        if value:
+            current["openrouter_api_key"] = value
+        else:
+            current.pop("openrouter_api_key", None)
+
+    if openrouter_api_key is not None:
+        value = openrouter_api_key.strip()
+        if value:
+            current["openrouter_api_key"] = value
+        else:
+            current.pop("openrouter_api_key", None)
+
     if primary_provider is not None:
         normalized = primary_provider.strip().lower()
         if normalized in SUPPORTED_PROVIDERS:
@@ -114,6 +130,8 @@ def save_local_provider_keys(
         "openai_configured": bool(current.get("openai_api_key")),
         "anthropic_configured": bool(current.get("anthropic_api_key")),
         "google_configured": bool(current.get("google_api_key")),
+        "openrouter_configured": bool(current.get("openrouter_api_key")),
+        "openrouter_configured": bool(current.get("openrouter_api_key")),
         "primary_provider": current.get("primary_provider", ""),
     }
 
@@ -219,5 +237,6 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         openai_api_key=openai_api_key,
         anthropic_api_key=anthropic_api_key,
         google_api_key=google_api_key,
+        openrouter_api_key=openrouter_api_key,
         model_selection_policy=merged_policy,
     )
