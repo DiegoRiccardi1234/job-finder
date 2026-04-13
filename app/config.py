@@ -131,7 +131,6 @@ def save_local_provider_keys(
         "anthropic_configured": bool(current.get("anthropic_api_key")),
         "google_configured": bool(current.get("google_api_key")),
         "openrouter_configured": bool(current.get("openrouter_api_key")),
-        "openrouter_configured": bool(current.get("openrouter_api_key")),
         "primary_provider": current.get("primary_provider", ""),
     }
 
@@ -160,6 +159,7 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         or os.getenv("GOOGLE_API_KEY")
         or os.getenv("GEMINI_API_KEY")
     )
+    openrouter_api_key = local_secrets.get("openrouter_api_key") or os.getenv("OPENROUTER_API_KEY")
 
     provider_order = cfg.get("llm_provider_order", SUPPORTED_PROVIDERS)
     if not isinstance(provider_order, list) or not provider_order:
