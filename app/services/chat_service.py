@@ -209,7 +209,15 @@ def handle_chat_message(
     prefs_context = _build_preferences_context(db)
     jobs_context = _jobs_context(db)
 
+    LANG_MAP = {
+        "en": "English", "it": "Italian", "es": "Spanish",
+        "fr": "French", "de": "German",
+    }
+    ui_lang = db.get_preference("ui_language", "en")
+    lang_name = LANG_MAP.get(ui_lang, "English")
+
     system_prompt = SYSTEM_PROMPTS.get(state, SYSTEM_PROMPTS["advising"])
+    system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name}."
     system_prompt += (
         "\n\nIMPORTANT: You must always output ONLY a raw JSON object string (do not use markdown formatting blocks like ```json). "
         "The JSON MUST have the following structure:\n"

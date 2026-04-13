@@ -15,10 +15,17 @@
   <header class="topbar">
     <div class="brand"><span class="brand-icon material-symbols-outlined">work</span> The Curated Career</div>
     <nav class="topnav">
-      <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> Dashboard</button>
-      <button type="button" class="nav-link" data-view="settings"><span class="material-symbols-outlined">settings</span> Settings</button>
+      <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> <span data-i18n="topbar.dashboard">Dashboard</span></button>
+      <button type="button" class="nav-link" data-view="settings"><span class="material-symbols-outlined">settings</span> <span data-i18n="topbar.settings">Settings</span></button>
     </nav>
     <div class="topbar-right">
+      <select id="langSelect" class="lang-select" title="Language">
+        <option value="en">EN</option>
+        <option value="it">IT</option>
+        <option value="es">ES</option>
+        <option value="fr">FR</option>
+        <option value="de">DE</option>
+      </select>
       <button type="button" id="themeToggle" class="icon-btn" title="Toggle Theme" style="background:none;border:none;cursor:pointer;color:inherit;"><span class="material-symbols-outlined">light_mode</span></button>
       <div class="avatar">D</div>
     </div>
@@ -30,29 +37,29 @@
       <!-- Hero -->
       <section class="hero-block">
         <div class="hero-text">
-          <p class="eyebrow">AI-Powered Job Search</p>
-          <h1>Your next chapter,<br /><em>curated with precision.</em></h1>
-          <p class="hero-sub">CV analysis, AI ranking &amp; a practical application plan — decide where to apply in minutes.</p>
+          <p class="eyebrow" data-i18n="hero.eyebrow">AI-Powered Job Search</p>
+          <h1><span data-i18n="hero.title">Your next chapter,</span><br /><em data-i18n="hero.titleEm">curated with precision.</em></h1>
+          <p class="hero-sub" data-i18n="hero.subtitle">CV analysis, AI ranking &amp; a practical application plan — decide where to apply in minutes.</p>
         </div>
         <div class="hero-meta">
           <article class="meta-card">
             <span class="meta-icon material-symbols-outlined">auto_awesome</span>
             <div>
-              <p class="micro">Active Model</p>
+              <p class="micro" data-i18n="hero.activeModel">Active Model</p>
               <p id="modelBadge">Model: ...</p>
             </div>
           </article>
           <article class="meta-card">
             <span class="meta-icon material-symbols-outlined">memory</span>
             <div>
-              <p class="micro">Provider</p>
+              <p class="micro" data-i18n="hero.provider">Provider</p>
               <p id="providerBadge">Provider: ...</p>
             </div>
           </article>
           <article class="meta-card">
             <span class="meta-icon material-symbols-outlined">person</span>
             <div>
-              <p class="micro">Active Profile</p>
+              <p class="micro" data-i18n="hero.activeProfile">Active Profile</p>
               <select id="profileSelect" class="profile-select"></select>
             </div>
           </article>
@@ -63,33 +70,33 @@
       <section class="action-center">
         <button id="quickRecommendBtn" type="button" class="action-main">
           <span class="material-symbols-outlined">auto_awesome</span>
-          <strong>Get Top 5 Picks</strong>
-          <small>AI selection based on your CV &amp; goals</small>
+          <strong data-i18n="actions.getTopPicks">Get Top 5 Picks</strong>
+          <small data-i18n="actions.topPicksSub">AI selection based on your CV &amp; goals</small>
         </button>
         <button id="focusOpenBtn" type="button" class="action-alt">
           <span class="material-symbols-outlined">inbox</span>
-          <strong>Open Jobs</strong>
-          <small>View all new opportunities</small>
+          <strong data-i18n="actions.openJobs">Open Jobs</strong>
+          <small data-i18n="actions.openJobsSub">View all new opportunities</small>
         </button>
         <button type="button" class="action-alt" data-view="settings">
           <span class="material-symbols-outlined">tune</span>
-          <strong>Configure</strong>
-          <small>CV, API keys &amp; search</small>
+          <strong data-i18n="actions.configure">Configure</strong>
+          <small data-i18n="actions.configureSub">CV, API keys &amp; search</small>
         </button>
       </section>
 
       <!-- Analytics -->
       <section class="analytics-section">
         <div class="section-head">
-          <h2>Analytics</h2>
+          <h2 data-i18n="analytics.title">Analytics</h2>
         </div>
         <div class="analytics-grid">
           <div class="analytics-card">
-            <h4><span class="material-symbols-outlined">bar_chart</span> Application Status</h4>
+            <h4><span class="material-symbols-outlined">bar_chart</span> <span data-i18n="analytics.appStatus">Application Status</span></h4>
             <canvas id="statusChart"></canvas>
           </div>
           <div class="analytics-card">
-            <h4><span class="material-symbols-outlined">insights</span> AI Score Distribution</h4>
+            <h4><span class="material-symbols-outlined">insights</span> <span data-i18n="analytics.scoreDist">AI Score Distribution</span></h4>
             <canvas id="scoreChart"></canvas>
           </div>
         </div>
@@ -98,8 +105,8 @@
       <!-- Recommendations -->
       <section class="recommendations-section">
         <div class="section-head">
-          <h2>Top Picks for You</h2>
-          <button id="refreshRecommendationsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span> Refresh</button>
+          <h2 data-i18n="recommendations.title">Top Picks for You</h2>
+          <button id="refreshRecommendationsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span> <span data-i18n="recommendations.refresh">Refresh</span></button>
         </div>
         <div id="recommendationsGrid" class="recommendations-grid"></div>
       </section>
@@ -107,42 +114,42 @@
       <!-- Jobs Archive -->
       <section class="jobs-section">
         <div class="section-head jobs-head">
-          <h2>Job Archive</h2>
+          <h2 data-i18n="jobs.archive">Job Archive</h2>
           <div class="view-toggles">
-            <button id="viewTableBtn" type="button" class="tab-pill is-active"><span class="material-symbols-outlined">table_rows</span> Table</button>
-            <button id="viewKanbanBtn" type="button" class="tab-pill"><span class="material-symbols-outlined">view_kanban</span> Kanban</button>
+            <button id="viewTableBtn" type="button" class="tab-pill is-active"><span class="material-symbols-outlined">table_rows</span> <span data-i18n="jobs.table">Table</span></button>
+            <button id="viewKanbanBtn" type="button" class="tab-pill"><span class="material-symbols-outlined">view_kanban</span> <span data-i18n="jobs.kanban">Kanban</span></button>
           </div>
         </div>
         <div class="filters-row">
-          <input id="searchText" type="text" placeholder="Search title or company..." />
-          <input id="minScore" type="number" min="0" max="10" placeholder="Min score" />
-          <input id="maxAgeDays" type="number" min="1" placeholder="Max age (days)" />
-          <label class="filter-check"><input id="onlyFavorites" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">favorite</span> Favorites</label>
-          <label class="filter-check"><input id="onlyNew" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">fiber_new</span> New</label>
-          <label class="filter-check"><input id="remoteOnly" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">home_work</span> Remote</label>
+          <input id="searchText" type="text" data-i18n-placeholder="jobs.searchPlaceholder" placeholder="Search title or company..." />
+          <input id="minScore" type="number" min="0" max="10" data-i18n-placeholder="jobs.minScore" placeholder="Min score" />
+          <input id="maxAgeDays" type="number" min="1" data-i18n-placeholder="jobs.maxAge" placeholder="Max age (days)" />
+          <label class="filter-check"><input id="onlyFavorites" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">favorite</span> <span data-i18n="jobs.favorites">Favorites</span></label>
+          <label class="filter-check"><input id="onlyNew" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">fiber_new</span> <span data-i18n="jobs.new">New</span></label>
+          <label class="filter-check"><input id="remoteOnly" type="checkbox" /> <span class="material-symbols-outlined" style="font-size:1rem">home_work</span> <span data-i18n="jobs.remote">Remote</span></label>
           <select id="statusFilter">
-            <option value="">All statuses</option>
-            <option value="open">Open</option>
-            <option value="applied">Applied</option>
-            <option value="interviewing">Interviewing</option>
-            <option value="rejected">Rejected</option>
+            <option value="" data-i18n="jobs.allStatuses">All statuses</option>
+            <option value="open" data-i18n="jobs.open">Open</option>
+            <option value="applied" data-i18n="jobs.applied">Applied</option>
+            <option value="interviewing" data-i18n="jobs.interviewing">Interviewing</option>
+            <option value="rejected" data-i18n="jobs.rejected">Rejected</option>
           </select>
           <button id="refreshJobsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span></button>
-          <button id="exportCsvBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">download</span> CSV</button>
+          <button id="exportCsvBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">download</span> <span data-i18n="jobs.csv">CSV</span></button>
         </div>
 
         <div id="tableView" class="table-wrap is-active">
           <table>
             <thead>
               <tr>
-                <th>Score</th>
-                <th>Title</th>
-                <th>Company</th>
-                <th>Location</th>
-                <th>Source</th>
-                <th>Advice</th>
-                <th>Detail</th>
-                <th>Actions</th>
+                <th data-i18n="jobs.score">Score</th>
+                <th data-i18n="jobs.title">Title</th>
+                <th data-i18n="jobs.company">Company</th>
+                <th data-i18n="jobs.location">Location</th>
+                <th data-i18n="jobs.source">Source</th>
+                <th data-i18n="jobs.advice">Advice</th>
+                <th data-i18n="jobs.detail">Detail</th>
+                <th data-i18n="jobs.actionsCol">Actions</th>
               </tr>
             </thead>
             <tbody id="jobsTableBody"></tbody>
@@ -151,19 +158,19 @@
 
         <div id="kanbanView" class="kanban-board">
           <div class="kanban-col" data-status="open">
-            <div class="kanban-col-header open"><span class="material-symbols-outlined">inbox</span> Open <span class="badge" id="k-count-open">0</span></div>
+            <div class="kanban-col-header open"><span class="material-symbols-outlined">inbox</span> <span data-i18n="kanbanCols.open">Open</span> <span class="badge" id="k-count-open">0</span></div>
             <div class="cards-container"></div>
           </div>
           <div class="kanban-col" data-status="applied">
-            <div class="kanban-col-header applied"><span class="material-symbols-outlined">send</span> Applied <span class="badge" id="k-count-applied">0</span></div>
+            <div class="kanban-col-header applied"><span class="material-symbols-outlined">send</span> <span data-i18n="kanbanCols.applied">Applied</span> <span class="badge" id="k-count-applied">0</span></div>
             <div class="cards-container"></div>
           </div>
           <div class="kanban-col" data-status="interview">
-            <div class="kanban-col-header interview"><span class="material-symbols-outlined">groups</span> Interview <span class="badge" id="k-count-archived">0</span></div>
+            <div class="kanban-col-header interview"><span class="material-symbols-outlined">groups</span> <span data-i18n="kanbanCols.interview">Interview</span> <span class="badge" id="k-count-archived">0</span></div>
             <div class="cards-container"></div>
           </div>
           <div class="kanban-col" data-status="rejected">
-            <div class="kanban-col-header rejected"><span class="material-symbols-outlined">block</span> Rejected <span class="badge" id="k-count-rejected">0</span></div>
+            <div class="kanban-col-header rejected"><span class="material-symbols-outlined">block</span> <span data-i18n="kanbanCols.rejected">Rejected</span> <span class="badge" id="k-count-rejected">0</span></div>
             <div class="cards-container"></div>
           </div>
         </div>
@@ -173,40 +180,40 @@
     <!-- Settings View -->
     <section id="view-settings" class="view">
       <header class="settings-hero">
-        <h2>Profile <em>Settings</em></h2>
-        <p>Manage your CV, search scans &amp; API keys — no terminal needed.</p>
+        <h2><span data-i18n="settings.title">Profile</span> <em data-i18n="settings.titleEm">Settings</em></h2>
+        <p data-i18n="settings.subtitle">Manage your CV, search scans &amp; API keys — no terminal needed.</p>
       </header>
 
       <div class="settings-grid">
         <article class="card-block">
-          <h3><span class="material-symbols-outlined">description</span> CV Upload</h3>
+          <h3><span class="material-symbols-outlined">description</span> <span data-i18n="settings.cvUpload">CV Upload</span></h3>
           <form id="cvForm" class="column">
             <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
-            <button type="submit" class="secondary">Upload CV</button>
+            <button type="submit" class="secondary" data-i18n="settings.uploadCv">Upload CV</button>
           </form>
           <pre id="cvSummary" class="output hidden"></pre>
         </article>
 
         <article class="card-block">
-          <h3><span class="material-symbols-outlined">link</span> LinkedIn Profile</h3>
-          <p class="micro">Enhances AI context for better matching</p>
+          <h3><span class="material-symbols-outlined">link</span> <span data-i18n="settings.linkedinProfile">LinkedIn Profile</span></h3>
+          <p class="micro" data-i18n="settings.linkedinSub">Enhances AI context for better matching</p>
           <form id="linkedinForm" class="column">
             <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." required />
-            <button type="submit" class="secondary">Save URL</button>
+            <button type="submit" class="secondary" data-i18n="settings.saveUrl">Save URL</button>
           </form>
           <pre id="linkedinStatus" class="output hidden"></pre>
         </article>
 
         <article class="card-block">
-          <h3><span class="material-symbols-outlined">key</span> LLM Provider Keys</h3>
+          <h3><span class="material-symbols-outlined">key</span> <span data-i18n="settings.llmKeys">LLM Provider Keys</span></h3>
           <div id="keysCollapsedRow" class="row hidden">
             <p id="keysStatus" class="micro"></p>
-            <button id="showKeysFormBtn" type="button" class="ghost-btn">Edit Keys</button>
+            <button id="showKeysFormBtn" type="button" class="ghost-btn" data-i18n="settings.editKeys">Edit Keys</button>
           </div>
           <form id="keysForm" class="column">
-            <label class="field-label">Primary Provider
+            <label class="field-label" data-i18n="settings.primaryProvider">Primary Provider
               <select id="primaryProvider">
-                <option value="">Auto (fallback chain)</option>
+                <option value="" data-i18n="settings.autoFallback">Auto (fallback chain)</option>
                 <option value="cerebras">Cerebras</option>
                 <option value="groq">Groq</option>
                 <option value="openai">OpenAI</option>
@@ -221,46 +228,46 @@
             <label class="field-label">Anthropic <input id="anthropicKey" type="password" placeholder="sk-ant-..." /></label>
             <label class="field-label">Google <input id="googleKey" type="password" placeholder="AI..." /></label>
             <label class="field-label">OpenRouter <input id="openrouterKey" type="password" placeholder="sk-or-v1-..." /></label>
-            <button type="submit" class="secondary">Save Keys</button>
+            <button type="submit" class="secondary" data-i18n="settings.saveKeys">Save Keys</button>
           </form>
         </article>
 
         <article class="card-block">
-          <h3><span class="material-symbols-outlined">search</span> Job Scan</h3>
+          <h3><span class="material-symbols-outlined">search</span> <span data-i18n="settings.jobScan">Job Scan</span></h3>
           <form id="scanForm" class="column">
             <div class="form-group row">
               <div class="tag-input-container field-label" id="keywordsContainer">
-                  <span>Parole Chiave:</span>
-                  <input type="text" id="keywordsInput" placeholder="Premi invio...">
+                  <span data-i18n="settings.keywords">Keywords:</span>
+                  <input type="text" id="keywordsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
               </div>
             </div>
             <div class="form-group row">
               <div class="tag-input-container field-label" id="locationsContainer">
-                  <span>Località:</span>
-                  <input type="text" id="locationsInput" placeholder="Premi invio...">
+                  <span data-i18n="settings.locations">Locations:</span>
+                  <input type="text" id="locationsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
               </div>
             </div>
             <div class="scan-options-row">
               <label class="check-label"><input type="checkbox" name="scanSites" value="linkedin" checked /> LinkedIn</label>
               <label class="check-label"><input type="checkbox" name="scanSites" value="indeed" checked /> Indeed</label>
-              <label class="check-label"><input type="checkbox" id="remoteToggle" /> Remote only</label>
+              <label class="check-label"><input type="checkbox" id="remoteToggle" /> <span data-i18n="settings.remoteOnly">Remote only</span></label>
             </div>
             <button type="submit" class="action-main" style="border:0">
               <span class="material-symbols-outlined">rocket_launch</span>
-              <strong>Start Scan</strong>
+              <strong data-i18n="settings.startScan">Start Scan</strong>
             </button>
           </form>
         </article>
 
         <article class="card-block">
-          <h3><span class="material-symbols-outlined">edit_note</span> Add Job Manually</h3>
+          <h3><span class="material-symbols-outlined">edit_note</span> <span data-i18n="settings.addManual">Add Job Manually</span></h3>
           <form id="manualForm" class="column">
-            <input id="manualTitolo" type="text" placeholder="Job Title" required />
-            <input id="manualAzienda" type="text" placeholder="Company" />
-            <input id="manualSede" type="text" placeholder="Location" />
+            <input id="manualTitolo" type="text" data-i18n-placeholder="settings.jobTitle" placeholder="Job Title" required />
+            <input id="manualAzienda" type="text" data-i18n-placeholder="settings.companyName" placeholder="Company" />
+            <input id="manualSede" type="text" data-i18n-placeholder="settings.locationName" placeholder="Location" />
             <input id="manualLink" type="url" placeholder="URL" />
-            <textarea id="manualDescrizione" rows="4" placeholder="Description"></textarea>
-            <button type="submit" class="secondary">Add + Analyze</button>
+            <textarea id="manualDescrizione" rows="4" data-i18n-placeholder="settings.description" placeholder="Description"></textarea>
+            <button type="submit" class="secondary" data-i18n="settings.addAnalyze">Add + Analyze</button>
           </form>
         </article>
       </div>
@@ -271,17 +278,17 @@
       <div class="rail-header">
         <div class="coach-icon"><span class="material-symbols-outlined">workspace_premium</span></div>
         <div>
-          <h3>Career Coach</h3>
-          <p>Your AI Assistant</p>
+          <h3 data-i18n="coach.title">Career Coach</h3>
+          <p data-i18n="coach.subtitle">Your AI Assistant</p>
         </div>
       </div>
 
-      <button type="button" class="new-analysis" id="railRecommendBtn"><span class="material-symbols-outlined">auto_awesome</span> New Analysis</button>
+      <button type="button" class="new-analysis" id="railRecommendBtn"><span class="material-symbols-outlined">auto_awesome</span> <span data-i18n="coach.newAnalysis">New Analysis</span></button>
 
       <nav class="rail-nav">
-        <button type="button" class="rail-link is-active" data-view="dashboard"><span class="material-symbols-outlined">stars</span> Top Picks</button>
-        <button type="button" class="rail-link" data-view="detail"><span class="material-symbols-outlined">chat</span> AI Coach</button>
-        <button type="button" class="rail-link" data-view="settings"><span class="material-symbols-outlined">tune</span> Settings</button>
+        <button type="button" class="rail-link is-active" data-view="dashboard"><span class="material-symbols-outlined">stars</span> <span data-i18n="coach.topPicks">Top Picks</span></button>
+        <button type="button" class="rail-link" data-view="detail"><span class="material-symbols-outlined">chat</span> <span data-i18n="coach.aiCoach">AI Coach</span></button>
+        <button type="button" class="rail-link" data-view="settings"><span class="material-symbols-outlined">tune</span> <span data-i18n="coach.settings">Settings</span></button>
       </nav>
     </aside>
   </main>
@@ -289,7 +296,7 @@
   <!-- Offcanvas Detail -->
   <aside id="jobOffcanvas" class="offcanvas">
     <div class="offcanvas-header">
-      <h2 id="detailTitle">Details</h2>
+      <h2 id="detailTitle" data-i18n="offcanvas.details">Details</h2>
       <button id="closeOffcanvasBtn" class="icon-btn" style="background:none;border:none;cursor:pointer"><span class="material-symbols-outlined">close</span></button>
     </div>
     <div class="offcanvas-body">
@@ -297,27 +304,27 @@
       <p id="detailCompany" class="detail-company"></p>
       <p id="detailMeta" class="detail-meta"></p>
       <div class="offcanvas-actions">
-        <button id="detailApplyNowBtn" class="secondary">Apply Now</button>
+        <button id="detailApplyNowBtn" class="secondary" data-i18n="offcanvas.applyNow">Apply Now</button>
         <a id="detailLinkBtn" target="_blank" class="button secondary" style="display:none;align-items:center;justify-content:center;gap:4px;">
-          <span class="material-symbols-outlined" style="font-size:18px">open_in_new</span> View Listing
+          <span class="material-symbols-outlined" style="font-size:18px">open_in_new</span> <span data-i18n="offcanvas.viewListing">View Listing</span>
         </a>
       </div>
       <div id="jobDetailContainer"></div>
       <div class="cover-letter-section">
         <div id="coverLetterBox" style="display:none;">
-          <h4>Cover Letter</h4>
+          <h4 data-i18n="offcanvas.coverLetter">Cover Letter</h4>
           <pre id="coverLetterOutput" class="output"></pre>
           <div style="display:flex;gap:8px;margin-top:8px;">
-            <button id="saveCoverLetterBtn" class="secondary">Save Draft</button>
+            <button id="saveCoverLetterBtn" class="secondary" data-i18n="offcanvas.saveDraft">Save Draft</button>
             <span id="clSaveStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
           </div>
         </div>
       </div>
       <div class="coach-panel">
         <div class="coach-head" style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;"><span class="material-symbols-outlined">smart_toy</span> AI Career Coach</h3>
+          <h3 style="margin:0;"><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="coach.aiCareerCoach">AI Career Coach</span></h3>
           <select id="chatModelSelector" class="mini-select" title="Select Chat API">
-            <option value="">Auto API</option>
+            <option value="" data-i18n="coach.autoApi">Auto API</option>
             <option value="groq">Groq</option>
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
@@ -329,7 +336,7 @@
         <div id="chatBox" class="chat-box"></div>
         <div id="chatQuickPrompts" class="chat-quick-prompts"></div>
         <form id="chatForm" class="chat-form">
-          <input id="chatInput" type="text" placeholder="Ask the coach..." required />
+          <input id="chatInput" type="text" data-i18n-placeholder="coach.chatPlaceholder" placeholder="Ask the coach..." required />
           <button type="submit"><span class="material-symbols-outlined">send</span></button>
         </form>
       </div>
@@ -343,10 +350,10 @@
   <div id="scanOverlay" class="scan-overlay" style="display:none;">
     <div class="scan-modal">
       <span class="material-symbols-outlined scan-spinner">hourglass_top</span>
-      <h3>Scanning job portals...</h3>
+      <h3 data-i18n="scan.scanning">Scanning job portals...</h3>
       <div class="progress-bar"><div class="progress-fill" id="scanProgressFill"></div></div>
-      <p id="scanProgressText" class="micro" style="margin-top:8px;">Initializing...</p>
-      <button id="cancelScanBtn" class="secondary" style="margin-top:16px;">Close / Pause</button>
+      <p id="scanProgressText" class="micro" style="margin-top:8px;" data-i18n="scan.initializing">Initializing...</p>
+      <button id="cancelScanBtn" class="secondary" style="margin-top:16px;" data-i18n="scan.closePause">Close / Pause</button>
     </div>
   </div>
 

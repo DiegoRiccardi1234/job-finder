@@ -1,4 +1,80 @@
 
+// ─── i18n System ──────────────────────────────────────────────
+let _i18nStrings = {};
+let _i18nFallback = {};
+let _currentLang = localStorage.getItem('language') || 'en';
+
+function t(key, params = {}) {
+  const keys = key.split('.');
+  let val = keys.reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), _i18nStrings);
+  if (val === undefined) {
+    val = keys.reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), _i18nFallback);
+  }
+  if (val === undefined) return key;
+  return String(val).replace(/\{(\w+)\}/g, (_, p) => (params[p] !== undefined ? params[p] : `{${p}}`));
+}
+
+async function loadLanguage(lang) {
+  try {
+    const res = await fetch(`/web/i18n/${lang}.json`);
+    if (!res.ok) throw new Error(res.status);
+    _i18nStrings = await res.json();
+  } catch {
+    _i18nStrings = _i18nFallback;
+  }
+  _currentLang = lang;
+  localStorage.setItem('language', lang);
+  document.documentElement.setAttribute('lang', lang);
+  applyTranslations();
+
+  // Notify backend of language change
+  fetch('/api/preferences', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'ui_language', value: lang }),
+  }).catch(() => {});
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = t(key);
+    if (val !== key) el.textContent = val;
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = t(key);
+    if (val !== key) el.placeholder = val;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const val = t(key);
+    if (val !== key) el.title = val;
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const key = el.getAttribute('data-i18n-html');
+    const val = t(key);
+    if (val !== key) el.innerHTML = val;
+  });
+}
+
+async function initI18n() {
+  try {
+    const res = await fetch('/web/i18n/en.json');
+    _i18nFallback = await res.json();
+  } catch { _i18nFallback = {}; }
+  await loadLanguage(_currentLang);
+}
+
+// Language selector
+const langSelect = document.getElementById('langSelect');
+if (langSelect) {
+  langSelect.value = _currentLang;
+  langSelect.addEventListener('change', () => {
+    loadLanguage(langSelect.value);
+  });
+}
+
 // Theme Toggle
 const themeToggle = document.getElementById('themeToggle');
 if (themeToggle) {
@@ -183,7 +259,7 @@ async function saveKeys() {
     && !payload.openrouter_api_key
     && !payload.primary_provider
   ) {
-    showToast("Inserisci almeno una key o scegli un provider primario.", "info");
+    showToast(t("toast.enterKeyOrProvider"), "info");
     return;
   }
 
@@ -199,7 +275,7 @@ async function saveKeys() {
   await loadHealth();
   await loadKeysStatus();
   setKeysSectionMode(true);
-  showToast("Provider config saved. AI engine reloaded.", "info");
+  showToast(t("toast.providerSaved"), "info");
 }
 
 async function loadProfiles() {
@@ -224,7 +300,7 @@ async function loadProfiles() {
 async function activateProfile(profileId) {
   if (!profileId) return;
   await api(`/api/profiles/${profileId}/activate`, { method: "POST" });
-  showToast(`Profilo attivo impostato su ID ${profileId}.`, "info");
+  showToast(t("toast.profileActive", { id: profileId }), "info");
 }
 
 function truncate(value, max = 120) {
@@ -277,33 +353,33 @@ async function showJobDetail(jobId) {
       <div class="modern-detail">
         <div class="modern-detail-grid">
           <div class="info-card highlight" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
-            <h4>Match Score</h4>
+            <h4>${t("offcanvas.matchScore")}</h4>
             <div class="score-xl">${score}/10</div>
             <div class="text-sm mt-8 text-center">${escapeHtml((analysis ? analysis.consiglio : null) || job.consiglio || "")}</div>
           </div>
           <div class="info-card">
-            <h4>Position Details</h4>
+            <h4>${t("offcanvas.positionDetails")}</h4>
             ${ralSpan}
-            <div class="info-tag"><strong>Contract:</strong> ${escapeHtml((analysis ? analysis.contratto : null) || "N/A")}</div>
-            <div class="info-tag"><strong>Remote:</strong> ${escapeHtml((analysis ? analysis.smart_working : null) || job.modalita || "N/A")}</div>
-            <div class="info-tag"><strong>Experience:</strong> ${escapeHtml((analysis ? analysis.anni_esperienza_richiesti : null) || "N/A")}</div>
-            <div class="info-tag"><strong>Coding Skills:</strong> ${escapeHtml((analysis ? analysis.programmazione_richiesta : null) || "N/A")}</div>
-            <div class="info-tag"><strong>Graduate-friendly:</strong> ${escapeHtml((analysis ? analysis.adatta_neolaureati : null) || "N/A")}</div>
+            <div class="info-tag"><strong>${t("offcanvas.contract")}:</strong> ${escapeHtml((analysis ? analysis.contratto : null) || "N/A")}</div>
+            <div class="info-tag"><strong>${t("offcanvas.remoteWork")}:</strong> ${escapeHtml((analysis ? analysis.smart_working : null) || job.modalita || "N/A")}</div>
+            <div class="info-tag"><strong>${t("offcanvas.experience")}:</strong> ${escapeHtml((analysis ? analysis.anni_esperienza_richiesti : null) || "N/A")}</div>
+            <div class="info-tag"><strong>${t("offcanvas.codingSkills")}:</strong> ${escapeHtml((analysis ? analysis.programmazione_richiesta : null) || "N/A")}</div>
+            <div class="info-tag"><strong>${t("offcanvas.graduateFriendly")}:</strong> ${escapeHtml((analysis ? analysis.adatta_neolaureati : null) || "N/A")}</div>
           </div>
         </div>
         <div class="mt-16">
-          <h4>Pros &amp; Cons</h4>
+          <h4>${t("offcanvas.prosAndCons")}</h4>
           <ul class="pros-cons">
             <li class="pro">✅ ${escapeHtml((analysis ? analysis.punti_forza_per_diego : null) || "N/A")}</li>
             <li class="con">❌ ${escapeHtml((analysis ? analysis.punti_deboli_per_diego : null) || "N/A")}</li>
           </ul>
         </div>
         <div class="info-card mt-8">
-            <p class="text-sm">💡 <strong>AI Verdict:</strong> ${escapeHtml((analysis ? analysis.riassunto : null) || "")}</p>
+            <p class="text-sm">💡 <strong>${t("offcanvas.aiVerdict")}:</strong> ${escapeHtml((analysis ? analysis.riassunto : null) || "")}</p>
         </div>
         <div class="mt-16">
-          <h4>Listing Meta</h4>
-          <p class="text-sm text-dim">Search: ${escapeHtml(job.ricerca_usata)} | Source: ${escapeHtml(job.fonte || "App")} | Found: ${escapeHtml(job.first_seen_at || "")} | Company Rep: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
+          <h4>${t("offcanvas.listingMeta")}</h4>
+          <p class="text-sm text-dim">${t("offcanvas.search")}: ${escapeHtml(job.ricerca_usata)} | ${t("jobs.source")}: ${escapeHtml(job.fonte || "App")} | ${t("offcanvas.found")}: ${escapeHtml(job.first_seen_at || "")} | ${t("offcanvas.companyRep")}: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
         </div>
       </div>
     `;
@@ -337,10 +413,10 @@ function recommendationCardHtml(job) {
   const consiglio = escapeHtml(job.consiglio || "Evaluate match");
   const title = escapeHtml(job.titolo || "Title unavailable");
   const company = escapeHtml(job.azienda || "Company unavailable");
-  const newTag = job.is_new ? "<span class=\"pill-new\">Nuovo</span>" : "";
-  const favoriteText = job.is_favorite ? "Togli Preferito" : "Preferito";
+  const newTag = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
+  const favoriteText = job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite");
   const nextFavorite = job.is_favorite ? "0" : "1";
-  const linkHtml = job.link ? `<div style="margin-top: 4px"><a href="${job.link}" target="_blank" rel="noopener">🔗 Link all'offerta</a></div>` : "";
+  const linkHtml = job.link ? `<div style="margin-top: 4px"><a href="${job.link}" target="_blank" rel="noopener">🔗 ${t("jobs.linkToOffer")}</a></div>` : "";
 
   return `
     <article class="rec-card" data-rec-id="${job.id}">
@@ -352,9 +428,9 @@ function recommendationCardHtml(job) {
       <div>${consiglio}</div>
       ${linkHtml}
       <div class="rec-actions">
-        <button class="secondary" data-rec-action="detail" data-id="${job.id}">Details</button>
-        <button data-rec-action="applied" data-id="${job.id}">Apply</button>
-        <button class="danger" data-rec-action="rejected" data-id="${job.id}">Skip</button>
+        <button class="secondary" data-rec-action="detail" data-id="${job.id}">${t("jobs.details")}</button>
+        <button data-rec-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
+        <button class="danger" data-rec-action="rejected" data-id="${job.id}">${t("jobs.skip")}</button>
         <button class="secondary" data-rec-favorite="${nextFavorite}" data-id="${job.id}">${favoriteText}</button>
       </div>
     </article>
@@ -371,7 +447,7 @@ async function loadRecommendations() {
     const jobs = payload.jobs || [];
 
     if (!jobs.length) {
-      container.innerHTML = '<article class="rec-card"><div class="rec-title">No recommendations yet</div><div>Upload your CV and run a scan to see top job picks.</div></article>';
+      container.innerHTML = `<article class="rec-card"><div class="rec-title">${t("recommendations.noRecs")}</div><div>${t("recommendations.noRecsSub")}</div></article>`;
       return;
     }
 
@@ -388,7 +464,7 @@ async function loadRecommendations() {
           }
           await performJobAction(id, action);
         } catch (error) {
-          showToast(`Quick action error: ${error.message}`, "info");
+          showToast(`${t("toast.quickActionError")}: ${error.message}`, "info");
         }
       });
     });
@@ -400,12 +476,12 @@ async function loadRecommendations() {
         try {
           await toggleFavorite(id, fav);
         } catch (error) {
-          showToast(`Favorite error: ${error.message}`, "info");
+          showToast(`${t("toast.favoriteError")}: ${error.message}`, "info");
         }
       });
     });
   } catch (error) {
-    container.innerHTML = `<article class="rec-card"><div class="rec-title">Loading error</div><div>${escapeHtml(error.message)}</div></article>`;
+    container.innerHTML = `<article class="rec-card"><div class="rec-title">${t("recommendations.loadError")}</div><div>${escapeHtml(error.message)}</div></article>`;
   }
 }
 
@@ -428,7 +504,7 @@ async function loadChatPrompts() {
       wrap.appendChild(btn);
     }
   } catch (error) {
-    showToast(`Quick prompts unavailable: ${error.message}`, "info");
+    showToast(`${t("toast.quickPromptsUnavail")}: ${error.message}`, "info");
   }
 }
 
@@ -461,13 +537,13 @@ async function sendChatMessage(message) {
          const kwTags = getKeywords.addMultiple(result.action.keywords || []);
          const locTags = getLocations.addMultiple(result.action.locations || []);
          if (kwTags || locTags) {
-           showToast("Form compilato, clicca 'Start Scan' nelle impostazioni", "info");
+           showToast(t("toast.formFilled"), "info");
            activateView("settings");
          }
       }
     }
   } catch (error) {
-    appendChat("assistant", `Chat error: ${error.message}`);
+    appendChat("assistant", `${t("toast.chatError")}: ${error.message}`);
   }
 }
 
@@ -496,22 +572,22 @@ async function loadJobs() {
   for (const job of jobs) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${job.is_new ? '<span class="pill-new">Nuovo</span>' : ''}</td>
+      <td>${job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : ''}</td>
       <td>${job.punteggio_ai || 0}/10</td>
       <td>${truncate(job.consiglio || "")}</td>
       <td>${truncate(job.titolo || "")}</td>
       <td>${truncate(job.azienda || "")}</td>
       <td>${job.status}</td>
       <td>
-        <button data-detail-id="${job.id}" class="secondary">Details</button>
+        <button data-detail-id="${job.id}" class="secondary">${t("jobs.details")}</button>
         ${job.link ? `<a href="${job.link}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ''}
       </td>
       <td>
         <div class="mini">
-          <button data-action="applied" data-id="${job.id}">Apply</button>
-          <button data-action="rejected" data-id="${job.id}" class="danger">Skip</button>
-          <button data-action="reopened" data-id="${job.id}" class="secondary">Reopen</button>
-          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary">${job.is_favorite ? "Unfavorite" : "Favorite"}</button>
+          <button data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
+          <button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>
+          <button data-action="reopened" data-id="${job.id}" class="secondary">${t("jobs.reopen")}</button>
+          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary">${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}</button>
         </div>
       </td>
     `;
@@ -525,7 +601,7 @@ async function loadJobs() {
       try {
         await performJobAction(id, action);
       } catch (error) {
-        showToast(`Action error: ${error.message}`, "info");
+        showToast(`${t("toast.actionError")}: ${error.message}`, "info");
       }
     });
   });
@@ -537,7 +613,7 @@ async function loadJobs() {
       try {
         await toggleFavorite(id, fav);
       } catch (error) {
-        showToast(`Favorite error: ${error.message}`, "info");
+        showToast(`${t("toast.favoriteError")}: ${error.message}`, "info");
       }
     });
   });
@@ -548,7 +624,7 @@ async function loadJobs() {
       try {
         await showJobDetail(id);
       } catch (error) {
-        showToast(`Detail error: ${error.message}`, "info");
+        showToast(`${t("toast.detailError")}: ${error.message}`, "info");
       }
     });
   });
@@ -572,12 +648,12 @@ document.getElementById("linkedinForm").addEventListener("submit", async (event)
       body: JSON.stringify({ key: "linkedin_url", value: url }),
     });
     const status = document.getElementById("linkedinStatus");
-    status.textContent = "LinkedIn URL saved successfully.";
+    status.textContent = t("toast.linkedinSaved");
     status.classList.remove("hidden");
     setTimeout(() => status.classList.add("hidden"), 3000);
-    showToast("LinkedIn URL saved. AI will use it in future analyses.", "info");
+    showToast(t("toast.linkedinSaved"), "info");
   } catch (error) {
-    showToast(`LinkedIn save error: ${error.message}`, "info");
+    showToast(`${t("toast.linkedinError")}: ${error.message}`, "info");
   }
 });
 
@@ -594,7 +670,7 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
     body: formData,
   });
   if (!response.ok) {
-    setText("cvSummary", `Upload error: ${await response.text()}`);
+    setText("cvSummary", `${t("toast.uploadError")}: ${await response.text()}`);
     return;
   }
 
@@ -609,7 +685,7 @@ document.getElementById("keysForm").addEventListener("submit", async (event) => 
   try {
     await saveKeys();
   } catch (error) {
-    setText("keysStatus", `Key save error: ${error.message}`);
+    setText("keysStatus", `${t("toast.keySaveError")}: ${error.message}`);
   }
 });
 
@@ -650,7 +726,7 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
   const progressFill = document.getElementById("scanProgressFill");
   overlay.style.display = "flex";
   progressFill.style.width = "5%";
-  progressText.textContent = "Connecting to job portals...";
+  progressText.textContent = t("scan.connecting");
 
   let analysisCount = 0;
   let totalFound = 0;
@@ -660,26 +736,26 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
     try {
       const data = JSON.parse(e.data);
       if (data.status === "started") {
-        progressText.textContent = `Searching: ${(data.terms || []).join(", ")}`;
+        progressText.textContent = `${t("scan.searching")}: ${(data.terms || []).join(", ")}`;
         progressFill.style.width = "10%";
       } else if (data.status === "scraped") {
         totalFound += data.found || 0;
-        progressText.textContent = `Found ${totalFound} jobs — analyzing with AI...`;
+        progressText.textContent = t("scan.foundJobs", { count: totalFound });
         progressFill.style.width = "30%";
       } else if (data.status === "analyzed") {
         analysisCount++;
         const pct = Math.min(30 + (analysisCount * 3), 90);
         progressFill.style.width = pct + "%";
         const j = data.job || {};
-        progressText.textContent = `Analyzed: ${j.titolo || "?"} @ ${j.azienda || "?"} — Score ${j.score || 0}/10`;
+        progressText.textContent = t("scan.analyzed", { title: j.titolo || "?", company: j.azienda || "?", score: j.score || 0 });
       } else if (data.status === "complete") {
         progressFill.style.width = "100%";
-        progressText.textContent = `Done! ${data.totale_nuovi || 0} new jobs, ${data.totale_analizzati || 0} analyzed.`;
+        progressText.textContent = t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 });
         evtSource.close();
         setTimeout(() => { overlay.style.display = "none"; }, 2000);
         Promise.all([loadJobs(), loadRecommendations()]);
       } else if (data.error) {
-        progressText.textContent = `Error: ${data.error}`;
+        progressText.textContent = `${t("scan.error")}: ${data.error}`;
         evtSource.close();
         setTimeout(() => { overlay.style.display = "none"; }, 3000);
       }
@@ -687,7 +763,7 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
   };
   evtSource.onerror = () => {
     evtSource.close();
-    progressText.textContent = "Connection lost. Check results below.";
+    progressText.textContent = t("scan.connectionLost");
     setTimeout(() => { overlay.style.display = "none"; }, 2000);
     Promise.all([loadJobs(), loadRecommendations()]);
   };
@@ -715,7 +791,7 @@ document.getElementById("manualForm").addEventListener("submit", async (event) =
   });
 
   await Promise.all([loadJobs(), loadRecommendations()]);
-  showToast("Manual job added and analyzed.", "info");
+  showToast(t("toast.manualAdded"), "info");
 });
 
 const _chatForm = document.getElementById("chatForm");
@@ -768,14 +844,14 @@ document.getElementById("railRecommendBtn").addEventListener("click", async () =
 
 document.getElementById("detailApplyNowBtn").addEventListener("click", async () => {
   if (!selectedJobId) {
-    showToast("Open a job detail first.", "info");
+    showToast(t("toast.openJobFirst"), "info");
     return;
   }
   try {
     await performJobAction(selectedJobId, "applied");
-    showToast("Application marked as sent.", "info");
+    showToast(t("toast.appMarked"), "info");
   } catch (error) {
-    showToast(`Application error: ${error.message}`, "info");
+    showToast(`${t("toast.actionError")}: ${error.message}`, "info");
   }
 });
 
@@ -787,14 +863,14 @@ if (genCovBtn) {
     const outTxt = document.getElementById("coverLetterOutput");
     
     outBox.style.display = "block";
-    outTxt.value = "Generating (may take a few seconds)...";
+    outTxt.value = t("toast.generating");
     genCovBtn.disabled = true;
 
     try {
       const payload = await api(`/api/jobs/${selectedJobId}/cover-letter`, { method: "POST" });
-      outTxt.value = payload.cover_letter || "No result received.";
+      outTxt.value = payload.cover_letter || t("toast.noResult");
     } catch (error) {
-      outTxt.value = `Generation error: ${error.message}`;
+      outTxt.value = `${t("toast.genError")}: ${error.message}`;
     } finally {
       genCovBtn.disabled = false;
     }
@@ -814,10 +890,11 @@ document.getElementById("profileSelect").addEventListener("change", async (event
 
 document.getElementById("exportCsvBtn").addEventListener("click", async () => {
   const result = await api("/api/export/csv", { method: "POST" });
-  showToast(`CSV esportato: ${result.file}`, "info");
+  showToast(t("toast.csvExported", { file: result.file }), "info");
 });
 
 async function bootstrap() {
+  await initI18n();
   activateView("dashboard");
   await loadHealth();
   await loadKeysStatus();
@@ -829,7 +906,7 @@ async function bootstrap() {
 
 bootstrap().catch((error) => {
   console.error(error);
-  showToast(`Initialization error: ${error.message}`, "info");
+  showToast(`${t("toast.initError")}: ${error.message}`, "info");
 });
 
 

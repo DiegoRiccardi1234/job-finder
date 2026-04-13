@@ -177,6 +177,23 @@ body {
   align-items: center;
 }
 
+.lang-select {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+.lang-select:hover,
+.lang-select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
 .icon-btn {
   color: var(--primary);
   cursor: pointer;
