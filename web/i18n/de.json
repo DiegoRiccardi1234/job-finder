@@ -6,7 +6,7 @@
   "hero": {
     "eyebrow": "KI-gestützte Jobsuche",
     "title": "Dein nächstes Kapitel,",
-    "titleEm": "präzise kuratiert.",
+    "titleEm": "passend zu deinem Profil.",
     "subtitle": "Lebenslauf-Analyse, KI-Ranking und ein praktischer Plan — entscheide in Minuten, wo du dich bewirbst.",
     "activeModel": "Aktives Modell",
     "provider": "Anbieter",
@@ -65,7 +65,9 @@
     "favorite": "Favorit",
     "unfavorite": "Favorit entfernen",
     "newBadge": "Neu",
-    "linkToOffer": "Link zum Angebot"
+    "linkToOffer": "Link zum Angebot",
+    "titleUnavailable": "Titel nicht verfügbar",
+    "companyUnavailable": "Unternehmen nicht verfügbar"
   },
   "kanbanCols": {
     "open": "Offen",
@@ -117,6 +119,7 @@
     "details": "Details",
     "status": "Status",
     "applyNow": "Jetzt Bewerben",
+    "generateCoverLetter": "Anschreiben Generieren",
     "viewListing": "Anzeige ansehen",
     "coverLetter": "Anschreiben",
     "saveDraft": "Entwurf speichern",

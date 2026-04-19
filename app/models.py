@@ -7,12 +7,14 @@ from pydantic import BaseModel, Field
 class JobStatus(str, Enum):
     open = "open"
     applied = "applied"
+    interviewing = "interviewing"
     rejected = "rejected"
     archived = "archived"
 
 
 class JobActionType(str, Enum):
     applied = "applied"
+    interviewing = "interviewing"
     rejected = "rejected"
     reopened = "reopened"
 

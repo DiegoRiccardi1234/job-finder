@@ -74,7 +74,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         yield
         container.shutdown()
 
-    fastapi_app = FastAPI(title="The Curated Career", version="0.3.0", lifespan=lifespan)
+    fastapi_app = FastAPI(title="Job Finder", version="0.3.0", lifespan=lifespan)
     web_dir = workspace_dir / "web"
     fastapi_app.mount("/web", StaticFiles(directory=web_dir), name="web")
 

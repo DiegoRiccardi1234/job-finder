@@ -1,1 +1,1 @@
-"""LinkedIn/Indeed job finder web app package."""
+"""Job Finder web app package (LinkedIn/Indeed local assistant)."""

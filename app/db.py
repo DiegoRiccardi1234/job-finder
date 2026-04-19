@@ -99,6 +99,9 @@ class Database:
     def close(self) -> None:
         self.conn.close()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        return self.conn
+
     def begin_scan(self, location: str, is_remote: bool, terms: list[str]) -> int:
         cur = self.conn.cursor()
         cur.execute(
@@ -237,6 +240,8 @@ class Database:
         new_status = "open"
         if action == "applied":
             new_status = "applied"
+        elif action == "interviewing":
+            new_status = "interviewing"
         elif action == "rejected":
             new_status = "rejected"
         elif action == "reopened":
@@ -431,23 +436,59 @@ class Database:
         return rows
 
     def get_analytics(self) -> dict:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            total = cursor.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] or 0
-            applied = cursor.execute("SELECT COUNT(*) FROM jobs WHERE status = 'applied'").fetchone()[0] or 0
-            rejected = cursor.execute("SELECT COUNT(*) FROM jobs WHERE status = 'rejected'").fetchone()[0] or 0
-            return {"total": total, "applied": applied, "rejected": rejected}
+        cursor = self.conn.cursor()
+        total = cursor.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] or 0
+        applied = cursor.execute("SELECT COUNT(*) FROM jobs WHERE status = 'applied'").fetchone()[0] or 0
+        rejected = cursor.execute("SELECT COUNT(*) FROM jobs WHERE status = 'rejected'").fetchone()[0] or 0
+
+        jobs_by_status: dict[str, int] = {
+            "open": 0,
+            "applied": 0,
+            "interviewing": 0,
+            "rejected": 0,
+            "archived": 0,
+        }
+        for row in cursor.execute(
+            "SELECT status, COUNT(*) AS count FROM jobs GROUP BY status"
+        ).fetchall():
+            status = str(row[0] or "").strip().lower()
+            count = int(row[1] or 0)
+            if status in jobs_by_status:
+                jobs_by_status[status] = count
+
+        score_distribution: dict[str, int] = {str(i): 0 for i in range(0, 11)}
+        for row in cursor.execute(
+            "SELECT punteggio_ai, COUNT(*) AS count FROM jobs GROUP BY punteggio_ai"
+        ).fetchall():
+            try:
+                score = int(row[0])
+            except Exception:
+                continue
+            if 0 <= score <= 10:
+                score_distribution[str(score)] = int(row[1] or 0)
+
+        return {
+            "total": total,
+            "applied": applied,
+            "rejected": rejected,
+            "jobs_by_status": jobs_by_status,
+            "score_distribution": score_distribution,
+        }
 
     def save_cover_letter(self, job_id: int, letter: str) -> None:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            row = cursor.execute("SELECT analysis_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
-            if row and row[0]:
-                import json
+        cursor = self.conn.cursor()
+        row = cursor.execute("SELECT analysis_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if row and row[0]:
+            try:
                 data = json.loads(row[0])
-                data["cover_letter"] = letter
-                cursor.execute("UPDATE jobs SET analysis_json = ? WHERE id = ?", (json.dumps(data, ensure_ascii=False), job_id))
-            conn.commit()
+            except json.JSONDecodeError:
+                data = {}
+            data["cover_letter"] = letter
+            cursor.execute(
+                "UPDATE jobs SET analysis_json = ? WHERE id = ?",
+                (json.dumps(data, ensure_ascii=False), job_id),
+            )
+            self.conn.commit()
 
     def set_preference(self, key: str, value: str) -> None:
         self.conn.execute(

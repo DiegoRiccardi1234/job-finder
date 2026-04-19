@@ -6,7 +6,7 @@
   "hero": {
     "eyebrow": "AI-Powered Job Search",
     "title": "Your next chapter,",
-    "titleEm": "curated with precision.",
+    "titleEm": "matched to your profile.",
     "subtitle": "CV analysis, AI ranking & a practical application plan — decide where to apply in minutes.",
     "activeModel": "Active Model",
     "provider": "Provider",
@@ -65,7 +65,9 @@
     "favorite": "Favorite",
     "unfavorite": "Unfavorite",
     "newBadge": "New",
-    "linkToOffer": "Link to offer"
+    "linkToOffer": "Link to offer",
+    "titleUnavailable": "Title unavailable",
+    "companyUnavailable": "Company unavailable"
   },
   "kanbanCols": {
     "open": "Open",
@@ -117,6 +119,7 @@
     "details": "Details",
     "status": "Status",
     "applyNow": "Apply Now",
+    "generateCoverLetter": "Generate Cover Letter",
     "viewListing": "View Listing",
     "coverLetter": "Cover Letter",
     "saveDraft": "Save Draft",

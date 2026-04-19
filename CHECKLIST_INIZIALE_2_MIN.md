@@ -13,7 +13,7 @@ Usa questa checklist per verificare in 2 minuti che tutto funzioni sul PC del tu
 - Apri: http://127.0.0.1:8000
 
 4. Configura key dalla UI
-- Sezione: 0) Configura API Key
+- Sezione: Settings
 - Inserisci almeno una key (Cerebras o Groq)
 - Premi Salva Key
 

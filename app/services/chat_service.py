@@ -123,6 +123,132 @@ def _get_chat_state(db: Database) -> str:
     return "advising"
 
 
+def _is_italian_ui(db: Database) -> bool:
+    return db.get_preference("ui_language", "en").lower().startswith("it")
+
+
+def _profile_summary_dict(db: Database) -> dict[str, Any]:
+    profile = db.get_active_candidate_profile()
+    if not profile:
+        return {}
+
+    summary = profile.get("summary_json")
+    if isinstance(summary, dict):
+        return summary
+    if isinstance(summary, str):
+        try:
+            loaded = json.loads(summary)
+            if isinstance(loaded, dict):
+                return loaded
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
+
+
+def _append_unique(values: list[str], value: str) -> None:
+    normalized = value.strip()
+    if not normalized:
+        return
+    existing = {item.lower() for item in values}
+    if normalized.lower() in existing:
+        return
+    values.append(normalized)
+
+
+def _suggest_keywords_from_profile(db: Database, limit: int = 4) -> list[str]:
+    keywords: list[str] = []
+    summary = _profile_summary_dict(db)
+
+    preferred_roles = summary.get("preferred_roles") or summary.get("ruoli_preferiti") or []
+    if isinstance(preferred_roles, list):
+        for role in preferred_roles:
+            _append_unique(keywords, str(role))
+
+    if db.get_preference("prefer_role_data", "") == "1":
+        _append_unique(keywords, "Data Analyst")
+    if db.get_preference("prefer_role_qa", "") == "1":
+        _append_unique(keywords, "QA Tester")
+    if db.get_preference("prefer_role_cyber", "") == "1":
+        _append_unique(keywords, "Cybersecurity Analyst")
+
+    profile_text = _build_profile_context(db).lower()
+    if "python" in profile_text:
+        _append_unique(keywords, "Python Developer")
+    if "data" in profile_text:
+        _append_unique(keywords, "Data Analyst")
+    if "qa" in profile_text or "testing" in profile_text:
+        _append_unique(keywords, "QA Tester")
+
+    if not keywords:
+        keywords = ["Python Developer", "Data Analyst", "QA Tester"]
+
+    return keywords[:limit]
+
+
+def _suggest_locations(db: Database) -> list[str]:
+    remote_mode = db.get_preference("remote_mode", "")
+    last_scan_location = db.get_preference("last_scan_location", "").strip()
+
+    if remote_mode == "full_remote":
+        return ["Italy"]
+    if last_scan_location:
+        return [last_scan_location]
+    return ["Italy"]
+
+
+def _has_search_intent(message: str) -> bool:
+    lower = message.lower()
+    return any(
+        token in lower
+        for token in [
+            "search",
+            "scan",
+            "find",
+            "cerca",
+            "ricerca",
+            "trova",
+        ]
+    )
+
+
+def _has_role_guidance_intent(message: str) -> bool:
+    lower = message.lower()
+    has_cv_hint = any(token in lower for token in ["cv", "resume", "profilo", "profile"])
+    has_role_hint = any(
+        token in lower
+        for token in [
+            "figura lavorativa",
+            "figure lavorative",
+            "figura",
+            "figure",
+            "ruolo",
+            "ruoli",
+            "posizione",
+            "posizioni",
+            "job role",
+            "job roles",
+        ]
+    )
+    has_guidance_hint = any(
+        token in lower
+        for token in [
+            "quali",
+            "adatte",
+            "adatto",
+            "adatta",
+            "consigli",
+            "consiglia",
+            "suggest",
+            "best",
+            "fit",
+            "target",
+            "dovrei",
+            "devo",
+        ]
+    )
+    return has_cv_hint and has_role_hint and has_guidance_hint
+
+
 # ─── System Prompts ─────────────────────────────────────────────
 
 SYSTEM_PROMPTS = {
@@ -170,23 +296,96 @@ SYSTEM_PROMPTS = {
 
 # ─── Fallback (no LLM) ─────────────────────────────────────────
 
-def _fallback_answer(db: Database, message: str) -> str:
+def _fallback_answer(db: Database, message: str) -> tuple[str, dict[str, Any] | None]:
     lower = message.lower()
-    top_jobs = db.get_top_jobs(limit=3)
 
-    if any(w in lower for w in ["recommend", "best", "top", "consiglia", "miglior"]):
+    recommend_intent = any(
+        token in lower
+        for token in ["recommend", "best", "top", "consiglia", "miglior", "priorit", "candid"]
+    )
+
+    recommended_jobs = db.get_recommended_jobs(limit=3)
+    top_jobs = recommended_jobs or db.get_top_jobs(limit=3)
+
+    if recommend_intent:
         if not top_jobs:
-            return "No analyzed jobs available yet. Run a scan first from Settings."
-        lines = ["Here are the top picks right now:"]
+            if _is_italian_ui(db):
+                return "Non ho ancora offerte analizzate. Avvia prima una scansione dalla pagina Settings.", None
+            return "No analyzed jobs available yet. Run a scan first from Settings.", None
+
+        if _is_italian_ui(db):
+            lines = ["Ecco le offerte prioritarie in questo momento:"]
+        else:
+            lines = ["Here are the top picks right now:"]
+
         for idx, job in enumerate(top_jobs, 1):
+            score = int(job.get("punteggio_ai") or 0)
+            advice = job.get("consiglio") or "Valutabile"
             lines.append(
                 f"{idx}. {job.get('titolo')} @ {job.get('azienda')} "
-                f"(score {job.get('punteggio_ai')}/10, {job.get('consiglio')})"
+                f"(score {score}/10, {advice})"
             )
-        lines.append("\nOpen the Details panel on any job to learn more or apply.")
-        return "\n".join(lines)
 
-    return "I've saved your message. I can recommend top jobs or update your preferences — just ask!"
+        if _is_italian_ui(db):
+            lines.append("\nApri il pannello Details per vedere motivazioni e prossima azione consigliata.")
+        else:
+            lines.append("\nOpen the Details panel on any job to learn more or apply.")
+        return "\n".join(lines), None
+
+    if _has_role_guidance_intent(message):
+        keywords = _suggest_keywords_from_profile(db)
+        locations = _suggest_locations(db)
+        action = {
+            "type": "FILL_SCAN_FORM",
+            "keywords": keywords,
+            "locations": locations,
+        }
+
+        top_roles = ", ".join(keywords[:3])
+        if _is_italian_ui(db):
+            return (
+                "Dal tuo CV le figure piu coerenti sono: "
+                f"{top_roles}. "
+                "Ho anche precompilato la ricerca con parole chiave e location: avvia la scansione e poi ti dico quali offerte hanno fit migliore.",
+                action,
+            )
+
+        return (
+            "From your CV, the most suitable roles are: "
+            f"{top_roles}. "
+            "I also pre-filled search terms and location: run the scan and I will rank the best matches.",
+            action,
+        )
+
+    if _has_search_intent(message):
+        keywords = _suggest_keywords_from_profile(db)
+        locations = _suggest_locations(db)
+        action = {
+            "type": "FILL_SCAN_FORM",
+            "keywords": keywords,
+            "locations": locations,
+        }
+
+        if _is_italian_ui(db):
+            return (
+                "Ho preparato una ricerca coerente con CV e preferenze. "
+                f"Parole chiave: {', '.join(keywords)}. "
+                f"Location: {', '.join(locations)}. "
+                "Avvia la scansione e poi ti ordino le offerte per priorita.",
+                action,
+            )
+
+        return (
+            "I prepared a search aligned with your CV and preferences. "
+            f"Keywords: {', '.join(keywords)}. "
+            f"Locations: {', '.join(locations)}. "
+            "Run the scan and I will prioritize the best opportunities.",
+            action,
+        )
+
+    if _is_italian_ui(db):
+        return "Messaggio salvato. Posso suggerirti cosa cercare, avviare una ricerca guidata e ordinare le offerte migliori.", None
+    return "I've saved your message. I can suggest what to search and prioritize your best jobs — just ask!", None
 
 
 # ─── Main Handler ───────────────────────────────────────────────
@@ -228,7 +427,7 @@ def handle_chat_message(
         "However, NO MATTER WHICH STATE YOU ARE IN, if the user explicitly asks you to search for jobs, scan for jobs, or find new listings (e.g., 'Cerca lavori per Python a Roma' or 'Find me remote java jobs'), "
         "you MUST formulate the parameters and put them in the 'action' field, like this:\n"
         "{\n"
-        '  "answer": "Ho preparato la ricerca per...',
+        '  "answer": "Ho preparato la ricerca per...",\n'
         '  "action": {"type": "FILL_SCAN_FORM", "keywords": ["Python"], "locations": ["Roma"]}\n'
         "}"
     )
@@ -262,7 +461,7 @@ def handle_chat_message(
         except json.JSONDecodeError:
             answer = raw_answer
     except Exception:
-        answer = _fallback_answer(db=db, message=message)
+        answer, action_payload = _fallback_answer(db=db, message=message)
 
     db.save_chat_message(session_id=session_id, role="assistant", content=answer)
     return {

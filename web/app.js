@@ -321,7 +321,6 @@ async function showJobDetail(jobId) {
     "detailMeta",
     `${job.sede || "Sede N/D"} | Score ${job.punteggio_ai || 0}/10 | ${job.modalita || "Modalita N/D"}`,
   );
-  setText("detailAdvice", job.consiglio || "Evaluate the fit and prepare a targeted application.");
 
   const detailLinkBtn = document.getElementById("detailLinkBtn");
   if (detailLinkBtn) {
@@ -338,7 +337,7 @@ async function showJobDetail(jobId) {
   if (genBtn && covBox) {
     genBtn.style.display = "inline-block";
     covBox.style.display = "none";
-    document.getElementById("coverLetterOutput").value = "";
+    document.getElementById("coverLetterOutput").textContent = "";
   }
 
   const container = document.getElementById("jobDetailContainer");
@@ -385,9 +384,10 @@ async function showJobDetail(jobId) {
     `;
   }
   
-  const offcanvas = document.getElementById('jobOffcanvas');
-  if (offcanvas) {
-    offcanvas.classList.add('is-open');
+  const inlineDetail = document.getElementById('jobDetailInline');
+  if (inlineDetail) {
+    inlineDetail.style.display = 'block';
+    inlineDetail.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
 }
@@ -411,8 +411,8 @@ async function toggleFavorite(jobId, isFavorite) {
 function recommendationCardHtml(job) {
   const score = Number(job.punteggio_ai || 0);
   const consiglio = escapeHtml(job.consiglio || "Evaluate match");
-  const title = escapeHtml(job.titolo || "Title unavailable");
-  const company = escapeHtml(job.azienda || "Company unavailable");
+  const title = escapeHtml(job.titolo || t("jobs.titleUnavailable"));
+  const company = escapeHtml(job.azienda || t("jobs.companyUnavailable"));
   const newTag = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
   const favoriteText = job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite");
   const nextFavorite = job.is_favorite ? "0" : "1";
@@ -429,7 +429,7 @@ function recommendationCardHtml(job) {
       ${linkHtml}
       <div class="rec-actions">
         <button class="secondary" data-rec-action="detail" data-id="${job.id}">${t("jobs.details")}</button>
-        <button data-rec-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
+        <button class="apply-btn" data-rec-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
         <button class="danger" data-rec-action="rejected" data-id="${job.id}">${t("jobs.skip")}</button>
         <button class="secondary" data-rec-favorite="${nextFavorite}" data-id="${job.id}">${favoriteText}</button>
       </div>
@@ -513,11 +513,6 @@ async function sendChatMessage(message) {
   if (!text) return;
 
   showToast(text, "info");
-  
-  const offcanvas = document.getElementById('jobOffcanvas');
-  if (offcanvas) {
-    offcanvas.classList.add('is-open');
-  }
 
   try {
     const providerSelector = document.getElementById("chatModelSelector");
@@ -531,7 +526,7 @@ async function sendChatMessage(message) {
 
     if (result.action && result.action.type === "FILL_SCAN_FORM") {
       // populate tags
-      if (typeof getKeywords !== "function" || typeof getLocations !== "function") {
+      if (!getKeywords?.addMultiple || !getLocations?.addMultiple) {
           console.warn("Tag setups not ready");
       } else {
          const kwTags = getKeywords.addMultiple(result.action.keywords || []);
@@ -570,21 +565,22 @@ async function loadJobs() {
   body.innerHTML = "";
 
   for (const job of jobs) {
+    const newBadge = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : ''}</td>
-      <td>${job.punteggio_ai || 0}/10</td>
-      <td>${truncate(job.consiglio || "")}</td>
+      <td>${job.punteggio_ai || 0}/10 ${newBadge}</td>
       <td>${truncate(job.titolo || "")}</td>
       <td>${truncate(job.azienda || "")}</td>
-      <td>${job.status}</td>
+      <td>${truncate(job.sede || "")}</td>
+      <td>${truncate(job.fonte || "")}</td>
+      <td>${truncate(job.consiglio || "")}</td>
       <td>
         <button data-detail-id="${job.id}" class="secondary">${t("jobs.details")}</button>
-        ${job.link ? `<a href="${job.link}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ''}
+        ${job.link ? `<a href="${job.link}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ""}
       </td>
       <td>
         <div class="mini">
-          <button data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
+          <button class="apply-btn" data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
           <button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>
           <button data-action="reopened" data-id="${job.id}" class="secondary">${t("jobs.reopen")}</button>
           <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary">${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}</button>
@@ -625,6 +621,77 @@ async function loadJobs() {
         await showJobDetail(id);
       } catch (error) {
         showToast(`${t("toast.detailError")}: ${error.message}`, "info");
+      }
+    });
+  });
+
+  renderKanban(jobs);
+}
+
+function normalizeJobStatus(status) {
+  const normalized = String(status || "open").trim().toLowerCase();
+  if (normalized === "interview") return "interviewing";
+  return normalized;
+}
+
+function renderKanban(jobs) {
+  const kanbanView = document.getElementById("kanbanView");
+  if (!kanbanView) return;
+
+  const columns = {
+    open: kanbanView.querySelector('.kanban-col[data-status="open"] .cards-container'),
+    applied: kanbanView.querySelector('.kanban-col[data-status="applied"] .cards-container'),
+    interviewing: kanbanView.querySelector('.kanban-col[data-status="interviewing"] .cards-container'),
+    rejected: kanbanView.querySelector('.kanban-col[data-status="rejected"] .cards-container'),
+  };
+
+  Object.values(columns).forEach((container) => {
+    if (container) container.innerHTML = "";
+  });
+
+  const counts = { open: 0, applied: 0, interviewing: 0, rejected: 0 };
+  for (const job of jobs || []) {
+    const status = normalizeJobStatus(job.status);
+    if (!(status in columns) || !columns[status]) continue;
+
+    counts[status] += 1;
+    const card = document.createElement("article");
+    card.className = "kanban-card";
+    card.innerHTML = `
+      <strong>${escapeHtml(job.titolo || t("jobs.titleUnavailable"))}</strong>
+      <div class="micro">${escapeHtml(job.azienda || t("jobs.companyUnavailable"))}</div>
+      <div class="micro">Score: ${job.punteggio_ai || 0}/10</div>
+      <div class="mini" style="margin-top:8px;">
+        <button class="secondary" data-k-detail-id="${job.id}">${t("jobs.details")}</button>
+        <button class="apply-btn" data-k-action="${status === "open" ? "applied" : "reopened"}" data-id="${job.id}">
+          ${status === "open" ? t("jobs.apply") : t("jobs.reopen")}
+        </button>
+      </div>
+    `;
+    columns[status].appendChild(card);
+  }
+
+  setText("k-count-open", String(counts.open));
+  setText("k-count-applied", String(counts.applied));
+  setText("k-count-interviewing", String(counts.interviewing));
+  setText("k-count-rejected", String(counts.rejected));
+
+  kanbanView.querySelectorAll("button[data-k-detail-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await showJobDetail(btn.dataset.kDetailId);
+      } catch (error) {
+        showToast(`${t("toast.detailError")}: ${error.message}`, "info");
+      }
+    });
+  });
+
+  kanbanView.querySelectorAll("button[data-k-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await performJobAction(btn.dataset.id, btn.dataset.kAction);
+      } catch (error) {
+        showToast(`${t("toast.actionError")}: ${error.message}`, "info");
       }
     });
   });
@@ -806,12 +873,6 @@ if (_chatForm) _chatForm.addEventListener("submit", async (event) => {
 
 const _quickRecommendBtn = document.getElementById("quickRecommendBtn");
 if (_quickRecommendBtn) _quickRecommendBtn.addEventListener("click", async () => {
-  
-  const offcanvas = document.getElementById('jobOffcanvas');
-  if (offcanvas) {
-    offcanvas.classList.add('is-open');
-  }
-
   await sendChatMessage("Recommend the top 5 jobs I should apply for today, in priority order.");
 });
 
@@ -833,12 +894,6 @@ document.querySelectorAll("[data-view]").forEach((btn) => {
 });
 
 document.getElementById("railRecommendBtn").addEventListener("click", async () => {
-  
-  const offcanvas = document.getElementById('jobOffcanvas');
-  if (offcanvas) {
-    offcanvas.classList.add('is-open');
-  }
-
   await sendChatMessage("Recommend the strongest jobs I should apply for right now, in priority order.");
 });
 
@@ -863,14 +918,14 @@ if (genCovBtn) {
     const outTxt = document.getElementById("coverLetterOutput");
     
     outBox.style.display = "block";
-    outTxt.value = t("toast.generating");
+    outTxt.textContent = t("toast.generating");
     genCovBtn.disabled = true;
 
     try {
       const payload = await api(`/api/jobs/${selectedJobId}/cover-letter`, { method: "POST" });
-      outTxt.value = payload.cover_letter || t("toast.noResult");
+      outTxt.textContent = payload.cover_letter || t("toast.noResult");
     } catch (error) {
-      outTxt.value = `${t("toast.genError")}: ${error.message}`;
+      outTxt.textContent = `${t("toast.genError")}: ${error.message}`;
     } finally {
       genCovBtn.disabled = false;
     }
@@ -900,6 +955,7 @@ async function bootstrap() {
   await loadKeysStatus();
   await loadProfiles();
   await Promise.all([loadJobs(), loadRecommendations()]);
+  await loadAnalytics();
   await loadChatPrompts();
   await loadChatHistory();
 }
@@ -929,11 +985,11 @@ function showToast(message, type = 'info') {
 }
 
 
-const closeOffcanvasBtn = document.getElementById('closeOffcanvasBtn');
-if (closeOffcanvasBtn) {
-    closeOffcanvasBtn.addEventListener('click', () => {
-        const offcanvas = document.getElementById('jobOffcanvas');
-        if (offcanvas) offcanvas.classList.remove('is-open');
+const closeDetailBtn = document.getElementById('closeDetailBtn');
+if (closeDetailBtn) {
+    closeDetailBtn.addEventListener('click', () => {
+        const inlineDetail = document.getElementById('jobDetailInline');
+        if (inlineDetail) inlineDetail.style.display = 'none';
     });
 }
 
@@ -986,26 +1042,18 @@ async function loadAnalytics() {
 document.getElementById("viewTableBtn")?.addEventListener("click", e => {
     document.getElementById("tableView").classList.add("is-active");
     document.getElementById("kanbanView").classList.remove("is-active");
-    e.target.classList.add("is-active");
+  e.currentTarget.classList.add("is-active");
     document.getElementById("viewKanbanBtn").classList.remove("is-active");
 });
 
 document.getElementById("viewKanbanBtn")?.addEventListener("click", e => {
     document.getElementById("kanbanView").classList.add("is-active");
     document.getElementById("tableView").classList.remove("is-active");
-    e.target.classList.add("is-active");
+  e.currentTarget.classList.add("is-active");
     document.getElementById("viewTableBtn").classList.remove("is-active");
-    loadJobs(); // re-render kanban
+  loadJobs();
 });
 
-// hook into activateView to trigger chart render for analytics view
-const origActivateView = activateView;
-activateView = function(viewName) {
-    origActivateView(viewName);
-    if(viewName === 'analytics') {
-        loadAnalytics();
-    }
-};
 // Tag Input UI Logic
 function setupTagInput(containerId, inputId) {
     const container = document.getElementById(containerId);

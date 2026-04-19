@@ -6,7 +6,7 @@
   "hero": {
     "eyebrow": "Ricerca Lavoro con IA",
     "title": "Il tuo prossimo capitolo,",
-    "titleEm": "curato con precisione.",
+    "titleEm": "selezionato sul tuo profilo.",
     "subtitle": "Analisi CV, ranking IA e un piano pratico — decidi dove candidarti in pochi minuti.",
     "activeModel": "Modello Attivo",
     "provider": "Provider",
@@ -65,7 +65,9 @@
     "favorite": "Preferito",
     "unfavorite": "Rimuovi Preferito",
     "newBadge": "Nuovo",
-    "linkToOffer": "Link all'offerta"
+    "linkToOffer": "Link all'offerta",
+    "titleUnavailable": "Titolo non disponibile",
+    "companyUnavailable": "Azienda non disponibile"
   },
   "kanbanCols": {
     "open": "Aperto",
@@ -117,6 +119,7 @@
     "details": "Dettagli",
     "status": "Stato",
     "applyNow": "Candidati Ora",
+    "generateCoverLetter": "Genera Lettera",
     "viewListing": "Vedi Annuncio",
     "coverLetter": "Lettera di Presentazione",
     "saveDraft": "Salva Bozza",

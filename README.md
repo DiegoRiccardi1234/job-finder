@@ -1,11 +1,11 @@
-# The Curated Career — AI-Powered Job Finder
+# Job Finder — AI-Powered Job Search Assistant
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![AI Powered](https://img.shields.io/badge/AI-Multi--LLM-blueviolet)](#supported-llm-providers)
 
-> A local-first, AI-powered job search assistant that scrapes LinkedIn & Indeed, analyzes offers against your CV, and coaches you through the application process — all from a single glassmorphism dashboard.
+> A localhost-first AI-powered job search assistant that runs on your machine and helps you scrape LinkedIn & Indeed, analyze offers against your CV, and plan applications from one dashboard.
 
 ---
 
@@ -16,7 +16,7 @@
 - **Model Selection & Tag-Based Search** — Pick your preferred LLM provider directly from the UI and search precisely using dynamic tags
 - **Multi-Source Scan** — Scrapes LinkedIn and Indeed simultaneously with real-time SSE progress
 - **Personalized Rating** — Each job gets a 1-10 AI score based on your profile, with pros/cons and actionable advice
-- **Kanban Board** — Drag & drop jobs across columns: Open → Applied → Interviewing → Rejected
+- **Kanban Board** — Track jobs across columns: Open → Applied → Interviewing → Rejected
 - **Cover Letter Generator** — One-click AI-generated cover letters tailored to each job + your CV
 - **Analytics Dashboard** — Track application stats, score distributions, and scan history
 - **Dark Mode** — Full dark/light theme with glassmorphism UI
@@ -26,7 +26,7 @@
 
 > **Demo Video**
 > 
-> *A brief demo video/GIF showcasing the Tag Search, Kanban drag-and-drop, and the AI Chatbot autocomplete will be available here soon.*
+> *A brief demo video/GIF showcasing Tag Search, Kanban workflow, and AI Chatbot autocomplete will be available here soon.*
 
 **Dashboard — Job Table & Recommendations**
 
@@ -55,8 +55,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/the-curated-career.git
-cd the-curated-career
+git clone https://github.com/YOUR_USERNAME/job-finder.git
+cd job-finder
 
 # Create and activate virtual environment
 python -m venv .venv
@@ -79,13 +79,27 @@ python run_webapp.py
 
 Open **http://127.0.0.1:8000** in your browser.
 
+## Localhost Mode (Not Offline)
+
+`Job Finder` runs locally on localhost, but it is not an offline app.
+
+| Works locally without internet | Requires internet |
+|-------|-----------|
+| UI navigation and filters | Job scraping from LinkedIn/Indeed |
+| Local SQLite data (`data/searcher.db`) | LLM chat/coaching |
+| Existing jobs/recommendations already in DB | AI scoring for newly scanned jobs |
+| Manual job actions and status changes | Cover letter generation |
+| CSV export | Provider health checks against external APIs |
+
+If internet is unavailable, you can still open and use the local dashboard, but online features will fail gracefully until connectivity is restored.
+
 ### First-Time Setup
 
 1. Go to **Settings** and enter your LLM API key
 2. Upload your CV (PDF, DOCX, or TXT)
 3. Chat with the AI Coach — it will ask about your preferences
 4. Run a job scan from Settings or let the chatbot suggest search terms
-5. Review results on the Dashboard, drag jobs across the Kanban board
+5. Review results on the Dashboard and move jobs through Kanban actions
 
 ## Architecture
 
@@ -155,8 +169,8 @@ All data is stored locally in `data/searcher.db` (SQLite). Back up the `data/` f
 
 ```bash
 # Clona il repository
-git clone https://github.com/YOUR_USERNAME/the-curated-career.git
-cd the-curated-career
+git clone https://github.com/YOUR_USERNAME/job-finder.git
+cd job-finder
 
 # Crea e attiva l'ambiente virtuale
 python -m venv .venv

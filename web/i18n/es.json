@@ -6,7 +6,7 @@
   "hero": {
     "eyebrow": "Búsqueda de Empleo con IA",
     "title": "Tu próximo capítulo,",
-    "titleEm": "seleccionado con precisión.",
+    "titleEm": "alineado a tu perfil.",
     "subtitle": "Análisis de CV, ranking IA y un plan práctico — decide dónde postularte en minutos.",
     "activeModel": "Modelo Activo",
     "provider": "Proveedor",
@@ -65,7 +65,9 @@
     "favorite": "Favorito",
     "unfavorite": "Quitar Favorito",
     "newBadge": "Nuevo",
-    "linkToOffer": "Enlace a la oferta"
+    "linkToOffer": "Enlace a la oferta",
+    "titleUnavailable": "Título no disponible",
+    "companyUnavailable": "Empresa no disponible"
   },
   "kanbanCols": {
     "open": "Abierto",
@@ -117,6 +119,7 @@
     "details": "Detalles",
     "status": "Estado",
     "applyNow": "Postular Ahora",
+    "generateCoverLetter": "Generar Carta",
     "viewListing": "Ver Anuncio",
     "coverLetter": "Carta de Presentación",
     "saveDraft": "Guardar Borrador",

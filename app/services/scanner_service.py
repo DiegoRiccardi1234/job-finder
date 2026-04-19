@@ -31,6 +31,19 @@ BLACKLIST = [
     "ciso",
 ]
 
+STOPWORDS = {
+    "the", "and", "for", "with", "from", "that", "this", "have", "has", "will", "your",
+    "you", "our", "all", "per", "con", "dei", "delle", "della", "dell", "una", "uno",
+    "sono", "come", "sulla", "sulle", "degli", "nella", "nelle", "into", "about", "role",
+    "lavoro", "lavori", "offerta", "annuncio", "candidate", "team", "company",
+}
+
+TECH_KEYWORDS = {
+    "python", "java", "javascript", "typescript", "react", "node", "sql", "docker",
+    "kubernetes", "aws", "azure", "gcp", "api", "fastapi", "django", "selenium",
+    "playwright", "testing", "qa", "data", "analytics", "machine", "learning",
+}
+
 
 def pre_filtro(titolo: str, descrizione: str) -> tuple[bool, str]:
     testo = (titolo + " " + descrizione).lower()
@@ -71,22 +84,104 @@ JSON richiesto:
 """
 
 
-def _fallback_analysis(reason: str) -> dict[str, Any]:
+def _tokenize(text: str) -> set[str]:
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9+#\.-]{2,}", text.lower())
+    return {token for token in tokens if token not in STOPWORDS}
+
+
+def _estimate_programming_demand(offer_text: str) -> str:
+    hits = sum(1 for kw in TECH_KEYWORDS if kw in offer_text)
+    if hits >= 5:
+        return "Alta"
+    if hits >= 2:
+        return "Media"
+    return "Bassa"
+
+
+def _estimate_experience_band(offer_text: str) -> str:
+    years_match = re.search(r"(\d+)\s*\+?\s*(?:anni|years)", offer_text)
+    if years_match:
+        years = int(years_match.group(1))
+        if years <= 0:
+            return "0"
+        if years == 1:
+            return "1"
+        if years == 2:
+            return "2"
+        return "3+"
+
+    if any(token in offer_text for token in ["junior", "entry level", "neolaureat", "stage", "intern"]):
+        return "0"
+    return "Non specificato"
+
+
+def _estimate_contract_type(offer_text: str) -> str:
+    if any(token in offer_text for token in ["apprendistat", "apprenticeship"]):
+        return "Apprendistato"
+    if any(token in offer_text for token in ["stage", "intern"]):
+        return "Stage"
+    if any(token in offer_text for token in ["partita iva", "p.iva", "freelance", "contractor"]):
+        return "Partita IVA"
+    if any(token in offer_text for token in ["tempo indeterminato", "full-time", "dipendente", "permanent"]):
+        return "Dipendente"
+    return "Non specificato"
+
+
+def _estimate_smart_working(offer_text: str) -> str:
+    if any(token in offer_text for token in ["remote", "full remote", "smart working", "hybrid", "ibrid"]):
+        return "Sì"
+    if any(token in offer_text for token in ["on-site", "onsite", "in office"]):
+        return "No"
+    return "Non specificato"
+
+
+def _fallback_analysis(
+    reason: str,
+    profile_markdown: str,
+    titolo: str,
+    azienda: str,
+    descrizione: str,
+) -> dict[str, Any]:
+    offer_text = f"{titolo} {descrizione}".lower()
+    profile_tokens = _tokenize(profile_markdown)
+    offer_tokens = _tokenize(offer_text)
+    overlap = sorted(profile_tokens.intersection(offer_tokens))
+
+    score = 3 + min(4, len(overlap) // 3)
+    if "junior" in offer_text or "entry level" in offer_text:
+        score += 2
+    if any(token in offer_text for token in ["remote", "hybrid", "smart working"]):
+        score += 1
+    if any(token in offer_text for token in ["senior", "lead", "principal", "staff"]):
+        score -= 2
+
+    score = max(1, min(score, 10))
+
+    if score >= 8:
+        advice = "Candidati subito"
+    elif score >= 6:
+        advice = "Valutabile"
+    else:
+        advice = "Salta"
+
+    overlap_preview = ", ".join(overlap[:5]) if overlap else "competenze base IT"
+    weakness_text = "Richieste non completamente allineate al profilo" if score < 7 else "Competenze verificabili in colloquio"
+
     return {
-        "punteggio": 0,
-        "programmazione_richiesta": "?",
-        "smart_working": "?",
-        "contratto": "?",
-        "junior_friendly": "?",
-        "anni_esperienza_richiesti": "?",
-        "punti_forza_per_diego": "?",
-        "punti_deboli_per_diego": "?",
-        "riassunto": f"Analisi non disponibile: {reason}",
-        "consiglio": "Da verificare manualmente",
+        "punteggio": score,
+        "programmazione_richiesta": _estimate_programming_demand(offer_text),
+        "smart_working": _estimate_smart_working(offer_text),
+        "contratto": _estimate_contract_type(offer_text),
+        "junior_friendly": "Sì" if any(token in offer_text for token in ["junior", "entry", "stage", "intern"]) else "Non specificato",
+        "anni_esperienza_richiesti": _estimate_experience_band(offer_text),
+        "punti_forza_per_diego": f"Match su: {overlap_preview}.",
+        "punti_deboli_per_diego": weakness_text,
+        "riassunto": f"Analisi euristica usata ({reason[:80]}). Match stimato {score}/10.",
+        "consiglio": advice,
         "ral_stimata": "Non stimabile",
-        "reputazione_azienda": "?",
-        "adatta_neolaureati": "?",
-        "note_azienda": "?",
+        "reputazione_azienda": "Sconosciuta",
+        "adatta_neolaureati": "Sì" if any(token in offer_text for token in ["junior", "stage", "intern", "entry"]) else "Non specificato",
+        "note_azienda": f"Valutazione automatica fallback per {azienda}.",
     }
 
 
@@ -101,10 +196,22 @@ def analyze_offer(
     try:
         result = provider_manager.complete_json(prompt=prompt, max_tokens=500)
         if not isinstance(result, dict):
-            return _fallback_analysis("invalid response")
+            return _fallback_analysis(
+                "invalid response",
+                profile_markdown=profile_markdown,
+                titolo=titolo,
+                azienda=azienda,
+                descrizione=descrizione,
+            )
         return result
     except Exception as exc:
-        return _fallback_analysis(str(exc))
+        return _fallback_analysis(
+            str(exc),
+            profile_markdown=profile_markdown,
+            titolo=titolo,
+            azienda=azienda,
+            descrizione=descrizione,
+        )
 
 
 def run_scan(

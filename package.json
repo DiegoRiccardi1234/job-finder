@@ -1,8 +1,8 @@
 {
-  "name": "linkedin-searcher-e2e",
+  "name": "job-finder-e2e",
   "private": true,
   "version": "1.0.0",
-  "description": "Playwright E2E tests for Job Finder Universale",
+  "description": "Playwright E2E tests for Job Finder",
   "scripts": {
     "test:e2e": "playwright test"
   },
