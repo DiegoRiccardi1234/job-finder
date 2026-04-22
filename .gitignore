@@ -15,7 +15,10 @@ node_modules/
 playwright-report/
 test-results/
 screenshots/readme/*.json
-tests
+.pytest_cache/
+.coverage
+htmlcov/
+local_secrets.json
 .playwright-mcp/
 CLAUDE.md
 phase*.png

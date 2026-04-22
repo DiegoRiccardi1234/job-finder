@@ -1,9 +1,14 @@
 python-jobspy
-groq
 pandas
 fastapi
 uvicorn
-openai
 python-multipart
 pypdf
 python-docx
+
+# LLM provider SDKs (optional — install the ones you plan to use)
+openai
+groq
+anthropic
+google-generativeai
+cerebras-cloud-sdk
