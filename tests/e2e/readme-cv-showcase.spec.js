@@ -4,11 +4,20 @@ const path = require("path");
 
 const OUTPUT_DIR = path.join(process.cwd(), "screenshots", "readme");
 const CV_DIR = path.join(process.cwd(), "Test-Mio-CV");
+const VIEWPORT = { width: 1440, height: 900 };
 
 function ensureOutputDir() {
   if (!fs.existsSync(OUTPUT_DIR)) {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   }
+}
+
+async function shot(page, file) {
+  // Viewport-only (no fullPage) so images stay readable and small
+  await page.screenshot({
+    path: path.join(OUTPUT_DIR, file),
+    fullPage: false,
+  });
 }
 
 async function uploadCv(page, filePath, label) {
@@ -19,10 +28,10 @@ async function uploadCv(page, filePath, label) {
   await page.locator("#cvForm button[type='submit']").click();
   await expect(page.locator("#cvSummary")).toContainText("profile_id", { timeout: 120000 });
 
-  await page.screenshot({
-    path: path.join(OUTPUT_DIR, `settings-cv-${label}.png`),
-    fullPage: true,
-  });
+  // Scroll top so Settings hero is in frame
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+  await shot(page, `settings-cv-${label}.png`);
 }
 
 async function addManualJobs(page) {
@@ -32,21 +41,24 @@ async function addManualJobs(page) {
       azienda: "Alpine Data Labs",
       sede: "Remote - Europe",
       link: "https://example.com/jobs/backend-python",
-      descrizione: "Sviluppo API FastAPI, integrazione LLM provider multipli, ottimizzazione SQLite/Postgres e pipeline dati.",
+      descrizione:
+        "Build FastAPI services, integrate multiple LLM providers, optimize SQLite/Postgres data pipelines.",
     },
     {
       titolo: "AI Product Engineer",
       azienda: "NextWave Talent",
       sede: "Milan, Italy",
       link: "https://example.com/jobs/ai-product",
-      descrizione: "Costruzione funzionalita AI user-facing, valutazione prompt, monitoraggio qualitativo output e miglioramento UX.",
+      descrizione:
+        "Ship user-facing AI features, evaluate prompts, monitor output quality and drive UX improvements.",
     },
     {
       titolo: "Data & Automation Specialist",
       azienda: "Nordic Operations",
       sede: "Hybrid - Turin",
       link: "https://example.com/jobs/data-automation",
-      descrizione: "Automazione processi, scraping/ingestion offerte, scoring priorita candidature e reporting operativo.",
+      descrizione:
+        "Automate workflows, scrape and ingest listings, score applications and deliver operational reporting.",
     },
   ];
 
@@ -57,28 +69,26 @@ async function addManualJobs(page) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(jobPayload),
       });
-      const text = await response.text();
-      return { ok: response.ok, text };
+      return { ok: response.ok, text: await response.text() };
     }, payload);
 
     if (!result.ok) {
-      throw new Error(`Creazione annuncio manuale fallita: ${result.text}`);
+      throw new Error(`Manual job insert failed: ${result.text}`);
     }
   }
 }
 
-async function captureRecommendations(page, label) {
+async function captureDashboard(page, label) {
   await page.locator(".topnav .nav-link[data-view='dashboard']").click();
-  
+  await expect(page.locator("#view-dashboard")).toHaveClass(/is-active/);
 
   const recPayload = await page.evaluate(async () => {
-    const response = await fetch("/api/recommendations?limit=5");
-    return await response.json();
+    const r = await fetch("/api/recommendations?limit=5");
+    return await r.json();
   });
-
   const jobs = recPayload.jobs || [];
   if (!jobs.length) {
-    throw new Error("Nessuna raccomandazione disponibile dopo il setup del profilo.");
+    throw new Error("No recommendations available after profile setup.");
   }
 
   fs.writeFileSync(
@@ -87,29 +97,51 @@ async function captureRecommendations(page, label) {
     "utf-8",
   );
 
-  await page.screenshot({
-    path: path.join(OUTPUT_DIR, `dashboard-recommendations-${label}.png`),
-    fullPage: true,
-  });
+  // Dashboard hero with recommendations grid
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+  await shot(page, `dashboard-recommendations-${label}.png`);
 
+  // Job detail panel (right column) populated by clicking a top recommendation
   await page.locator("#recommendationsGrid button[data-rec-action='detail']").first().click();
   await expect(page.locator("#detailTitle")).not.toContainText("Seleziona un lavoro");
-
-  // Mostra funzionalità Genera Cover Letter se presente
-  if (await page.locator("#generateCoverLetterBtn").isVisible()) {
-    await page.locator("#generateCoverLetterBtn").click();
-    await page.waitForTimeout(2000); // attendi un po' per mostrare la UI "Generazione in corso..." o completata
-  }
-
-  await page.screenshot({
-    path: path.join(OUTPUT_DIR, `discover-top-job-${label}.png`),
-    fullPage: true,
-  });
-
-  return jobs;
+  await page.waitForTimeout(400);
+  await shot(page, `discover-top-job-${label}.png`);
 }
 
-test("showcase desktop con CV IT + EN per README", async ({ page }) => {
+async function captureChat(page, label, prompt) {
+  // Chat lives in the dashboard right rail; send a seed message so the screenshot
+  // shows a real conversation rather than an empty box.
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await expect(page.locator("#view-dashboard")).toHaveClass(/is-active/);
+
+  await page.locator("#chatInput").fill(prompt);
+  await page.locator("#chatForm button[type='submit']").click();
+  // Wait until at least one assistant bubble appears
+  await expect(page.locator("#chatBox .chat-item.assistant").first()).toBeVisible({ timeout: 60000 });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot(page, `chat-coach-${label}.png`);
+}
+
+async function setTheme(page, theme) {
+  await page.evaluate((t) => {
+    document.documentElement.setAttribute("data-theme", t);
+    localStorage.setItem("theme", t);
+  }, theme);
+  await page.waitForTimeout(300);
+}
+
+async function captureDarkMode(page, label) {
+  await setTheme(page, "dark");
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+  await shot(page, `dashboard-dark-${label}.png`);
+  await setTheme(page, "light");
+}
+
+test("portfolio screenshots for README (IT + EN)", async ({ page }) => {
   test.setTimeout(240000);
   ensureOutputDir();
 
@@ -117,17 +149,20 @@ test("showcase desktop con CV IT + EN per README", async ({ page }) => {
   const cvEn = path.join(CV_DIR, "CV_Diego_Riccardi_EN.pdf");
 
   if (!fs.existsSync(cvIt) || !fs.existsSync(cvEn)) {
-    throw new Error("CV IT/EN non trovati nella cartella Test-Mio-CV.");
+    throw new Error("Missing CVs in Test-Mio-CV folder.");
   }
 
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize(VIEWPORT);
   await page.goto("/");
   await expect(page.getByText("Job Finder")).toBeVisible();
 
   await uploadCv(page, cvIt, "it");
   await addManualJobs(page);
-  await captureRecommendations(page, "it");
+  await captureDashboard(page, "it");
+  await captureChat(page, "it", "Quali figure lavorative si adattano al mio CV?");
 
   await uploadCv(page, cvEn, "en");
-  await captureRecommendations(page, "en");
+  await captureDashboard(page, "en");
+  await captureChat(page, "en", "Which roles best fit my CV?");
+  await captureDarkMode(page, "en");
 });

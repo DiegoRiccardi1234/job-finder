@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://sqlite.org)
-[![CI](https://github.com/YOUR_USERNAME/job-finder/actions/workflows/tests.yml/badge.svg)](https://github.com/YOUR_USERNAME/job-finder/actions/workflows/tests.yml)
+[![CI](https://github.com/DiegoRiccardi1234/Linkedin-searcher/actions/workflows/tests.yml/badge.svg)](https://github.com/DiegoRiccardi1234/Linkedin-searcher/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![AI Powered](https://img.shields.io/badge/AI-6%20LLM%20providers-blueviolet)](#supported-llm-providers)
 
@@ -40,11 +40,17 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Demo
 
-> Dashboard with AI-scored job listings and recommendations.
+**Dashboard** — personalized hero, analytics, and an always-on AI Career Coach in the right rail.
 
 ![Dashboard](screenshots/readme/dashboard-recommendations-en.png)
 
-> A short GIF demo (CV upload → chat → scan → ranked results) lives at `screenshots/readme/demo.gif` once captured via `tests/e2e`.
+**AI Career Coach in action** — the chatbot reads the CV, proposes matching roles, and can autofill the scan form.
+
+![AI Career Coach](screenshots/readme/chat-coach-en.png)
+
+**Dark mode** — full glassmorphism theme.
+
+![Dark mode](screenshots/readme/dashboard-dark-en.png)
 
 ---
 
@@ -149,8 +155,8 @@ scripts/check_i18n.py        i18n coverage audit (fails CI on missing keys)
 ### Install & run
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/job-finder.git
-cd job-finder
+git clone https://github.com/DiegoRiccardi1234/Linkedin-searcher.git
+cd Linkedin-searcher
 
 python -m venv .venv
 # Windows
