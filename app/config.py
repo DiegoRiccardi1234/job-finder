@@ -109,13 +109,6 @@ def save_local_provider_keys(
         else:
             current.pop("openrouter_api_key", None)
 
-    if openrouter_api_key is not None:
-        value = openrouter_api_key.strip()
-        if value:
-            current["openrouter_api_key"] = value
-        else:
-            current.pop("openrouter_api_key", None)
-
     if primary_provider is not None:
         normalized = primary_provider.strip().lower()
         if normalized in SUPPORTED_PROVIDERS:

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,10 +17,24 @@ def make_job_hash(titolo: str, azienda: str, link: str) -> str:
 
 
 class Database:
+    """SQLite wrapper shared across FastAPI request threads.
+
+    The connection uses ``check_same_thread=False``; a module-level
+    :class:`threading.Lock` serializes writes so concurrent requests do
+    not race on cursors or trigger ``database is locked`` errors. WAL
+    journal mode is enabled to allow concurrent readers.
+    """
+
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.lock = threading.Lock()
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.DatabaseError:
+            pass
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -513,7 +528,7 @@ class Database:
         return {str(r["key"]): str(r["value"]) for r in cur.fetchall()}
 
     def cleanup_stale_jobs(self, retention_days: int) -> int:
-        # Mantieni sempre i preferiti. Archivia solo open non preferiti oltre retention.
+        # Always keep favorites; archive only non-favorite open jobs past retention.
         cur = self.conn.cursor()
         cur.execute(
             """

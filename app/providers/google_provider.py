@@ -71,7 +71,7 @@ class GoogleProvider(LLMProvider):
 
     def complete_text(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("Google non configurato")
+            raise RuntimeError("Google not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -83,7 +83,7 @@ class GoogleProvider(LLMProvider):
 
     def chat(self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("Google non configurato")
+            raise RuntimeError("Google not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -95,7 +95,7 @@ class GoogleProvider(LLMProvider):
 
     def complete_json(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> dict[str, Any]:
         if not self.client:
-            raise RuntimeError("Google non configurato")
+            raise RuntimeError("Google not configured")
 
         resolved_model = model or self._selected_model or self.select_model()
         try:

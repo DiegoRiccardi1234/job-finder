@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import AppSettings, load_settings, save_local_provider_keys
 from app.cv_ingest import extract_markdown_from_upload, summarize_profile, summarize_profile_with_llm
 from app.db import Database
+from app.log import configure_logging, get_logger
 from app.models import (
     ChatRequest,
     ChatResponse,
@@ -29,6 +30,9 @@ class AppContainer:
     def __init__(self, workspace_dir: Path):
         self.workspace_dir = workspace_dir
         self.settings: AppSettings = load_settings(workspace_dir)
+        configure_logging(log_dir=self.settings.data_dir / "logs")
+        self.log = get_logger("app.main")
+        self.log.info("AppContainer initializing (workspace=%s)", workspace_dir)
         self.db = Database(self.settings.db_path)
         self.providers = ProviderManager(self.settings)
         self.providers.initialize()
@@ -121,13 +125,27 @@ def create_app(workspace_dir: Path) -> FastAPI:
 
     @fastapi_app.post("/api/upload-cv")
     async def upload_cv(file: UploadFile = File(...)) -> dict:
+        MAX_CV_BYTES = 5 * 1024 * 1024  # 5 MB
+        ALLOWED_EXTS = {".pdf", ".docx", ".md", ".markdown", ".txt"}
+
+        filename = file.filename or "cv"
+        ext = Path(filename).suffix.lower()
+        if ext and ext not in ALLOWED_EXTS:
+            raise HTTPException(status_code=415, detail=f"Unsupported CV type: {ext}")
+
+        if file.size is not None and file.size > MAX_CV_BYTES:
+            raise HTTPException(status_code=413, detail="CV file too large (max 5 MB)")
+
         data = await file.read()
+        if len(data) > MAX_CV_BYTES:
+            raise HTTPException(status_code=413, detail="CV file too large (max 5 MB)")
         if not data:
             raise HTTPException(status_code=400, detail="Empty CV file")
-        markdown = extract_markdown_from_upload(file.filename or "cv", data)
+        markdown = extract_markdown_from_upload(filename, data)
         try:
             summary = summarize_profile_with_llm(markdown, container.providers)
-        except Exception:
+        except Exception as exc:
+            container.log.warning("LLM CV summarization failed, using heuristic: %s", exc)
             summary = summarize_profile(markdown)
         profile_id = container.db.save_candidate_profile(
             source_name=file.filename or "cv_upload",

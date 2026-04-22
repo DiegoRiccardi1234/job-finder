@@ -50,7 +50,7 @@ class GroqProvider(LLMProvider):
 
     def complete_text(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("Groq non configurato")
+            raise RuntimeError("Groq not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -62,7 +62,7 @@ class GroqProvider(LLMProvider):
 
     def chat(self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("Groq non configurato")
+            raise RuntimeError("Groq not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,

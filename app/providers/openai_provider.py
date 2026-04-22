@@ -40,7 +40,7 @@ class OpenAIProvider(LLMProvider):
                 if not model_id:
                     continue
                 lowered = model_id.lower()
-                # Evita modelli non-chat (embedding, audio, moderation, ecc.).
+                # Skip non-chat models (embeddings, audio, moderation, etc.).
                 if any(token in lowered for token in ["embedding", "audio", "tts", "moderation", "whisper"]):
                     continue
                 output.append(str(model_id))
@@ -60,7 +60,7 @@ class OpenAIProvider(LLMProvider):
 
     def complete_text(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("OpenAI non configurato")
+            raise RuntimeError("OpenAI not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -72,7 +72,7 @@ class OpenAIProvider(LLMProvider):
 
     def chat(self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("OpenAI non configurato")
+            raise RuntimeError("OpenAI not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -84,7 +84,7 @@ class OpenAIProvider(LLMProvider):
 
     def complete_json(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> dict[str, Any]:
         if not self.client:
-            raise RuntimeError("OpenAI non configurato")
+            raise RuntimeError("OpenAI not configured")
 
         resolved_model = model or self._selected_model or self.select_model()
         try:

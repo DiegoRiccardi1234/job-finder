@@ -62,7 +62,7 @@ class AnthropicProvider(LLMProvider):
 
     def _chat_request(self, messages: list[dict[str, str]], model: str, max_tokens: int) -> str:
         if not self.api_key:
-            raise RuntimeError("Anthropic non configurato")
+            raise RuntimeError("Anthropic not configured")
 
         system_parts: list[str] = []
         transformed_messages: list[dict[str, Any]] = []

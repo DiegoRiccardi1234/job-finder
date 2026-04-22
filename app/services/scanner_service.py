@@ -6,12 +6,15 @@ from typing import Any
 from app.config import AppSettings
 from app.db import Database
 from app.lifecycle import apply_post_scan_lifecycle
+from app.log import get_logger
 from app.models import ScanRequest
 from app.providers.factory import ProviderManager
 
+log = get_logger(__name__)
+
 try:
     from jobspy import scrape_jobs
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     scrape_jobs = None  # type: ignore[assignment]
 
 
@@ -219,7 +222,15 @@ def run_scan(
     settings: AppSettings,
     provider_manager: ProviderManager,
     payload: ScanRequest,
-):
+) -> Any:
+    """Run a job scan and yield progress events for SSE streaming.
+
+    For each requested search term, scrapes listings via python-jobspy,
+    deduplicates, applies the pre-filter blacklist, delegates per-job
+    analysis to :func:`analyze_offer`, and persists results. Yields dicts
+    describing status transitions (``scraped``, ``analyzed``, ``done``,
+    ``error``) that the caller forwards to the client as Server-Sent Events.
+    """
     if scrape_jobs is None:
         yield {"error": "python-jobspy not installed"}
         return
@@ -229,7 +240,7 @@ def run_scan(
 
     linkedin_url = db.get_preference("linkedin_url", "")
     if linkedin_url:
-        profile_markdown += f"\n\nProfilo LinkedIn: {linkedin_url}"
+        profile_markdown += f"\n\nLinkedIn profile: {linkedin_url}"
 
     terms = payload.search_terms or settings.default_search_terms
     location = payload.location or (
@@ -266,7 +277,8 @@ def run_scan(
                 hours_old=settings.hours_old,
                 country_indeed="Italy",
             )
-        except Exception:
+        except Exception as exc:
+            log.warning("scrape_jobs failed (term=%r, location=%r): %s", term, location, exc)
             continue
 
         df = df.drop_duplicates(subset=["title", "company"])
@@ -299,7 +311,7 @@ def run_scan(
             if is_new:
                 totale_nuovi += 1
 
-            # Se già chiuso dall'utente non lo rianalizziamo.
+            # Skip re-analysis if the user already closed the job.
             if status in {"applied", "rejected", "archived"}:
                 continue
 
@@ -316,16 +328,16 @@ def run_scan(
                 descrizione=descrizione,
             )
 
-            # Arricchimento con salary raw se disponibile.
+            # Enrich with raw salary fields when available.
             analysis = dict(analysis)
             analysis["stipendio_min"] = row.get("min_amount") or "N/D"
             analysis["stipendio_max"] = row.get("max_amount") or "N/D"
 
-            # Difesa contro campi fuori formato.
+            # Defensive parse: score field may come back as string or garbage.
             raw_score = analysis.get("punteggio", 0)
             try:
                 analysis["punteggio"] = int(raw_score)
-            except Exception:
+            except (TypeError, ValueError):
                 numbers = re.findall(r"\d+", str(raw_score))
                 analysis["punteggio"] = int(numbers[0]) if numbers else 0
 

@@ -2,12 +2,15 @@ import json
 import re
 from typing import Any
 
+from app.log import get_logger
 from app.providers.base import LLMProvider
 from app.providers.model_selector import choose_best_model
 
+log = get_logger(__name__)
+
 try:
     from openai import OpenAI
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     OpenAI = None  # type: ignore[assignment]
 
 
@@ -41,7 +44,8 @@ class OpenRouterProvider(LLMProvider):
                     continue
                 output.append(str(model_id))
             return output
-        except Exception:
+        except Exception as exc:
+            log.warning("OpenRouter list_models failed: %s", exc)
             return []
 
     def select_model(self, preferred_model: str | None = None) -> str:
@@ -56,7 +60,7 @@ class OpenRouterProvider(LLMProvider):
 
     def complete_text(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("OpenRouter non configurato")
+            raise RuntimeError("OpenRouter not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -68,7 +72,7 @@ class OpenRouterProvider(LLMProvider):
 
     def chat(self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700) -> str:
         if not self.client:
-            raise RuntimeError("OpenRouter non configurato")
+            raise RuntimeError("OpenRouter not configured")
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
@@ -80,7 +84,7 @@ class OpenRouterProvider(LLMProvider):
 
     def complete_json(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> dict[str, Any]:
         if not self.client:
-            raise RuntimeError("OpenRouter non configurato")
+            raise RuntimeError("OpenRouter not configured")
 
         resolved_model = model or self._selected_model or self.select_model()
         try:
@@ -93,6 +97,7 @@ class OpenRouterProvider(LLMProvider):
             )
             content = (response.choices[0].message.content or "").strip()
             return json.loads(content)
-        except Exception:
+        except (json.JSONDecodeError, Exception) as exc:
+            log.info("OpenRouter complete_json fallback (model=%s): %s", resolved_model, exc)
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)
             return _extract_json(text)

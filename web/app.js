@@ -3,14 +3,29 @@
 let _i18nStrings = {};
 let _i18nFallback = {};
 let _currentLang = localStorage.getItem('language') || 'en';
+const _i18nMissingReported = new Set();
+
+function _reportMissingKey(key) {
+  if (_i18nMissingReported.has(key)) return;
+  _i18nMissingReported.add(key);
+  console.warn(`[i18n] missing translation for "${key}" (lang=${_currentLang})`);
+}
 
 function t(key, params = {}) {
   const keys = key.split('.');
   let val = keys.reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), _i18nStrings);
+  let usedFallback = false;
   if (val === undefined) {
     val = keys.reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), _i18nFallback);
+    usedFallback = val !== undefined;
   }
-  if (val === undefined) return key;
+  if (val === undefined) {
+    _reportMissingKey(key);
+    return key;
+  }
+  if (usedFallback && _currentLang !== 'en') {
+    _reportMissingKey(key);
+  }
   return String(val).replace(/\{(\w+)\}/g, (_, p) => (params[p] !== undefined ? params[p] : `{${p}}`));
 }
 

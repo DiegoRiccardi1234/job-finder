@@ -2,11 +2,15 @@ from io import BytesIO
 import re
 from typing import Any
 
+from app.log import get_logger
+
+log = get_logger(__name__)
+
 
 def _extract_text_pdf(data: bytes) -> str:
     try:
         from pypdf import PdfReader
-    except Exception as exc:  # pragma: no cover
+    except ImportError as exc:  # pragma: no cover
         raise RuntimeError("Install pypdf for PDF support") from exc
 
     reader = PdfReader(BytesIO(data))
@@ -105,6 +109,6 @@ def summarize_profile_with_llm(
         result = provider_manager.complete_json(prompt=prompt, max_tokens=600)
         if isinstance(result, dict):
             return result
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("LLM profile summarization failed, falling back to heuristic: %s", exc)
     return summarize_profile(markdown_text)
