@@ -1,7 +1,27 @@
 {
   "topbar": {
     "dashboard": "Dashboard",
+    "jobSearch": "Cerca Lavoro",
     "settings": "Impostazioni"
+  },
+  "jobSearch": {
+    "title": "Cerca",
+    "titleEm": "Lavoro",
+    "subtitle": "Scansione guidata — analizza il CV, scegli i ruoli, lancia la ricerca.",
+    "step1": "Analizza CV",
+    "step2": "Ruoli e filtri",
+    "step3": "Avvia scansione",
+    "step1Title": "Step 1 — Analizza il tuo CV",
+    "step1Hint": "Leggiamo il profilo attivo e suggeriamo ruoli adatti alle tue competenze.",
+    "step2Title": "Step 2 — Parole chiave, sedi, filtri",
+    "step2Hint": "Clicca un ruolo suggerito per aggiungerlo, o scrivi liberamente. Invio per aggiungere un tag.",
+    "step3Title": "Step 3 — Rivedi e avvia",
+    "step3Hint": "A fine scansione, vai su Dashboard → Offerte aperte per vedere i risultati.",
+    "analyzeBtn": "Analizza profilo",
+    "noProfile": "Carica un CV dal tab Impostazioni per vedere i suggerimenti.",
+    "detectedSkills": "Competenze rilevate",
+    "preferredRoles": "Ruoli preferiti",
+    "reviewEmpty": "I parametri di scansione appariranno qui mentre compili lo Step 2."
   },
   "hero": {
     "eyebrow": "Ricerca Lavoro con IA",
@@ -89,6 +109,9 @@
     "editKeys": "Modifica Chiavi",
     "primaryProvider": "Provider Primario",
     "autoFallback": "Auto (catena di fallback)",
+    "preferredModel": "Modello Preferito",
+    "modelAuto": "Auto (predefinito del provider)",
+    "modelHint": "I modelli dipendono dal provider selezionato. Lascia Auto per usare il default del provider.",
     "saveKeys": "Salva Chiavi",
     "jobScan": "Scansione Lavori",
     "keywords": "Parole Chiave:",
@@ -178,6 +201,15 @@
     "releaseNotes": "Note di rilascio",
     "runNow": "Aggiorna ora",
     "modalTitle": "Aggiornamento in corso..."
+  },
+  "chat": {
+    "suggestions": {
+      "label": "Prova a chiedere al coach di trovarti dei ruoli:",
+      "roles": "Quali ruoli si adattano meglio al mio CV?",
+      "pythonJobs": "Trova lavori Python a Milano",
+      "searchTerms": "Suggerisci parole chiave per un ruolo Junior QA",
+      "top5": "Consiglia i top 5 lavori a cui candidarsi"
+    }
   },
   "common": {
     "close": "Chiudi"

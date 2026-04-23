@@ -1,7 +1,27 @@
 {
   "topbar": {
     "dashboard": "Dashboard",
+    "jobSearch": "Jobsuche",
     "settings": "Einstellungen"
+  },
+  "jobSearch": {
+    "title": "Job",
+    "titleEm": "Suche",
+    "subtitle": "Geführter Scan — analysiere den Lebenslauf, wähle Rollen, starte die Suche.",
+    "step1": "CV analysieren",
+    "step2": "Rollen & Filter",
+    "step3": "Scan starten",
+    "step1Title": "Schritt 1 — Lebenslauf analysieren",
+    "step1Hint": "Wir lesen das aktive Profil und schlagen passende Rollen vor.",
+    "step2Title": "Schritt 2 — Keywords, Orte, Filter",
+    "step2Hint": "Klicke auf eine vorgeschlagene Rolle oder tippe frei. Enter fügt einen Tag hinzu.",
+    "step3Title": "Schritt 3 — Überprüfen & starten",
+    "step3Hint": "Nach dem Scan gehe zu Dashboard → Offene Jobs, um Ergebnisse zu sehen.",
+    "analyzeBtn": "Profil analysieren",
+    "noProfile": "Lade einen Lebenslauf in den Einstellungen hoch, um Vorschläge zu sehen.",
+    "detectedSkills": "Erkannte Skills",
+    "preferredRoles": "Bevorzugte Rollen",
+    "reviewEmpty": "Scan-Parameter erscheinen hier, während du Schritt 2 ausfüllst."
   },
   "hero": {
     "eyebrow": "KI-gestützte Jobsuche",
@@ -89,6 +109,9 @@
     "editKeys": "Schlüssel bearbeiten",
     "primaryProvider": "Primärer Anbieter",
     "autoFallback": "Auto (Fallback-Kette)",
+    "preferredModel": "Bevorzugtes Modell",
+    "modelAuto": "Auto (Anbieter-Standard)",
+    "modelHint": "Verfügbare Modelle hängen vom ausgewählten Anbieter ab. Lasse Auto für den Standard.",
     "saveKeys": "Schlüssel speichern",
     "jobScan": "Job-Scan",
     "keywords": "Suchbegriffe:",
@@ -178,6 +201,15 @@
     "releaseNotes": "Versionshinweise",
     "runNow": "Jetzt aktualisieren",
     "modalTitle": "Job Finder wird aktualisiert..."
+  },
+  "chat": {
+    "suggestions": {
+      "label": "Bitte den Coach, passende Rollen zu finden:",
+      "roles": "Welche Rollen passen am besten zu meinem Lebenslauf?",
+      "pythonJobs": "Finde Python-Jobs in Mailand",
+      "searchTerms": "Schlage Suchbegriffe für eine Junior-QA-Rolle vor",
+      "top5": "Empfehle die 5 besten Jobs für eine Bewerbung"
+    }
   },
   "common": {
     "close": "Schließen"

@@ -60,6 +60,7 @@ def save_local_provider_keys(
     google_api_key: str | None = None,
     openrouter_api_key: str | None = None,
     primary_provider: str | None = None,
+    preferred_model: str | None = None,
 ) -> dict:
     data_dir.mkdir(parents=True, exist_ok=True)
     secrets_path = data_dir / LOCAL_SECRETS_FILE
@@ -116,6 +117,13 @@ def save_local_provider_keys(
         else:
             current.pop("primary_provider", None)
 
+    if preferred_model is not None:
+        value = preferred_model.strip()
+        if value:
+            current["preferred_model"] = value
+        else:
+            current.pop("preferred_model", None)
+
     secrets_path.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
     return {
         "cerebras_configured": bool(current.get("cerebras_api_key")),
@@ -125,6 +133,7 @@ def save_local_provider_keys(
         "google_configured": bool(current.get("google_api_key")),
         "openrouter_configured": bool(current.get("openrouter_api_key")),
         "primary_provider": current.get("primary_provider", ""),
+        "preferred_model": current.get("preferred_model", ""),
     }
 
 
@@ -221,7 +230,11 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         db_path=db_path,
         groq_key_file=groq_key_file,
         llm_provider_order=sanitized_order,
-        preferred_model=cfg.get("preferred_model") or os.getenv("LLM_MODEL"),
+        preferred_model=(
+            local_secrets.get("preferred_model")
+            or cfg.get("preferred_model")
+            or os.getenv("LLM_MODEL")
+        ),
         retention_days=int(cfg.get("retention_days", 15)),
         hours_old=int(cfg.get("hours_old", 336)),
         max_annunci=int(cfg.get("max_annunci", 20)),

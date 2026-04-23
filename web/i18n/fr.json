@@ -1,7 +1,27 @@
 {
   "topbar": {
     "dashboard": "Tableau de bord",
+    "jobSearch": "Recherche d'emploi",
     "settings": "Paramètres"
+  },
+  "jobSearch": {
+    "title": "Recherche",
+    "titleEm": "d'emploi",
+    "subtitle": "Scan guidé — analyse ton CV, choisis les rôles, lance la recherche.",
+    "step1": "Analyser CV",
+    "step2": "Rôles et filtres",
+    "step3": "Lancer le scan",
+    "step1Title": "Étape 1 — Analyse ton CV",
+    "step1Hint": "On lit le profil actif et on suggère des rôles correspondant à tes compétences.",
+    "step2Title": "Étape 2 — Mots-clés, lieux, filtres",
+    "step2Hint": "Clique sur un rôle suggéré pour l'ajouter, ou écris librement. Entrée pour ajouter un tag.",
+    "step3Title": "Étape 3 — Vérifie et lance",
+    "step3Hint": "À la fin du scan, va sur Tableau de bord → Offres ouvertes pour voir les résultats.",
+    "analyzeBtn": "Analyser le profil",
+    "noProfile": "Charge un CV depuis l'onglet Paramètres pour voir les suggestions.",
+    "detectedSkills": "Compétences détectées",
+    "preferredRoles": "Rôles préférés",
+    "reviewEmpty": "Les paramètres du scan apparaîtront ici pendant l'étape 2."
   },
   "hero": {
     "eyebrow": "Recherche d'Emploi par IA",
@@ -89,6 +109,9 @@
     "editKeys": "Modifier Clés",
     "primaryProvider": "Fournisseur Principal",
     "autoFallback": "Auto (chaîne de secours)",
+    "preferredModel": "Modèle Préféré",
+    "modelAuto": "Auto (défaut du fournisseur)",
+    "modelHint": "Les modèles dépendent du fournisseur sélectionné. Laisse Auto pour utiliser le défaut.",
     "saveKeys": "Enregistrer Clés",
     "jobScan": "Scan d'Emplois",
     "keywords": "Mots-clés :",
@@ -178,6 +201,15 @@
     "releaseNotes": "Notes de version",
     "runNow": "Mettre à jour",
     "modalTitle": "Mise à jour en cours..."
+  },
+  "chat": {
+    "suggestions": {
+      "label": "Demande au coach de te trouver des rôles :",
+      "roles": "Quels rôles correspondent le mieux à mon CV ?",
+      "pythonJobs": "Trouve des offres Python à Milan",
+      "searchTerms": "Suggère des mots-clés pour un poste Junior QA",
+      "top5": "Recommande les 5 meilleures offres à postuler"
+    }
   },
   "common": {
     "close": "Fermer"

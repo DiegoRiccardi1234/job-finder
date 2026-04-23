@@ -80,3 +80,4 @@ class ProviderKeysRequest(BaseModel):
     google_api_key: str | None = None
     openrouter_api_key: str | None = None
     primary_provider: str | None = None
+    preferred_model: str | None = None

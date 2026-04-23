@@ -35,6 +35,7 @@
     <div class="brand"><span class="brand-icon material-symbols-outlined">work</span> Job Finder</div>
     <nav class="topnav">
       <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> <span data-i18n="topbar.dashboard">Dashboard</span></button>
+      <button type="button" class="nav-link" data-view="job-search"><span class="material-symbols-outlined">travel_explore</span> <span data-i18n="topbar.jobSearch">Job Search</span></button>
       <button type="button" class="nav-link" data-view="settings"><span class="material-symbols-outlined">settings</span> <span data-i18n="topbar.settings">Settings</span></button>
     </nav>
     <div class="topbar-right">
@@ -96,11 +97,6 @@
           <span class="material-symbols-outlined">inbox</span>
           <strong data-i18n="actions.openJobs">Open Jobs</strong>
           <small data-i18n="actions.openJobsSub">View all new opportunities</small>
-        </button>
-        <button type="button" class="action-alt" data-view="settings">
-          <span class="material-symbols-outlined">tune</span>
-          <strong data-i18n="actions.configure">Configure</strong>
-          <small data-i18n="actions.configureSub">CV, API keys &amp; search</small>
         </button>
       </section>
 
@@ -225,6 +221,69 @@
       </section>
     </section>
 
+    <!-- Job Search View -->
+    <section id="view-job-search" class="view">
+      <header class="settings-hero">
+        <h2><span data-i18n="jobSearch.title">Job</span> <em data-i18n="jobSearch.titleEm">Search</em></h2>
+        <p data-i18n="jobSearch.subtitle">Guided scan — analyze your CV, pick target roles, launch the search.</p>
+      </header>
+
+      <ol class="wizard-steps">
+        <li class="wizard-step is-active" data-step="1"><span class="wizard-num">1</span> <span data-i18n="jobSearch.step1">Analyze CV</span></li>
+        <li class="wizard-step" data-step="2"><span class="wizard-num">2</span> <span data-i18n="jobSearch.step2">Target roles &amp; filters</span></li>
+        <li class="wizard-step" data-step="3"><span class="wizard-num">3</span> <span data-i18n="jobSearch.step3">Launch scan</span></li>
+      </ol>
+
+      <article class="card-block wizard-card" data-step="1">
+        <h3><span class="material-symbols-outlined">person_search</span> <span data-i18n="jobSearch.step1Title">Step 1 — Analyze your CV</span></h3>
+        <p class="micro" data-i18n="jobSearch.step1Hint">We read the active profile and suggest roles that match your skills.</p>
+        <div id="wizardProfileSummary" class="wizard-summary">
+          <em data-i18n="jobSearch.noProfile">Upload a CV from the Settings tab to see suggestions.</em>
+        </div>
+        <button id="wizardAnalyzeBtn" type="button" class="apply-btn">
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <span data-i18n="jobSearch.analyzeBtn">Analyze profile</span>
+        </button>
+      </article>
+
+      <article class="card-block wizard-card" data-step="2">
+        <h3><span class="material-symbols-outlined">tune</span> <span data-i18n="jobSearch.step2Title">Step 2 — Keywords, locations, filters</span></h3>
+        <p class="micro" data-i18n="jobSearch.step2Hint">Click a suggested role to add it, or type freely. Press Enter to add a tag.</p>
+        <div id="wizardRoleSuggestions" class="chip-row"></div>
+        <form id="scanForm" class="column">
+          <div class="form-group row">
+            <div class="tag-input-container field-label" id="keywordsContainer">
+              <span data-i18n="settings.keywords">Keywords:</span>
+              <input type="text" id="keywordsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
+            </div>
+          </div>
+          <div class="form-group row">
+            <div class="tag-input-container field-label" id="locationsContainer">
+              <span data-i18n="settings.locations">Locations:</span>
+              <input type="text" id="locationsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
+            </div>
+          </div>
+          <div class="scan-options-row">
+            <label class="check-label"><input type="checkbox" name="scanSites" value="linkedin" checked /> LinkedIn</label>
+            <label class="check-label"><input type="checkbox" name="scanSites" value="indeed" checked /> Indeed</label>
+            <label class="check-label"><input type="checkbox" id="remoteToggle" /> <span data-i18n="settings.remoteOnly">Remote only</span></label>
+          </div>
+          <button type="submit" class="action-main" style="border:0">
+            <span class="material-symbols-outlined">rocket_launch</span>
+            <strong data-i18n="settings.startScan">Start Scan</strong>
+          </button>
+        </form>
+      </article>
+
+      <article class="card-block wizard-card" data-step="3">
+        <h3><span class="material-symbols-outlined">radar</span> <span data-i18n="jobSearch.step3Title">Step 3 — Review &amp; launch</span></h3>
+        <p class="micro" data-i18n="jobSearch.step3Hint">When the scan finishes, head to Dashboard → Open Jobs to see results.</p>
+        <div id="wizardReview" class="wizard-summary">
+          <em data-i18n="jobSearch.reviewEmpty">Your scan parameters will appear here as you fill Step 2.</em>
+        </div>
+      </article>
+    </section>
+
     <!-- Settings View -->
     <section id="view-settings" class="view">
       <header class="settings-hero">
@@ -270,6 +329,12 @@
                 <option value="openrouter">OpenRouter</option>
               </select>
             </label>
+            <label class="field-label"><span data-i18n="settings.preferredModel">Preferred Model</span>
+              <select id="preferredModel">
+                <option value="" data-i18n="settings.modelAuto">Auto (provider default)</option>
+              </select>
+              <small class="micro" data-i18n="settings.modelHint">Models listed depend on the selected provider. Leave Auto to use the provider default.</small>
+            </label>
             <label class="field-label">Cerebras <input id="cerebrasKey" type="password" placeholder="sk-..." /></label>
             <label class="field-label">Groq <input id="groqKey" type="password" placeholder="gsk_..." /></label>
             <label class="field-label">OpenAI <input id="openaiKey" type="password" placeholder="sk-..." /></label>
@@ -277,33 +342,6 @@
             <label class="field-label">Google <input id="googleKey" type="password" placeholder="AI..." /></label>
             <label class="field-label">OpenRouter <input id="openrouterKey" type="password" placeholder="sk-or-v1-..." /></label>
             <button type="submit" class="secondary" data-i18n="settings.saveKeys">Save Keys</button>
-          </form>
-        </article>
-
-        <article class="card-block">
-          <h3><span class="material-symbols-outlined">search</span> <span data-i18n="settings.jobScan">Job Scan</span></h3>
-          <form id="scanForm" class="column">
-            <div class="form-group row">
-              <div class="tag-input-container field-label" id="keywordsContainer">
-                  <span data-i18n="settings.keywords">Keywords:</span>
-                  <input type="text" id="keywordsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
-              </div>
-            </div>
-            <div class="form-group row">
-              <div class="tag-input-container field-label" id="locationsContainer">
-                  <span data-i18n="settings.locations">Locations:</span>
-                  <input type="text" id="locationsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
-              </div>
-            </div>
-            <div class="scan-options-row">
-              <label class="check-label"><input type="checkbox" name="scanSites" value="linkedin" checked /> LinkedIn</label>
-              <label class="check-label"><input type="checkbox" name="scanSites" value="indeed" checked /> Indeed</label>
-              <label class="check-label"><input type="checkbox" id="remoteToggle" /> <span data-i18n="settings.remoteOnly">Remote only</span></label>
-            </div>
-            <button type="submit" class="action-main" style="border:0">
-              <span class="material-symbols-outlined">rocket_launch</span>
-              <strong data-i18n="settings.startScan">Start Scan</strong>
-            </button>
           </form>
         </article>
 

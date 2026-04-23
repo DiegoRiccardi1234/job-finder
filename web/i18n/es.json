@@ -1,7 +1,27 @@
 {
   "topbar": {
     "dashboard": "Panel",
+    "jobSearch": "Buscar Empleo",
     "settings": "Ajustes"
+  },
+  "jobSearch": {
+    "title": "Buscar",
+    "titleEm": "Empleo",
+    "subtitle": "Escaneo guiado — analiza tu CV, elige roles, lanza la búsqueda.",
+    "step1": "Analizar CV",
+    "step2": "Roles y filtros",
+    "step3": "Lanzar escaneo",
+    "step1Title": "Paso 1 — Analiza tu CV",
+    "step1Hint": "Leemos el perfil activo y sugerimos roles que coinciden con tus habilidades.",
+    "step2Title": "Paso 2 — Palabras clave, ubicaciones, filtros",
+    "step2Hint": "Haz clic en un rol sugerido para añadirlo, o escribe libremente. Intro para añadir.",
+    "step3Title": "Paso 3 — Revisa y lanza",
+    "step3Hint": "Al terminar el escaneo, ve a Panel → Empleos abiertos para ver los resultados.",
+    "analyzeBtn": "Analizar perfil",
+    "noProfile": "Sube un CV desde Ajustes para ver las sugerencias.",
+    "detectedSkills": "Habilidades detectadas",
+    "preferredRoles": "Roles preferidos",
+    "reviewEmpty": "Los parámetros del escaneo aparecerán aquí mientras completas el Paso 2."
   },
   "hero": {
     "eyebrow": "Búsqueda de Empleo con IA",
@@ -89,6 +109,9 @@
     "editKeys": "Editar Claves",
     "primaryProvider": "Proveedor Primario",
     "autoFallback": "Auto (cadena de respaldo)",
+    "preferredModel": "Modelo Preferido",
+    "modelAuto": "Auto (predeterminado del proveedor)",
+    "modelHint": "Los modelos dependen del proveedor seleccionado. Deja Auto para usar el predeterminado.",
     "saveKeys": "Guardar Claves",
     "jobScan": "Escaneo de Empleos",
     "keywords": "Palabras Clave:",
@@ -178,6 +201,15 @@
     "releaseNotes": "Notas de la versión",
     "runNow": "Actualizar ahora",
     "modalTitle": "Actualizando Job Finder..."
+  },
+  "chat": {
+    "suggestions": {
+      "label": "Pide al coach que te sugiera roles:",
+      "roles": "¿Qué puestos encajan mejor con mi CV?",
+      "pythonJobs": "Busca empleos Python en Milán",
+      "searchTerms": "Sugiere términos de búsqueda para un rol Junior QA",
+      "top5": "Recomienda los 5 mejores empleos a los que aplicar"
+    }
   },
   "common": {
     "close": "Cerrar"

@@ -42,17 +42,13 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 **Dashboard** — personalized hero, live analytics, and an always-on AI Career Coach in the right rail.
 
-![Dashboard](screenshots/readme/dashboard-recommendations-en.png)
+![Dashboard](screenshots/readme/dashboard-en.png)
 
-**AI-ranked recommendations** — top matches surfaced from your CV with explicit scores and reasoning.
+**Job Search wizard** — guided 3-step flow: analyze your CV, pick target roles from AI-suggested chips, launch the scan.
 
-![Recommendations](screenshots/readme/recommendations-grid-en.png)
+![Job Search](screenshots/readme/job-search-en.png)
 
-**Job archive** — searchable table with filters, favorites, and per-row actions (Apply / Skip / Details).
-
-![Archive](screenshots/readme/jobs-table-en.png)
-
-**Dark mode** — full glassmorphism theme, one-click toggle.
+**Dark mode** — full theme, one-click toggle.
 
 ![Dark mode](screenshots/readme/dashboard-dark-en.png)
 

@@ -152,6 +152,35 @@ function setPrimaryProviderValue(providerName) {
   select.value = exists ? normalized : "";
 }
 
+let _providersMetadataCache = {};
+
+function populateModelOptions(providerName, desiredModel) {
+  const select = document.getElementById("preferredModel");
+  if (!select) return;
+  const current = desiredModel !== undefined ? desiredModel : select.value;
+  const provider = (providerName || "").trim().toLowerCase();
+  const autoLabel = t("settings.modelAuto");
+  select.innerHTML = `<option value="">${autoLabel}</option>`;
+  const meta = _providersMetadataCache[provider];
+  const models = meta && Array.isArray(meta.models) ? meta.models : [];
+  for (const m of models) {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    select.appendChild(opt);
+  }
+  const exists = Array.from(select.options).some((opt) => opt.value === current);
+  select.value = exists ? current : "";
+}
+
+function updateProvidersMetadata(metadata, desiredModel) {
+  if (metadata && typeof metadata === "object") {
+    _providersMetadataCache = metadata.providers || {};
+  }
+  const provider = document.getElementById("primaryProvider")?.value || "";
+  populateModelOptions(provider, desiredModel);
+}
+
 function activateView(viewName) {
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("is-active", section.id === `view-${viewName}`);
@@ -217,6 +246,7 @@ async function loadHealth() {
   setKeysSectionMode(configured);
   const status = normalizeKeyStatus(keys, health.provider || {});
   setPrimaryProviderValue(status.primary_provider);
+  updateProvidersMetadata(health.provider || {}, keys.preferred_model || "");
   setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
@@ -244,6 +274,7 @@ async function loadKeysStatus() {
   setKeysSectionMode(configured);
   const status = normalizeKeyStatus(keys, provider);
   setPrimaryProviderValue(status.primary_provider);
+  updateProvidersMetadata(provider, keys.preferred_model || "");
   setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
@@ -255,6 +286,7 @@ async function saveKeys() {
   const google = document.getElementById("googleKey").value.trim();
   const openrouter = document.getElementById("openrouterKey").value.trim();
   const primaryProvider = document.getElementById("primaryProvider").value.trim();
+  const preferredModel = document.getElementById("preferredModel")?.value.trim() || "";
 
   const payload = {};
   if (cerebras) payload.cerebras_api_key = cerebras;
@@ -264,6 +296,7 @@ async function saveKeys() {
   if (google) payload.google_api_key = google;
   if (openrouter) payload.openrouter_api_key = openrouter;
   payload.primary_provider = primaryProvider;
+  payload.preferred_model = preferredModel;
 
   if (
     !payload.cerebras_api_key
@@ -273,6 +306,7 @@ async function saveKeys() {
     && !payload.google_api_key
     && !payload.openrouter_api_key
     && !payload.primary_provider
+    && !payload.preferred_model
   ) {
     showToast(t("toast.enterKeyOrProvider"), "info");
     return;
@@ -597,8 +631,8 @@ async function loadJobs() {
         <div class="mini">
           <button class="apply-btn" data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
           <button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>
-          <button data-action="reopened" data-id="${job.id}" class="secondary">${t("jobs.reopen")}</button>
-          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary">${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}</button>
+          <button data-action="reopened" data-id="${job.id}" class="secondary icon-btn" title="${t("jobs.reopen")}" aria-label="${t("jobs.reopen")}"><span class="material-symbols-outlined">restart_alt</span></button>
+          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary icon-btn${job.is_favorite ? " is-active" : ""}" title="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}" aria-label="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}"><span class="material-symbols-outlined">${job.is_favorite ? "favorite" : "favorite_border"}</span></button>
         </div>
       </td>
     `;
@@ -900,12 +934,109 @@ if (_focusOpenBtn) _focusOpenBtn.addEventListener("click", async () => {
   status.value = "open";
   activateView("dashboard");
   await loadJobs();
+  requestAnimationFrame(() => {
+    document.querySelector(".jobs-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 });
 
 document.querySelectorAll("[data-view]").forEach((btn) => {
   btn.addEventListener("click", () => {
     activateView(btn.dataset.view || "dashboard");
   });
+});
+
+const _primaryProviderEl = document.getElementById("primaryProvider");
+if (_primaryProviderEl) {
+  _primaryProviderEl.addEventListener("change", () => {
+    populateModelOptions(_primaryProviderEl.value, "");
+  });
+}
+
+// ─── Job Search wizard ──────────────────────────────────────────
+function setWizardStep(step) {
+  document.querySelectorAll(".wizard-step").forEach((el) => {
+    const n = parseInt(el.dataset.step || "0", 10);
+    el.classList.toggle("is-active", n === step);
+    el.classList.toggle("is-done", n < step);
+  });
+}
+
+function updateWizardReview() {
+  const review = document.getElementById("wizardReview");
+  if (!review) return;
+  const kw = (typeof getKeywords !== "undefined" ? getKeywords.getTags() : []) || [];
+  const loc = (typeof getLocations !== "undefined" ? getLocations.getTags() : []) || [];
+  const sites = Array.from(document.querySelectorAll('input[name="scanSites"]:checked')).map((cb) => cb.value);
+  const remote = document.getElementById("remoteToggle")?.checked || false;
+  if (!kw.length && !loc.length) {
+    review.innerHTML = `<em>${t("jobSearch.reviewEmpty")}</em>`;
+    setWizardStep(1);
+    return;
+  }
+  review.innerHTML = `
+    <div><strong>${t("settings.keywords")}</strong> ${kw.length ? kw.join(", ") : "—"}</div>
+    <div><strong>${t("settings.locations")}</strong> ${loc.length ? loc.join(", ") : "—"}</div>
+    <div><strong>Sources</strong> ${sites.join(", ") || "—"}${remote ? " · remote only" : ""}</div>
+  `;
+  setWizardStep(kw.length ? 3 : 2);
+}
+
+async function loadWizardProfile() {
+  const summaryEl = document.getElementById("wizardProfileSummary");
+  const chipsEl = document.getElementById("wizardRoleSuggestions");
+  if (!summaryEl || !chipsEl) return;
+  chipsEl.innerHTML = "";
+  try {
+    const data = await api("/api/profile");
+    const profile = data.profile;
+    if (!profile) {
+      summaryEl.innerHTML = `<em>${t("jobSearch.noProfile")}</em>`;
+      return;
+    }
+    const summary = profile.summary_json || {};
+    const skills = Array.isArray(summary.skills) ? summary.skills.slice(0, 12) : [];
+    const roles = Array.isArray(summary.preferred_roles) ? summary.preferred_roles : [];
+    summaryEl.innerHTML = `
+      <div><strong>${t("jobSearch.detectedSkills")}:</strong> ${skills.join(", ") || "—"}</div>
+      <div style="margin-top:6px"><strong>${t("jobSearch.preferredRoles")}:</strong> ${roles.join(", ") || "—"}</div>
+    `;
+    for (const role of roles) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip-suggestion";
+      chip.textContent = role;
+      chip.addEventListener("click", () => {
+        if (typeof getKeywords !== "undefined") {
+          getKeywords.addMultiple([role]);
+          updateWizardReview();
+        }
+      });
+      chipsEl.appendChild(chip);
+    }
+    setWizardStep(roles.length ? 2 : 1);
+  } catch (err) {
+    summaryEl.innerHTML = `<em>${t("jobSearch.noProfile")}</em>`;
+  }
+}
+
+const _wizardAnalyzeBtn = document.getElementById("wizardAnalyzeBtn");
+if (_wizardAnalyzeBtn) _wizardAnalyzeBtn.addEventListener("click", loadWizardProfile);
+
+document.querySelectorAll('[data-view="job-search"]').forEach((btn) => {
+  btn.addEventListener("click", () => {
+    loadWizardProfile();
+    updateWizardReview();
+  });
+});
+
+document.querySelectorAll('input[name="scanSites"], #remoteToggle').forEach((el) => {
+  el.addEventListener("change", updateWizardReview);
+});
+
+["keywordsContainer", "locationsContainer"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new MutationObserver(updateWizardReview).observe(el, { childList: true, subtree: true });
 });
 
 document.getElementById("railRecommendBtn").addEventListener("click", async () => {
@@ -1184,11 +1315,11 @@ async function runUpdate() {
 }
 
 // ─── Chat empty state + first-time tutorial ─────────────────────
-const CHAT_SUGGESTIONS = [
-  'Which roles best fit my CV?',
-  'Find Python jobs in Milan',
-  'Suggest search terms for a Junior QA role',
-  'Recommend the top 5 jobs to apply for',
+const CHAT_SUGGESTION_KEYS = [
+  'chat.suggestions.roles',
+  'chat.suggestions.pythonJobs',
+  'chat.suggestions.searchTerms',
+  'chat.suggestions.top5',
 ];
 
 function renderChatEmptyState() {
@@ -1197,14 +1328,16 @@ function renderChatEmptyState() {
   if (box.querySelector('.chat-item') || box.querySelector('.chat-empty')) return;
   const empty = document.createElement('div');
   empty.className = 'chat-empty';
-  empty.innerHTML = `
-    <div class="lead">Try asking the coach to find roles for you:</div>
-  `;
-  for (const text of CHAT_SUGGESTIONS) {
+  const lead = document.createElement('div');
+  lead.className = 'lead';
+  lead.textContent = t('chat.suggestions.label');
+  empty.appendChild(lead);
+  for (const key of CHAT_SUGGESTION_KEYS) {
+    const label = t(key);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = text;
-    btn.addEventListener('click', () => sendChatMessage(text));
+    btn.textContent = label;
+    btn.addEventListener('click', () => sendChatMessage(label));
     empty.appendChild(btn);
   }
   box.appendChild(empty);

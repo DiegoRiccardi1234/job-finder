@@ -68,6 +68,7 @@ class AppContainer:
             "google_configured": bool(self.settings.google_api_key),
             "openrouter_configured": bool(self.settings.openrouter_api_key),
             "primary_provider": primary,
+            "preferred_model": self.settings.preferred_model or "",
         }
 
 
@@ -116,6 +117,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
             google_api_key=payload.google_api_key,
             openrouter_api_key=payload.openrouter_api_key,
             primary_provider=payload.primary_provider,
+            preferred_model=payload.preferred_model,
         )
         container.reload_providers()
         return {

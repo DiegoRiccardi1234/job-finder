@@ -326,7 +326,7 @@ input, select, textarea { font-family: inherit; font-size: var(--fs-base); }
 /* ============== action center ============== */
 .action-center {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-3);
   margin-bottom: var(--space-6);
 }
@@ -712,6 +712,26 @@ button.danger:hover { background: var(--danger-soft); border-color: var(--danger
   flex-wrap: wrap;
 }
 
+.mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mini > button {
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+.mini .icon-btn {
+  padding: 5px 8px;
+  min-width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mini .icon-btn .material-symbols-outlined { font-size: 18px; }
+.mini .icon-btn.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 .apply-btn {
   display: inline-flex;
   align-items: center;
@@ -769,6 +789,7 @@ button.danger:hover { background: var(--danger-soft); border-color: var(--danger
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  min-height: calc(100vh - 100px);
   max-height: calc(100vh - 100px);
 }
 
@@ -820,7 +841,7 @@ button.danger:hover { background: var(--danger-soft); border-color: var(--danger
   flex-direction: column;
   gap: var(--space-3);
 }
-.coach-panel.rail-chat { flex: 1; min-height: 0; max-height: calc(100vh - 240px); }
+.coach-panel.rail-chat { flex: 1; min-height: 0; max-height: calc(100vh - 180px); display: flex; flex-direction: column; }
 
 .coach-head {
   display: flex;
@@ -838,8 +859,8 @@ button.danger:hover { background: var(--danger-soft); border-color: var(--danger
 
 .chat-box {
   flex: 1;
-  min-height: 220px;
-  max-height: 360px;
+  min-height: 520px;
+  max-height: none;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1254,4 +1275,83 @@ pre {
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ============== Job Search wizard ============== */
+.wizard-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-5);
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.wizard-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.wizard-step.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.wizard-step.is-done {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.wizard-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+.wizard-step.is-active .wizard-num {
+  background: var(--accent);
+  color: #fff;
+}
+.wizard-card {
+  margin-bottom: var(--space-4);
+}
+.wizard-summary {
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: var(--space-2) 0 var(--space-3);
+}
+.wizard-summary strong { color: var(--text); }
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: var(--space-2) 0 var(--space-3);
+}
+.chip-suggestion {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.chip-suggestion:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }

@@ -1,7 +1,27 @@
 {
   "topbar": {
     "dashboard": "Dashboard",
+    "jobSearch": "Job Search",
     "settings": "Settings"
+  },
+  "jobSearch": {
+    "title": "Job",
+    "titleEm": "Search",
+    "subtitle": "Guided scan — analyze your CV, pick target roles, launch the search.",
+    "step1": "Analyze CV",
+    "step2": "Target roles & filters",
+    "step3": "Launch scan",
+    "step1Title": "Step 1 — Analyze your CV",
+    "step1Hint": "We read the active profile and suggest roles that match your skills.",
+    "step2Title": "Step 2 — Keywords, locations, filters",
+    "step2Hint": "Click a suggested role to add it, or type freely. Press Enter to add a tag.",
+    "step3Title": "Step 3 — Review & launch",
+    "step3Hint": "When the scan finishes, head to Dashboard → Open Jobs to see results.",
+    "analyzeBtn": "Analyze profile",
+    "noProfile": "Upload a CV from the Settings tab to see suggestions.",
+    "detectedSkills": "Detected skills",
+    "preferredRoles": "Preferred roles",
+    "reviewEmpty": "Your scan parameters will appear here as you fill Step 2."
   },
   "hero": {
     "eyebrow": "AI-Powered Job Search",
@@ -89,6 +109,9 @@
     "editKeys": "Edit Keys",
     "primaryProvider": "Primary Provider",
     "autoFallback": "Auto (fallback chain)",
+    "preferredModel": "Preferred Model",
+    "modelAuto": "Auto (provider default)",
+    "modelHint": "Models listed depend on the selected provider. Leave Auto to use the provider default.",
     "saveKeys": "Save Keys",
     "jobScan": "Job Scan",
     "keywords": "Keywords:",
@@ -178,6 +201,15 @@
     "releaseNotes": "Release notes",
     "runNow": "Update now",
     "modalTitle": "Updating Job Finder..."
+  },
+  "chat": {
+    "suggestions": {
+      "label": "Try asking the coach to find roles for you:",
+      "roles": "Which roles best fit my CV?",
+      "pythonJobs": "Find Python jobs in Milan",
+      "searchTerms": "Suggest search terms for a Junior QA role",
+      "top5": "Recommend the top 5 jobs to apply for"
+    }
   },
   "common": {
     "close": "Close"
