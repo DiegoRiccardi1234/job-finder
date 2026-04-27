@@ -32,7 +32,7 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Personalized scoring** — Each job gets a 1-10 AI score with pros/cons and an apply/skip recommendation.
 - **Kanban tracking** — Open → Applied → Interviewing → Rejected.
 - **Cover-letter generator** — One-click, tailored to the job and your CV.
-- **Multilingual UI** — English, Italian, Spanish, French, German (150 keys, 100% coverage).
+- **Multilingual UI** — English, Italian, Spanish, French, German (204 keys per locale, 100% parity).
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
 
@@ -48,9 +48,8 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ![Job Search](screenshots/readme/job-search-en.png)
 
-**Dark mode** — full theme, one-click toggle.
-
-![Dark mode](screenshots/readme/dashboard-dark-en.png)
+> 🎯 Step 1 reads your active CV and surfaces matching role suggestions as clickable chips.
+> ✨ Dark mode is included — one-click toggle in the top bar.
 
 **AI Career Coach chat** — ask questions in plain language; the coach suggests target roles as clickable pills and can auto-fill the scan form.
 
@@ -59,10 +58,6 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 **Live scan progress** — during a scan you see each portal scraped, every job analyzed, and its score (green/yellow/red) in a live feed. Minimize it to keep browsing.
 
 ![Scan progress](screenshots/readme/scan-progress-en.png)
-
-**CV-driven role chips** — Step 1 reads your active CV and surfaces matching role suggestions; click to add as search keywords.
-
-![CV analysis](screenshots/readme/cv-analysis-en.png)
 
 ---
 
@@ -126,7 +121,7 @@ The chat service is split into single-responsibility modules:
 | AI / LLM | 6-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 23 tests), Playwright (E2E) |
+| Testing | pytest (unit, 99 tests), Playwright (E2E) |
 | Logging | stdlib `logging` + RotatingFileHandler → `data/logs/app.log` |
 
 ---
@@ -139,14 +134,18 @@ app/
 ├── config.py                AppSettings + local secrets persistence
 ├── db.py                    SQLite Database (WAL + lock)
 ├── log.py                   Centralized logging setup
-├── cv_ingest.py             CV → markdown → LLM summary
+├── cv_ingest.py             CV → markdown → LLM summary + content validation
 ├── lifecycle.py             Post-scan retention/archive policy
 ├── models.py                Pydantic request/response models
+├── rate_limit.py            Token-bucket limiter for /api/chat, /api/scan, /api/upload-cv
+├── version.py               Version metadata + GitHub release checker
+├── migrations/              Numbered SQLite schema migrations (idempotent runner)
 ├── prompts/chat/            System-prompt templates (.txt)
-├── providers/               LLM factory + 6 provider implementations
+├── providers/               LLM factory + 6 provider implementations (retry + backoff)
 └── services/
-    ├── chat/                Chat package (state/context/prompts/intents/fallback/handler)
+    ├── chat/                Chat package (state/context/memory/prompts/intents/fallback/handler)
     ├── chat_service.py      Backwards-compat facade
+    ├── roles_shortlist.py   Role suggestion CRUD + dedup
     └── scanner_service.py   Job scraping + scoring orchestration
 web/                         Vanilla JS UI + i18n JSON
 tests/

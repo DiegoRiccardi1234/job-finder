@@ -25,3 +25,11 @@ phase*.png
 verify*.png
 snapshot-*.md
 *.stackdump
+.env
+.env.local
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+*.egg-info/
+dist/
+build/

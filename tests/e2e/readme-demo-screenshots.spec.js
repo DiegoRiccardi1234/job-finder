@@ -3,7 +3,8 @@
 // Prereq: run `python scripts/seed_demo.py --db data/demo.db --force` first,
 // then launch the webapp with `SEARCHER_DB_PATH=data/demo.db`.
 //
-// Produces 3 README screenshots: dashboard (light + dark) and job search wizard.
+// Produces the 4 README screenshots:
+// dashboard, job-search wizard, chat view, scan progress.
 
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
@@ -62,15 +63,7 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
   await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, "job-search-en.png");
 
-  // 3. Dashboard dark mode
-  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
-  await setTheme(page, "dark");
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(500);
-  await shot(page, "dashboard-dark-en.png");
-  await setTheme(page, "light");
-
-  // 4. Chat view — inject a conversation so bubbles are visible
+  // 3. Chat view — inject a conversation so bubbles are visible
   await page.locator(".topnav .nav-link[data-view='dashboard']").click();
   await page.evaluate(() => {
     const box = document.getElementById("chatBox");
@@ -97,7 +90,7 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
   await page.waitForTimeout(400);
   await shot(page, "chat-view-en.png");
 
-  // 5. Scan progress feed — show the overlay + feed mid-analysis
+  // 4. Scan progress feed — show the overlay + feed mid-analysis
   await page.evaluate(() => {
     const overlay = document.getElementById("scanOverlay");
     const fill = document.getElementById("scanProgressFill");
@@ -132,11 +125,4 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
     const overlay = document.getElementById("scanOverlay");
     if (overlay) overlay.style.display = "none";
   });
-
-  // 6. CV analysis with role chips
-  await page.locator(".topnav .nav-link[data-view='job-search']").click();
-  await page.waitForTimeout(300);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(300);
-  await shot(page, "cv-analysis-en.png");
 });
