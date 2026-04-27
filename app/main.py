@@ -1,6 +1,9 @@
 import csv
 import hashlib
 import os
+import subprocess
+import sys
+import threading
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -457,6 +460,48 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         # Refresh version cache so banner reflects new state on next /api/version call.
         get_version_info(force_refresh=True)
         return result
+
+    @fastapi_app.post("/api/update/start", status_code=202)
+    def start_bundle_update() -> dict[str, Any]:
+        if not getattr(sys, "frozen", False):
+            raise HTTPException(
+                status_code=409,
+                detail="Bundle update is only available in the standalone Windows build. "
+                "Use `git pull && pip install -r requirements.txt` in dev mode.",
+            )
+        info = get_version_info(force_refresh=True)
+        latest = info.get("latest")
+        current = info.get("current")
+        if not latest or latest == current:
+            raise HTTPException(status_code=409, detail="Already on the latest version.")
+
+        install_dir = Path(sys.executable).resolve().parent
+        updater_exe = install_dir / "Updater.exe"
+        if not updater_exe.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"Updater.exe not found next to JobFinder.exe (looked in {install_dir}).",
+            )
+
+        creationflags = 0
+        if sys.platform == "win32":
+            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(
+            [
+                str(updater_exe),
+                "--install-dir",
+                str(install_dir),
+                "--parent-pid",
+                str(os.getpid()),
+            ],
+            close_fds=True,
+            creationflags=creationflags,
+        )
+
+        # Give the response a moment to flush, then hard-exit so the updater
+        # can replace our files. Graceful uvicorn shutdown is too slow.
+        threading.Timer(0.8, lambda: os._exit(0)).start()
+        return {"status": "updating", "next_version": latest, "from_version": current}
 
     @fastapi_app.post("/api/preferences")
     def update_preference(payload: PreferenceUpdateRequest) -> dict[str, Any]:

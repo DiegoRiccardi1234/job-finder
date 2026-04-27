@@ -13,9 +13,9 @@ Manual usage:
 from __future__ import annotations
 
 import subprocess
-from typing import Any
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def _run(cmd: list[str], cwd: Path) -> tuple[int, str]:

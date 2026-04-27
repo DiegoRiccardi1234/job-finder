@@ -1389,20 +1389,28 @@ async function checkForUpdate() {
       localStorage.setItem('updateDismissed', info.latest);
       banner.classList.add('hidden');
     };
-    document.getElementById('updateBannerRun').onclick = runUpdate;
+    document.getElementById('updateBannerRun').onclick = () => runUpdate(info);
   } catch (err) {
     console.warn('Update check failed:', err);
   }
 }
 
-async function runUpdate() {
+async function runUpdate(info) {
   const modal = document.getElementById('updateModal');
   const log = document.getElementById('updateModalLog');
   const closeBtn = document.getElementById('updateModalClose');
-  log.textContent = 'Running update... please wait.\n';
   modal.classList.remove('hidden');
   closeBtn.onclick = () => modal.classList.add('hidden');
 
+  if (info && info.frozen) {
+    await runBundleUpdate(log);
+  } else {
+    await runDevUpdate(log);
+  }
+}
+
+async function runDevUpdate(log) {
+  log.textContent = 'Running update (git pull + pip install)... please wait.\n';
   try {
     const result = await api('/api/update', { method: 'POST' });
     log.textContent = `${result.message}\n\n`;
@@ -1415,6 +1423,47 @@ async function runUpdate() {
   } catch (err) {
     log.textContent += `\nFAILED: ${err.message}`;
   }
+}
+
+async function runBundleUpdate(log) {
+  log.textContent = 'Downloading update...\nDo not close this window — the app will restart automatically.\n';
+  try {
+    const r = await fetch('/api/update/start', { method: 'POST' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      log.textContent += `\nFAILED to start update: ${err.detail || r.status}`;
+      return;
+    }
+    const data = await r.json();
+    log.textContent += `\nUpdater spawned: ${data.from_version} → ${data.next_version}\nWaiting for app to restart...\n`;
+  } catch (err) {
+    log.textContent += `\nFAILED: ${err.message}`;
+    return;
+  }
+
+  // Poll /api/health until the new process is up. Expect a window
+  // (~5–60 s) where the request fails because the app is being replaced.
+  const deadline = Date.now() + 180_000;
+  let outageObserved = false;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const h = await fetch('/api/health', { cache: 'no-store' });
+      if (!h.ok) throw new Error(String(h.status));
+      const json = await h.json();
+      const ver = (json.version_info && json.version_info.current) || (json.version || '');
+      if (outageObserved) {
+        log.textContent += `\nNew app reachable (v${ver}). Reloading...`;
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
+      // No outage yet — keep waiting; updater hasn't taken JobFinder.exe down.
+    } catch {
+      outageObserved = true;
+      log.textContent += '.';
+    }
+  }
+  log.textContent += '\nTimed out waiting for the new version. Try refreshing this page in a minute.';
 }
 
 // ─── Chat empty state + first-time tutorial ─────────────────────

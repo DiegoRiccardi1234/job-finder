@@ -14,7 +14,6 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PORT", "8000"))
 URL = f"http://{HOST}:{PORT}"
@@ -50,8 +49,9 @@ def main() -> int:
     # Tell app.main to mount itself against this workspace before we import it.
     os.environ["JOBFINDER_WORKSPACE"] = str(workspace)
 
-    import uvicorn  # noqa: PLC0415 — import after env so app.main sees it
-    from app.main import app  # noqa: PLC0415
+    import uvicorn
+
+    from app.main import app
 
     print(f"Job Finder — http://{HOST}:{PORT} (workspace: {workspace})")
     threading.Thread(target=_open_browser_when_ready, daemon=True).start()

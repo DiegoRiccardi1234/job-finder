@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -57,6 +58,7 @@ def get_version_info(force_refresh: bool = False) -> dict[str, Any]:
     ):
         return cast(dict[str, Any], _cache["data"])
 
+    frozen = bool(getattr(sys, "frozen", False))
     release = _fetch_latest_release()
     if release is None:
         info = {
@@ -66,6 +68,7 @@ def get_version_info(force_refresh: bool = False) -> dict[str, Any]:
             "release_url": None,
             "release_notes": None,
             "checked": False,
+            "frozen": frozen,
         }
     else:
         latest_tag = release.get("tag_name", "")
@@ -77,6 +80,7 @@ def get_version_info(force_refresh: bool = False) -> dict[str, Any]:
             "release_url": release.get("html_url"),
             "release_notes": (release.get("body") or "")[:500],
             "checked": True,
+            "frozen": frozen,
         }
 
     _cache["fetched_at"] = now

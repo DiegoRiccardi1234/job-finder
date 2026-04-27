@@ -25,14 +25,23 @@ datas: list[tuple[str, str]] = [
     ("web", "web"),
     ("app/prompts", "app/prompts"),
 ]
-
-# jobspy ships templates / static data; pull them in if available.
 try:
     datas += collect_data_files("jobspy", include_py_files=False)
 except Exception:
     pass
 
-a = Analysis(
+excludes = [
+    "tests",
+    "matplotlib",
+    "tkinter",
+    "PyQt5",
+    "PySide2",
+    "PyQt6",
+    "PySide6",
+]
+
+# ─── Main app: JobFinder.exe ──────────────────────────────────────
+a_main = Analysis(
     ["scripts/launch_exe.py"],
     pathex=["."],
     binaries=[],
@@ -41,24 +50,38 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[
-        "tests",
-        "matplotlib",
-        "tkinter",
-        "PyQt5",
-        "PySide2",
-        "PyQt6",
-        "PySide6",
-    ],
+    excludes=excludes,
     cipher=block_cipher,
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+# ─── Sibling: Updater.exe ─────────────────────────────────────────
+a_upd = Analysis(
+    ["scripts/updater.py"],
+    pathex=["."],
+    binaries=[],
+    datas=[],
+    hiddenimports=[],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=excludes,
+    cipher=block_cipher,
+    noarchive=False,
+)
 
-exe = EXE(
-    pyz,
-    a.scripts,
+# Share dependencies so Updater.exe doesn't double the bundle size.
+MERGE(
+    (a_main, "JobFinder", "JobFinder"),
+    (a_upd, "Updater", "Updater"),
+)
+
+pyz_main = PYZ(a_main.pure, a_main.zipped_data, cipher=block_cipher)
+pyz_upd = PYZ(a_upd.pure, a_upd.zipped_data, cipher=block_cipher)
+
+exe_main = EXE(
+    pyz_main,
+    a_main.scripts,
     [],
     exclude_binaries=True,
     name="JobFinder",
@@ -66,15 +89,33 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,  # keep the console: stack traces visible if the app crashes
+    console=True,
+    icon=None,
+)
+
+exe_upd = EXE(
+    pyz_upd,
+    a_upd.scripts,
+    [],
+    exclude_binaries=True,
+    name="Updater",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=True,
     icon=None,
 )
 
 coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
+    exe_main,
+    exe_upd,
+    a_main.binaries,
+    a_main.zipfiles,
+    a_main.datas,
+    a_upd.binaries,
+    a_upd.zipfiles,
+    a_upd.datas,
     strip=False,
     upx=True,
     upx_exclude=[],
