@@ -137,7 +137,29 @@ def save_local_provider_keys(
     }
 
 
+def _load_dotenv(workspace_dir: Path) -> None:
+    """Populate ``os.environ`` from ``.env`` in the workspace if present.
+
+    Existing environment variables take precedence (a real env wins over the
+    file). Lines that do not contain ``=`` and lines starting with ``#`` are
+    ignored. Surrounding single/double quotes around values are stripped.
+    """
+    env_path = workspace_dir / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 def load_settings(workspace_dir: Path) -> AppSettings:
+    _load_dotenv(workspace_dir)
     data_dir = workspace_dir / "data"
     config_path = data_dir / "settings.json"
     cfg = _load_optional_json(config_path)

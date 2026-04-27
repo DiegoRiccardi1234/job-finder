@@ -185,6 +185,15 @@ python run_webapp.py
 
 Open **http://127.0.0.1:8000**.
 
+### Run with Docker
+
+```bash
+cp .env.example .env   # add at least one LLM API key
+docker compose up -d
+```
+
+The container exposes the app on `${PORT:-8000}` and persists the SQLite DB and logs in `./data/`. A built-in healthcheck pings `/api/health` every 30s.
+
 ### First-time setup
 
 1. Open **Settings** and paste at least one LLM API key.
