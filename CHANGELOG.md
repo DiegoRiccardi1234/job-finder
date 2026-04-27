@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased] — 2026-04
+## [Unreleased]
+
+## [0.1.0] — 2026-04-28
+
+First public release. Standalone Windows bundle, self-update, multi-LLM career-coach chat, scan, kanban, analytics.
 
 ### Added
 - **Unit test suite** (`tests/unit/`): coverage for chat context, handler parsing, fallback, CV ingest, scanner helpers, role shortlist, migrations, memory summarizer, provider retry, rate limiter, scraper canary.
@@ -43,6 +47,9 @@
 - **CV upload preference key mismatch** (`/api/upload-cv`): the handler checked `summary.get("ruoli_preferiti")` but both the LLM prompt and the heuristic returned `preferred_roles`, so the per-user roles preference was never persisted on upload. Now reads and writes `preferred_roles`.
 - **CV content validation**: `validate_cv_content()` rejects uploads under 200 chars or missing common CV keywords (HTTP 422), preventing junk PDFs from polluting the profile store.
 - **CV upload deduplication**: migration `003_candidate_profile_hash.py` adds `content_hash` + index; re-uploading the same file now returns the existing `profile_id` instead of creating a duplicate row.
+- **Bundle: missing `tls_client` DLL**: `JobFinder.spec` now `collect_data_files("tls_client")` so jobspy's TLS native lib (`tls-client-64.dll`) ships with the executable. Without this fix the EXE crashed at first scrape import with `FileNotFoundError`.
+- **Bundle: migrations not discovered**: `app/migrations/*.py` added to spec `datas`; `pkgutil.iter_modules(__path__)` requires real files on disk (the PYZ-only inclusion via `collect_submodules` is not enough), so previous bundles raised `sqlite3.OperationalError: no such table: preferences` on first launch.
+- **Bundle: `web/` static dir not found**: `create_app` now resolves `web_dir` from `sys._MEIPASS` when frozen (PyInstaller). Workspace dir holds only user-writable state (`data/`, `.env`, `cv.md`); read-only assets live inside the bundle.
 
 ### Refactor
 - `web/app.js`: extracted i18n into `web/modules/i18n.js` with a `onLanguageChange` callback registry, dropping ~80 LOC from the main entry. Chat / scan / kanban / recommendations splits remain on the follow-up list.

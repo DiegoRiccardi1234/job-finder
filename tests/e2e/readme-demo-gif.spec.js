@@ -287,14 +287,27 @@ test("record README demo GIF", async ({ page }) => {
     idx = await captureFor(page, 700, idx);
   }
 
-  // Beat 6 — Close overlay, settle on a clean dashboard frame
+  // Beat 6 — Close overlay, scroll down through results to reveal the jobs table
   await page.evaluate(() => {
     const overlay = document.getElementById("scanOverlay");
     if (overlay) overlay.style.display = "none";
     window.scrollTo(0, 0);
   });
-  await page.waitForTimeout(300);
-  idx = await captureFor(page, 1000, idx);
+  await page.waitForTimeout(400);
+  idx = await captureFor(page, 600, idx);
+
+  // Smooth-scroll down to the jobs section so the viewer sees the actual matches.
+  const jobsTarget = await page.evaluate(() => {
+    const sec = document.querySelector(".jobs-section");
+    return sec ? sec.getBoundingClientRect().top + window.scrollY - 80 : 0;
+  });
+  const STEPS = 14;
+  for (let s = 1; s <= STEPS; s++) {
+    await page.evaluate((y) => window.scrollTo(0, y), Math.round((jobsTarget * s) / STEPS));
+    idx = await captureFor(page, 90, idx);
+  }
+  // Hold on the jobs list so the matches are clearly readable in the GIF.
+  idx = await captureFor(page, 1500, idx);
 
   expect(idx).toBeGreaterThan(60);
 

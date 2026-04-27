@@ -40,7 +40,7 @@ from app.providers.factory import ProviderManager
 from app.services import roles_shortlist as roles_shortlist_svc
 from app.services.chat_service import handle_chat_message
 from app.services.scanner_service import analyze_offer, run_scan
-from app.version import get_version_info
+from app.version import __version__, get_version_info
 
 
 class AppContainer:
@@ -98,11 +98,12 @@ def create_app(workspace_dir: Path) -> FastAPI:
         yield
         container.shutdown()
 
-    fastapi_app = FastAPI(title="Job Finder", version="0.3.0", lifespan=lifespan)
-    if getattr(sys, "frozen", False):
-        web_dir = Path(sys._MEIPASS) / "web"  # type: ignore[attr-defined]
-    else:
-        web_dir = workspace_dir / "web"
+    fastapi_app = FastAPI(title="Job Finder", version=__version__, lifespan=lifespan)
+    web_dir = (
+        Path(sys._MEIPASS) / "web"  # type: ignore[attr-defined]
+        if getattr(sys, "frozen", False)
+        else workspace_dir / "web"
+    )
     fastapi_app.mount("/web", StaticFiles(directory=web_dir), name="web")
 
     @fastapi_app.get("/")
