@@ -31,3 +31,24 @@
 
 ### Removed
 - Chat expand/collapse toggle (layout is now fully fluid).
+
+### Tooling & Quality
+- **Toolchain**: `pyproject.toml` consolidates ruff, mypy strict, pytest, and coverage config. `.pre-commit-config.yaml` adds whitespace, ruff (lint + format), and mypy hooks; `pytest.ini` removed.
+- **Mypy strict**: full pass on `app/`. New `Callable[[], _RetryT] -> _RetryT` generic on `_with_retry`, `cast()` wrapping for SDK and `json.loads` Any leakage, typed lifespan/SSE generators in `main.py`.
+- **Coverage**: CI runs `pytest --cov=app --cov-report=xml`, `scripts/coverage_badge.py` generates `coverage.json` for a self-hosted shields.io endpoint badge (no Codecov account required).
+- **Docker**: multi-stage `Dockerfile` (deps → runtime), `docker-compose.yml` with healthcheck and persistent `./data` volume, `.dockerignore`, `.env.example` documenting every env var. `app/config.py` learned to read `.env` without adding a dependency.
+- **Repo hygiene**: `.gitattributes` enforces LF line endings; extended `.gitignore` for `.env`, `.mypy_cache/`, `.ruff_cache/`, `coverage.xml`, `dist/`, `build/`.
+
+### Bug fixes
+- **CV upload preference key mismatch** (`/api/upload-cv`): the handler checked `summary.get("ruoli_preferiti")` but both the LLM prompt and the heuristic returned `preferred_roles`, so the per-user roles preference was never persisted on upload. Now reads and writes `preferred_roles`.
+- **CV content validation**: `validate_cv_content()` rejects uploads under 200 chars or missing common CV keywords (HTTP 422), preventing junk PDFs from polluting the profile store.
+- **CV upload deduplication**: migration `003_candidate_profile_hash.py` adds `content_hash` + index; re-uploading the same file now returns the existing `profile_id` instead of creating a duplicate row.
+
+### Refactor
+- `web/app.js`: extracted i18n into `web/modules/i18n.js` with a `onLanguageChange` callback registry, dropping ~80 LOC from the main entry. Chat / scan / kanban / recommendations splits remain on the follow-up list.
+
+### Docs
+- README slimmed to 4 demo screenshots, accurate test count (99) and i18n key count (204), refreshed Project structure tree, new Rate limiting and Database migrations sections, expanded Mermaid architecture diagram (rate_limit, migrations, roles_shortlist, chat memory).
+- `CONTRIBUTING.md`, `SECURITY.md`, `Makefile` added; `DOCS/schema.md` and `DOCS/security.md` tracked and linked from README.
+- New `tests/e2e/readme-demo-gif.spec.js` records an animated hero GIF via Playwright + ffmpeg (run via `npm run record-demo`).
+- Empty `tests/e2e/screenshots.spec.js` deleted; `readme-cv-showcase.spec.js` renamed to `manual-cv-flow.spec.js` and restricted to the Italian CV.

@@ -74,13 +74,16 @@ flowchart LR
     end
 
     subgraph Backend["FastAPI backend (localhost:8000)"]
+        RL[rate_limit<br/>token bucket<br/>chat · scan · upload-cv]
         API[REST + SSE endpoints]
-        ChatSvc[chat package<br/>state · context · prompts<br/>intents · fallback · handler]
+        ChatSvc[chat package<br/>state · context · memory<br/>prompts · intents<br/>fallback · handler]
         ScanSvc[scanner_service<br/>analyze_offer · run_scan]
-        CV[cv_ingest<br/>PDF/DOCX → markdown → LLM summary]
+        CV[cv_ingest<br/>PDF/DOCX → markdown<br/>+ content validation]
+        Roles[roles_shortlist<br/>dedup + persistence]
+        Mig[migrations<br/>001 init · 002 msg_type<br/>003 cv_hash]
     end
 
-    subgraph LLM["ProviderManager"]
+    subgraph LLM["ProviderManager (retry + backoff)"]
         OR[OpenRouter]
         AN[Anthropic]
         OAI[OpenAI]
@@ -92,17 +95,21 @@ flowchart LR
     Scraper[python-jobspy<br/>LinkedIn + Indeed]
     DB[(SQLite WAL<br/>data/searcher.db)]
 
-    UI <-->|fetch / SSE| API
+    UI <-->|fetch / SSE| RL
+    RL --> API
     API --> ChatSvc
     API --> ScanSvc
     API --> CV
+    API --> Roles
     ChatSvc --> LLM
     ScanSvc --> LLM
     ScanSvc --> Scraper
     CV --> LLM
+    Mig -.boot.-> DB
     API --> DB
     ScanSvc --> DB
     ChatSvc --> DB
+    Roles --> DB
 ```
 
 The chat service is split into single-responsibility modules:
@@ -120,12 +127,14 @@ The chat service is split into single-responsibility modules:
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.11+, FastAPI, uvicorn |
-| Database | SQLite (WAL mode, `threading.Lock` shared connection) |
-| Frontend | Vanilla JS (ES2020), CSS3 glassmorphism, no framework |
-| AI / LLM | 6-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter |
+| Database | SQLite (WAL mode, `threading.Lock` shared connection, numbered migrations) |
+| Frontend | Vanilla JS (ES2020 modules), CSS3 glassmorphism, no framework |
+| AI / LLM | 6-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — exponential-backoff retry |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
 | Testing | pytest (unit, 99 tests), Playwright (E2E) |
+| Quality | ruff, mypy strict, pre-commit, 59% line coverage |
+| Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Logging | stdlib `logging` + RotatingFileHandler → `data/logs/app.log` |
 
 ---
@@ -282,6 +291,37 @@ Logging is configured once in `AppContainer.__init__`. Output goes to stderr **a
 2026-04-22 22:08:48 | INFO    | app.providers.factory | LLM provider active: openrouter (model=anthropic/claude-sonnet-4-6)
 2026-04-22 22:09:01 | WARNING | app.services.scanner_service | scrape_jobs failed (term='QA Tester'): TimeoutError
 ```
+
+---
+
+## Rate limiting
+
+`/api/chat`, `/api/scan`, and `/api/upload-cv` are guarded by an in-process token-bucket limiter (`app/rate_limit.py`). Per-IP defaults:
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| `/api/chat` | 20 req | 60 s |
+| `/api/scan` | 5 req | 60 s |
+| `/api/upload-cv` | 10 req | 60 s |
+
+Disable with `ENABLE_RATE_LIMIT=0`. Exceeded requests return `429` with a `Retry-After` header.
+
+---
+
+## Database migrations
+
+Schema lives in numbered modules under `app/migrations/NNN_name.py`, each exposing `VERSION`, `DESCRIPTION`, and `def upgrade(conn)`. The runner in `app/migrations/__init__.py` applies pending migrations idempotently at startup, tracked in the `schema_version` table. Pre-existing databases are auto-baselined to the latest version.
+
+To add a migration:
+
+1. Create `app/migrations/004_my_change.py` with `VERSION = 4` and `def upgrade(conn)`.
+2. Restart the app — migration runs once.
+3. Add a regression test in `tests/unit/test_migrations.py`.
+
+Existing migrations:
+- `001_init.py` — initial 6-table schema.
+- `002_chat_message_type.py` — `chat_messages.content_type` column.
+- `003_candidate_profile_hash.py` — `candidate_profiles.content_hash` + index for upload dedup.
 
 ---
 
