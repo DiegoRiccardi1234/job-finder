@@ -42,6 +42,32 @@ def extract_markdown_from_upload(filename: str, data: bytes) -> str:
     raise RuntimeError("Unsupported CV format. Use .md, .txt, .pdf or .docx")
 
 
+CV_KEYWORDS = (
+    "experience", "skill", "education", "work",
+    "esperienza", "competenze", "formazione", "lavoro",
+    "cv", "resume", "curriculum",
+)
+MIN_CV_CHARS = 200
+
+
+class InvalidCVContent(ValueError):
+    """Raised when the uploaded file does not look like a CV/resume."""
+
+
+def validate_cv_content(markdown: str) -> None:
+    text = markdown.strip()
+    if len(text) < MIN_CV_CHARS:
+        raise InvalidCVContent(
+            f"CV content too short ({len(text)} chars, min {MIN_CV_CHARS})."
+        )
+    lower = text.lower()
+    if not any(kw in lower for kw in CV_KEYWORDS):
+        raise InvalidCVContent(
+            "File does not appear to be a CV/resume "
+            "(missing common section keywords)."
+        )
+
+
 def summarize_profile(markdown_text: str) -> dict[str, Any]:
     """Keyword-based profile summary (fast, no LLM needed)."""
     lower = markdown_text.lower()

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.cv_ingest import extract_markdown_from_upload, summarize_profile
+from app.cv_ingest import (
+    InvalidCVContent,
+    extract_markdown_from_upload,
+    summarize_profile,
+    validate_cv_content,
+)
 
 
 def test_extract_txt_roundtrip() -> None:
@@ -52,3 +57,37 @@ def test_summarize_profile_empty_markdown() -> None:
     assert result["skills"] == []
     assert result["preferred_roles"] == []
     assert result["graduation_year"] == ""
+
+
+def test_validate_cv_content_rejects_too_short() -> None:
+    with pytest.raises(InvalidCVContent, match="too short"):
+        validate_cv_content("hi there, this is way too short")
+
+
+def test_validate_cv_content_rejects_random_long_text() -> None:
+    bogus = "lorem ipsum dolor sit amet " * 30
+    with pytest.raises(InvalidCVContent, match="does not appear"):
+        validate_cv_content(bogus)
+
+
+def test_validate_cv_content_accepts_realistic_cv_italian() -> None:
+    cv = (
+        "Diego Riccardi\n"
+        "Curriculum Vitae\n\n"
+        "Esperienza professionale: 3 anni come sviluppatore Python presso varie aziende.\n"
+        "Competenze tecniche: Python, FastAPI, SQLite, Docker, Linux, Git, REST API.\n"
+        "Formazione: Laurea triennale in Informatica conseguita nel 2022.\n"
+        "Lavoro attuale: stage curriculare in un team di backend development."
+    )
+    validate_cv_content(cv)
+
+
+def test_validate_cv_content_accepts_realistic_cv_english() -> None:
+    cv = (
+        "John Doe — Resume\n\n"
+        "Work experience: 5 years as a backend engineer in fintech and SaaS.\n"
+        "Skills: Python, FastAPI, PostgreSQL, Redis, Kubernetes, AWS, CI/CD.\n"
+        "Education: BSc in Computer Science (2018) plus relevant certifications.\n"
+        "Languages: English (C1), Italian (native)."
+    )
+    validate_cv_content(cv)

@@ -297,22 +297,39 @@ class Database:
             data["analysis"] = {}
         return data
 
-    def save_candidate_profile(self, source_name: str, markdown: str, summary: dict[str, Any]) -> int:
+    def save_candidate_profile(
+        self,
+        source_name: str,
+        markdown: str,
+        summary: dict[str, Any],
+        content_hash: str | None = None,
+    ) -> int:
         cur = self.conn.cursor()
         cur.execute(
             """
-            INSERT INTO candidate_profiles(source_name, markdown, summary_json, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO candidate_profiles(source_name, markdown, summary_json, content_hash, created_at)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 source_name,
                 markdown,
                 json.dumps(summary, ensure_ascii=False),
+                content_hash,
                 now_iso(),
             ),
         )
         self.conn.commit()
         return int(cur.lastrowid)
+
+    def find_candidate_profile_by_hash(self, content_hash: str) -> int | None:
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT id FROM candidate_profiles WHERE content_hash = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (content_hash,),
+        )
+        row = cur.fetchone()
+        return int(row[0]) if row else None
 
     def get_latest_candidate_profile(self) -> dict[str, Any] | None:
         cur = self.conn.cursor()

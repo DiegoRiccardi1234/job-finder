@@ -1,4 +1,5 @@
 import csv
+import hashlib
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,7 +11,13 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import AppSettings, load_settings, save_local_provider_keys
-from app.cv_ingest import extract_markdown_from_upload, summarize_profile, summarize_profile_with_llm
+from app.cv_ingest import (
+    InvalidCVContent,
+    extract_markdown_from_upload,
+    summarize_profile,
+    summarize_profile_with_llm,
+    validate_cv_content,
+)
 from app.db import Database
 from app.log import configure_logging, get_logger
 from app.version import __version__, get_version_info
@@ -151,6 +158,24 @@ def create_app(workspace_dir: Path) -> FastAPI:
             raise HTTPException(status_code=400, detail="Empty CV file")
         markdown = extract_markdown_from_upload(filename, data)
         try:
+            validate_cv_content(markdown)
+        except InvalidCVContent as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        content_hash = hashlib.sha256(data).hexdigest()
+        existing_id = container.db.find_candidate_profile_by_hash(content_hash)
+        if existing_id is not None:
+            container.db.set_active_profile(existing_id)
+            existing = container.db.get_candidate_profile(existing_id)
+            existing_summary = (existing or {}).get("summary_json") or {}
+            return {
+                "profile_id": existing_id,
+                "source": file.filename,
+                "summary": existing_summary,
+                "deduplicated": True,
+            }
+
+        try:
             summary = summarize_profile_with_llm(markdown, container.providers)
         except Exception as exc:
             container.log.warning("LLM CV summarization failed, using heuristic: %s", exc)
@@ -159,11 +184,15 @@ def create_app(workspace_dir: Path) -> FastAPI:
             source_name=file.filename or "cv_upload",
             markdown=markdown,
             summary=summary,
+            content_hash=content_hash,
         )
         container.db.set_active_profile(profile_id)
 
-        if summary.get("ruoli_preferiti"):
-            container.db.set_preference("ruoli_preferiti", ",".join(summary["ruoli_preferiti"]))
+        preferred_roles = summary.get("preferred_roles")
+        if isinstance(preferred_roles, list) and preferred_roles:
+            container.db.set_preference(
+                "preferred_roles", ",".join(str(r) for r in preferred_roles)
+            )
 
         return {
             "profile_id": profile_id,

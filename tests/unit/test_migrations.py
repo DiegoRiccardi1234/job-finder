@@ -74,3 +74,34 @@ def test_apply_migrations_is_idempotent(tmp_path: Path) -> None:
         assert first == second
     finally:
         db.close()
+
+
+def test_migration_003_adds_content_hash_column_and_index(tmp_path: Path) -> None:
+    db_path = tmp_path / "hash.db"
+    db = Database(db_path)
+    try:
+        cols = {row[1] for row in db.conn.execute("PRAGMA table_info(candidate_profiles)").fetchall()}
+        assert "content_hash" in cols
+        idx_rows = db.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='candidate_profiles'"
+        ).fetchall()
+        idx_names = {r[0] for r in idx_rows}
+        assert "idx_candidate_profiles_hash" in idx_names
+    finally:
+        db.close()
+
+
+def test_find_candidate_profile_by_hash_dedup(tmp_path: Path) -> None:
+    db_path = tmp_path / "dedup.db"
+    db = Database(db_path)
+    try:
+        first_id = db.save_candidate_profile(
+            source_name="cv.txt",
+            markdown="dummy",
+            summary={"skills": ["python"]},
+            content_hash="abc123",
+        )
+        assert db.find_candidate_profile_by_hash("abc123") == first_id
+        assert db.find_candidate_profile_by_hash("not-found") is None
+    finally:
+        db.close()
