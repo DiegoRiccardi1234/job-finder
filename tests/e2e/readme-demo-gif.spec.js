@@ -56,7 +56,16 @@ function ffmpegAvailable() {
   return probe.status === 0;
 }
 
-function buildGif() {
+function pythonPillowAvailable() {
+  const probe = spawnSync(
+    "python",
+    ["-c", "import PIL; print(PIL.__version__)"],
+    { encoding: "utf8" },
+  );
+  return probe.status === 0;
+}
+
+function buildGifFfmpeg() {
   const palette = path.join(FRAMES_DIR, "palette.png");
   const inputGlob = path.join(FRAMES_DIR, "frame_%04d.png");
 
@@ -91,6 +100,56 @@ function buildGif() {
   if (gifStep.status !== 0) {
     throw new Error("ffmpeg paletteuse step failed");
   }
+}
+
+function buildGifPillow() {
+  // Pure-Python fallback: assemble the GIF via Pillow. Lower quality
+  // than ffmpeg's palette flow but no external binary needed.
+  const script = `
+from pathlib import Path
+from PIL import Image
+
+src = Path(${JSON.stringify(FRAMES_DIR)})
+out = Path(${JSON.stringify(OUT_GIF)})
+out.parent.mkdir(parents=True, exist_ok=True)
+frames = sorted(src.glob("frame_*.png"))
+if not frames:
+    raise SystemExit("no frames")
+target_w = 720
+imgs = []
+for f in frames:
+    im = Image.open(f).convert("RGB")
+    w, h = im.size
+    nh = int(h * target_w / w)
+    im = im.resize((target_w, nh), Image.LANCZOS)
+    imgs.append(im.convert("P", palette=Image.ADAPTIVE, colors=256))
+duration_ms = int(1000 / ${FPS})
+imgs[0].save(
+    out,
+    save_all=True,
+    append_images=imgs[1:],
+    duration=duration_ms,
+    loop=0,
+    optimize=True,
+    disposal=2,
+)
+`;
+  const step = spawnSync("python", ["-c", script], { stdio: "inherit" });
+  if (step.status !== 0) {
+    throw new Error("Pillow GIF assembly failed");
+  }
+}
+
+function buildGif() {
+  if (ffmpegAvailable()) {
+    buildGifFfmpeg();
+    return "ffmpeg";
+  }
+  if (pythonPillowAvailable()) {
+    buildGifPillow();
+    return "pillow";
+  }
+  throw new Error("Neither ffmpeg nor Python+Pillow available on PATH");
 }
 
 function cleanupFrames() {
@@ -168,12 +227,13 @@ test("record README demo GIF", async ({ page }) => {
 
   expect(idx).toBeGreaterThan(50);
 
-  if (!ffmpegAvailable()) {
-    test.skip(true, "ffmpeg not available on PATH; skipping GIF assembly. Frames left in tests/e2e/_demo_frames/.");
+  if (!ffmpegAvailable() && !pythonPillowAvailable()) {
+    test.skip(true, "Neither ffmpeg nor Python+Pillow on PATH; skipping assembly. Frames left in tests/e2e/_demo_frames/.");
     return;
   }
 
-  buildGif();
+  const tool = buildGif();
+  console.log(`[record-demo] GIF built with ${tool}`);
   cleanupFrames();
   expect(fs.existsSync(OUT_GIF)).toBe(true);
 });

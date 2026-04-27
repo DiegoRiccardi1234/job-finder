@@ -13,6 +13,10 @@
 
 > A localhost-first AI-powered job search assistant. Scrape LinkedIn & Indeed, score offers against your CV with the LLM of your choice, and plan applications from a single dashboard.
 
+![Job Finder demo](screenshots/readme/demo.gif)
+
+> Upload CV → AI Coach suggests roles → one-click scan with live AI scoring.
+
 ---
 
 ## Why this project
@@ -160,11 +164,21 @@ app/
     ├── chat_service.py      Backwards-compat facade
     ├── roles_shortlist.py   Role suggestion CRUD + dedup
     └── scanner_service.py   Job scraping + scoring orchestration
-web/                         Vanilla JS UI + i18n JSON
+web/
+├── app.js                   Bootstrap + per-feature wiring (ES module entry)
+├── index.html               Single-page shell, mounts /web/* assets
+├── modules/                 Feature modules (helpers, theme, shortlist, i18n)
+├── styles/                  Per-feature CSS (chat.css extracted)
+├── styles.css               Core stylesheet (glassmorphism + tokens)
+└── i18n/                    Per-locale JSON (en, it, es, fr, de — 204 keys each)
 tests/
-├── unit/                    pytest unit tests (config, log, db, chat, factory)
-└── e2e/                     Playwright end-to-end tests
-scripts/check_i18n.py        i18n coverage audit (fails CI on missing keys)
+├── unit/                    pytest suite (99 tests, FakeProviderManager fixture)
+└── e2e/                     Playwright specs (smoke, README screenshots, demo GIF)
+scripts/
+├── check_i18n.py            i18n coverage audit (fails CI on missing keys)
+├── coverage_badge.py        coverage.xml → coverage.json shields.io endpoint
+├── seed_demo.py             Pre-populate a demo DB for screenshots / GIF
+└── update.py                In-app self-update helper
 ```
 
 ---
@@ -208,7 +222,7 @@ The container exposes the app on `${PORT:-8000}` and persists the SQLite DB and 
 1. Open **Settings** and paste at least one LLM API key.
 2. Upload your CV (PDF / DOCX / TXT, max 5 MB).
 3. Chat with the AI Coach — it will ask about preferences.
-4. Run a job scan from Settings (or let the chatbot pre-fill the form).
+4. Open **Job Search** and run the 3-step wizard (or let the chatbot pre-fill the form).
 5. Review the dashboard and move jobs through the Kanban board.
 
 ---
@@ -262,23 +276,22 @@ The `ProviderManager` picks the first available provider from your configured or
 
 ---
 
-## Testing
+## Testing & Quality
+
+The Makefile wraps the common loops:
 
 ```bash
-# Unit tests (fast, no network, no SDK dependencies)
-pip install -r requirements-dev.txt
-pytest
-
-# i18n coverage audit
-python scripts/check_i18n.py
-
-# E2E (browser)
-npm install
-npx playwright install chromium
-npm run test:e2e
+make install      # pip + pre-commit hook
+make test         # pytest unit suite (LLM-free via FakeProviderManager)
+make coverage     # pytest --cov + html + shields.io badge JSON
+make lint         # ruff check + ruff format --check + mypy strict
+make fmt          # ruff --fix + ruff format
+make e2e          # npm install + Playwright + browser tests
 ```
 
-The unit suite uses a `FakeProviderManager` fixture so it runs without any LLM API key.
+CI runs the same checks on Python 3.11 and 3.12. Drop `make` and call the underlying tools directly if you don't have it installed (`pip install -r requirements-dev.txt && pytest`, etc.).
+
+Live LLM E2E tests are opt-in — set `RUN_LIVE_LLM=1` to run them; otherwise they skip gracefully so the offline pipeline stays green.
 
 ---
 
