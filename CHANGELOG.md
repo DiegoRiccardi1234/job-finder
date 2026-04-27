@@ -52,3 +52,19 @@
 - `CONTRIBUTING.md`, `SECURITY.md`, `Makefile` added; `DOCS/schema.md` and `DOCS/security.md` tracked and linked from README.
 - New `tests/e2e/readme-demo-gif.spec.js` records an animated hero GIF via Playwright + ffmpeg (run via `npm run record-demo`).
 - Empty `tests/e2e/screenshots.spec.js` deleted; `readme-cv-showcase.spec.js` renamed to `manual-cv-flow.spec.js` and restricted to the Italian CV.
+
+### Standalone Windows bundle
+- `scripts/launch_exe.py`: PyInstaller entry point. Resolves a writable workspace next to the executable, sets `JOBFINDER_WORKSPACE` before importing `app.main`, opens the default browser when uvicorn is ready, runs without `reload`.
+- `JobFinder.spec`: PyInstaller config with two analyses (`launch_exe` → `JobFinder.exe`, `updater` → `Updater.exe`) merged via `MERGE` so dependencies are stored once. Hidden imports cover `pkgutil`-discovered submodules (`app.migrations`, `app.providers`) and the LLM SDKs imported lazily inside try/except.
+- `scripts/build_exe.py` + `make build-exe`: idempotent local build that wipes `build/`, runs PyInstaller, and zips `dist/JobFinder/` into `dist/JobFinder-windows.zip`.
+- **Banner signup links**: the no-API-key sticky banner now renders three CTAs (Cerebras free key, Groq key, Open Settings) so a non-developer can register in 30 s without reading docs. 4 new i18n keys × 5 locales (`banner.signupHint`, `signupCerebras`, `signupGroq`, `openSettings`).
+- **README "For non-developers (Windows)"**: 5-step download → extract → run → register → paste-key flow, plus SmartScreen workaround. New shields.io release badge linking to the latest GitHub release.
+- **CI release workflow** (`.github/workflows/release.yml`): on tag `v*` push, runs `python scripts/build_exe.py` on `windows-latest` and uploads `JobFinder-windows.zip` as a release asset (auto-generated notes). `workflow_dispatch` trigger uploads it as an artifact instead, for dry runs.
+
+### Self-update (standalone bundle)
+- `app/update_sync.py`: `sync_install_dir(source, target)` copies a freshly-extracted bundle over the install dir, skipping any path whose first component is `data`, `.env`, or `.env.local`. User DB, secrets, settings, and logs are guaranteed to survive every update.
+- `scripts/updater.py` (bundled as `Updater.exe`): waits for the parent JobFinder PID to exit (Windows `OpenProcess` / POSIX `os.kill(pid, 0)`), downloads the latest `*windows.zip` asset from GitHub Releases, extracts to a temp dir, runs the sync, restarts JobFinder.exe. Every step logged to `data/logs/updater.log`. Failures leave the install dir untouched.
+- `POST /api/update/start` (`app/main.py`): refuses with 409 in dev mode or when already on latest, refuses with 500 if `Updater.exe` is missing. On success, spawns the updater detached and schedules `os._exit(0)` 0.8 s later so the response flushes and files unlock.
+- `app/version.py:get_version_info` reports `frozen: bool` so the frontend picks the right update flow.
+- Frontend update banner branches on `info.frozen`: bundle users see a progress modal that polls `/api/health` every 2 s, detects the file-replacement outage window, and auto-reloads the page when the new process answers. Dev users keep the existing `git pull && pip install` flow.
+- 6 new unit tests (`tests/unit/test_update_sync.py`) cover: data dir survives, app/ files are replaced, brand new files land, `.env` stays put, source `data/` subtree is ignored, missing source raises.

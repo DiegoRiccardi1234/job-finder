@@ -157,6 +157,7 @@ The chat service is split into single-responsibility modules:
 | Testing | pytest (unit, 99 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
+| Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — auto-update over GitHub Releases |
 | Logging | stdlib `logging` + RotatingFileHandler → `data/logs/app.log` |
 
 ---
@@ -196,7 +197,11 @@ scripts/
 ├── check_i18n.py            i18n coverage audit (fails CI on missing keys)
 ├── coverage_badge.py        coverage.xml → coverage.json shields.io endpoint
 ├── seed_demo.py             Pre-populate a demo DB for screenshots / GIF
-└── update.py                In-app self-update helper
+├── update.py                Source-mode self-update (git pull + pip)
+├── launch_exe.py            PyInstaller entry — workspace next to .exe, browser auto-open
+├── updater.py               Bundled as Updater.exe — sync new release, preserve data/
+└── build_exe.py             Local build wrapper: PyInstaller + zip
+JobFinder.spec               PyInstaller config (multi-EXE: JobFinder + Updater)
 ```
 
 ---
@@ -305,6 +310,7 @@ make coverage     # pytest --cov + html + shields.io badge JSON
 make lint         # ruff check + ruff format --check + mypy strict
 make fmt          # ruff --fix + ruff format
 make e2e          # npm install + Playwright + browser tests
+make build-exe    # PyInstaller -> dist/JobFinder-windows.zip
 ```
 
 CI runs the same checks on Python 3.11 and 3.12. Drop `make` and call the underlying tools directly if you don't have it installed (`pip install -r requirements-dev.txt && pytest`, etc.).
