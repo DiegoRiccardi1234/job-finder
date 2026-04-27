@@ -37,7 +37,7 @@ log = get_logger(__name__)
 try:
     from jobspy import scrape_jobs
 except ImportError:  # pragma: no cover
-    scrape_jobs = None  # type: ignore[assignment]
+    scrape_jobs = None
 
 
 BLACKLIST = [

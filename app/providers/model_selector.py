@@ -1,7 +1,8 @@
 import re
+from typing import Any
 
 
-def _weight(policy: dict | None, key: str, default: int) -> int:
+def _weight(policy: dict[str, Any] | None, key: str, default: int) -> int:
     if not policy:
         return default
     weights = policy.get("weights", {})
@@ -14,7 +15,7 @@ def _weight(policy: dict | None, key: str, default: int) -> int:
         return default
 
 
-def score_model_name(model_name: str, policy: dict | None = None) -> int:
+def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> int:
     name = model_name.lower()
     score = 0
 
@@ -87,7 +88,7 @@ def score_model_name(model_name: str, policy: dict | None = None) -> int:
 
 
 def choose_best_model(
-    models: list[str], preferred_model: str | None = None, policy: dict | None = None
+    models: list[str], preferred_model: str | None = None, policy: dict[str, Any] | None = None
 ) -> str:
     if preferred_model:
         for model in models:

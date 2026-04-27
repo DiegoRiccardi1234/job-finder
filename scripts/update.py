@@ -13,6 +13,7 @@ Manual usage:
 from __future__ import annotations
 
 import subprocess
+from typing import Any
 import sys
 from pathlib import Path
 
@@ -29,10 +30,10 @@ def _run(cmd: list[str], cwd: Path) -> tuple[int, str]:
     return proc.returncode, output.strip()
 
 
-def update(repo_root: Path | None = None) -> dict:
+def update(repo_root: Path | None = None) -> dict[str, Any]:
     root = repo_root or Path(__file__).resolve().parents[1]
 
-    steps: list[dict] = []
+    steps: list[dict[str, Any]] = []
 
     code, out = _run(["git", "fetch", "--all", "--prune"], root)
     steps.append({"step": "git fetch", "code": code, "output": out})

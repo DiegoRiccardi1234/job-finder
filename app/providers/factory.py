@@ -1,7 +1,8 @@
 import os as _os
 import random as _random
 import time as _time
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from app.config import AppSettings
 from app.log import get_logger
@@ -13,6 +14,8 @@ from app.providers.groq_provider import GroqProvider
 from app.providers.model_selector import choose_best_model
 from app.providers.openai_provider import OpenAIProvider
 from app.providers.openrouter_provider import OpenRouterProvider
+
+_RetryT = TypeVar("_RetryT")
 
 log = get_logger(__name__)
 
@@ -174,7 +177,7 @@ def _is_retryable(exc: Exception) -> bool:
     return any(marker in text for marker in _RETRYABLE_MARKERS)
 
 
-def _with_retry(fn, provider_label: str):
+def _with_retry(fn: Callable[[], _RetryT], provider_label: str) -> _RetryT:
     max_attempts = max(1, int(_os.environ.get("LLM_MAX_RETRIES", "3")))
     base = float(_os.environ.get("LLM_RETRY_BASE_SECONDS", "1.0"))
     last_exc: Exception | None = None

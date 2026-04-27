@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 from app.log import get_logger
 from app.providers.base import LLMProvider
@@ -11,14 +11,14 @@ log = get_logger(__name__)
 try:
     from openai import OpenAI
 except ImportError:  # pragma: no cover
-    OpenAI = None  # type: ignore[assignment]
+    OpenAI = None  # type: ignore[assignment,misc]
 
 
 def _extract_json(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         raise ValueError("Nessun JSON trovato")
-    return json.loads(match.group())
+    return cast(dict[str, Any], json.loads(match.group()))
 
 
 class OpenRouterProvider(LLMProvider):
@@ -82,7 +82,7 @@ class OpenRouterProvider(LLMProvider):
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             temperature=0.2,
             max_tokens=max_tokens,
         )
@@ -104,7 +104,7 @@ class OpenRouterProvider(LLMProvider):
                 # Not all OpenRouter models support json_object, so rely on prompt and fallback
             )
             content = (response.choices[0].message.content or "").strip()
-            return json.loads(content)
+            return cast(dict[str, Any], json.loads(content))
         except (json.JSONDecodeError, Exception) as exc:
             log.info("OpenRouter complete_json fallback (model=%s): %s", resolved_model, exc)
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)

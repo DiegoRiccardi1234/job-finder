@@ -32,6 +32,9 @@ jobs:
       - name: Format check (ruff format)
         run: ruff format --check app/
 
+      - name: Type check (mypy strict)
+        run: mypy app/
+
       - name: Run unit tests
         run: pytest -q
 

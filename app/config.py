@@ -2,6 +2,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 DEFAULT_SEARCH_TERMS = [
     "Analista Funzionale Junior",
@@ -38,14 +39,14 @@ class AppSettings:
     anthropic_api_key: str | None
     google_api_key: str | None
     openrouter_api_key: str | None
-    model_selection_policy: dict
+    model_selection_policy: dict[str, Any]
 
 
-def _load_optional_json(path: Path) -> dict:
+def _load_optional_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
     except json.JSONDecodeError:
         return {}
 
@@ -60,7 +61,7 @@ def save_local_provider_keys(
     openrouter_api_key: str | None = None,
     primary_provider: str | None = None,
     preferred_model: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     data_dir.mkdir(parents=True, exist_ok=True)
     secrets_path = data_dir / LOCAL_SECRETS_FILE
     current = _load_optional_json(secrets_path)
@@ -216,10 +217,10 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         },
     }
 
-    merged_policy = dict(model_policy_defaults)
+    merged_policy: dict[str, Any] = dict(model_policy_defaults)
     for key, value in model_policy.items():
         if key == "weights" and isinstance(value, dict):
-            weights = dict(model_policy_defaults["weights"])
+            weights = dict(cast(dict[str, Any], model_policy_defaults["weights"]))
             weights.update(value)
             merged_policy["weights"] = weights
         else:

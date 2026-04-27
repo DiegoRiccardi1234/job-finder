@@ -31,10 +31,20 @@ line-ending = "lf"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-exclude = ["tests", "data", ".venv", "scripts/seed_demo.py"]
+exclude = ["tests", "data", ".venv", "scripts"]
 
 [[tool.mypy.overrides]]
-module = ["jobspy.*", "pypdf.*", "docx.*", "cerebras.*", "groq.*", "anthropic.*", "google.*", "pandas.*"]
+module = [
+    "jobspy.*",
+    "pypdf.*",
+    "docx.*",
+    "cerebras.*",
+    "groq.*",
+    "anthropic.*",
+    "google.*",
+    "pandas.*",
+    "requests.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

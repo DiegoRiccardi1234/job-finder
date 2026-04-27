@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, cast
 from urllib import parse, request
 
 from app.providers.base import LLMProvider
@@ -9,14 +9,14 @@ from app.providers.model_selector import choose_best_model
 try:
     from openai import OpenAI
 except Exception:  # pragma: no cover
-    OpenAI = None  # type: ignore[assignment]
+    OpenAI = None  # type: ignore[assignment,misc]
 
 
 def _extract_json(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         raise ValueError("Nessun JSON trovato")
-    return json.loads(match.group())
+    return cast(dict[str, Any], json.loads(match.group()))
 
 
 class GoogleProvider(LLMProvider):
@@ -91,7 +91,7 @@ class GoogleProvider(LLMProvider):
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             temperature=0.2,
             max_tokens=max_tokens,
         )
@@ -113,7 +113,7 @@ class GoogleProvider(LLMProvider):
                 response_format={"type": "json_object"},
             )
             content = (response.choices[0].message.content or "").strip()
-            return json.loads(content)
+            return cast(dict[str, Any], json.loads(content))
         except Exception:
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)
             return _extract_json(text)

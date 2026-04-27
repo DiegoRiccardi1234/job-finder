@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 from app.providers.base import LLMProvider
 from app.providers.model_selector import choose_best_model
@@ -8,14 +8,14 @@ from app.providers.model_selector import choose_best_model
 try:
     from groq import Groq
 except Exception:  # pragma: no cover
-    Groq = None  # type: ignore[assignment]
+    Groq = None  # type: ignore[assignment,misc]
 
 
 def _extract_json(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         raise ValueError("Nessun JSON trovato")
-    return json.loads(match.group())
+    return cast(dict[str, Any], json.loads(match.group()))
 
 
 class GroqProvider(LLMProvider):
@@ -68,7 +68,7 @@ class GroqProvider(LLMProvider):
         resolved_model = model or self._selected_model or self.select_model()
         response = self.client.chat.completions.create(
             model=resolved_model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             temperature=0.2,
             max_completion_tokens=max_tokens,
         )

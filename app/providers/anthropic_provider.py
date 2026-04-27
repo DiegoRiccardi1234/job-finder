@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, cast
 from urllib import error, request
 
 from app.providers.base import LLMProvider
@@ -11,7 +11,7 @@ def _extract_json(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         raise ValueError("Nessun JSON trovato")
-    return json.loads(match.group())
+    return cast(dict[str, Any], json.loads(match.group()))
 
 
 class AnthropicProvider(LLMProvider):

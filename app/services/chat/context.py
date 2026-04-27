@@ -57,7 +57,7 @@ def build_profile_context(db: Database) -> str:
     if not profile:
         return "No CV uploaded yet."
 
-    profile_text = profile["markdown"][:2000]
+    profile_text = str(profile["markdown"])[:2000]
     summary = profile.get("summary_json")
     if summary:
         try:

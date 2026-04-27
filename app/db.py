@@ -54,7 +54,7 @@ class Database:
             """,
             (now_iso(), location, 1 if is_remote else 0, json.dumps(terms, ensure_ascii=False)),
         )
-        run_id = int(cur.lastrowid)
+        run_id = int(cur.lastrowid or 0)
         self.conn.commit()
 
         # Le nuove card appartengono solo all'ultima scansione.
@@ -151,7 +151,7 @@ class Database:
                 timestamp,
             ),
         )
-        job_id = int(cur.lastrowid)
+        job_id = int(cur.lastrowid or 0)
         self.conn.commit()
         return job_id, True, "open"
 
@@ -321,7 +321,7 @@ class Database:
             ),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.lastrowid or 0)
 
     def find_candidate_profile_by_hash(self, content_hash: str) -> int | None:
         cur = self.conn.cursor()
@@ -387,7 +387,7 @@ class Database:
             (session_id, role, content, content_type, now_iso()),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.lastrowid or 0)
 
     def list_chat_messages(
         self,
@@ -428,7 +428,7 @@ class Database:
         self.conn.execute(f"DELETE FROM chat_messages WHERE id IN ({placeholders})", ids)
         self.conn.commit()
 
-    def get_analytics(self) -> dict:
+    def get_analytics(self) -> dict[str, Any]:
         cursor = self.conn.cursor()
         total = cursor.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] or 0
         applied = (

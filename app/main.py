@@ -1,8 +1,10 @@
 import csv
 import hashlib
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -70,7 +72,7 @@ class AppContainer:
         self.providers = ProviderManager(self.settings)
         self.providers.initialize()
 
-    def keys_status(self) -> dict:
+    def keys_status(self) -> dict[str, Any]:
         primary = self.settings.llm_provider_order[0] if self.settings.llm_provider_order else ""
         return {
             "cerebras_configured": bool(self.settings.cerebras_api_key),
@@ -88,7 +90,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
     container = AppContainer(workspace_dir)
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI):
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
         container.shutdown()
 
@@ -101,7 +103,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         return FileResponse(web_dir / "index.html")
 
     @fastapi_app.get("/api/health")
-    def health() -> dict:
+    def health() -> dict[str, Any]:
         return {
             "ok": True,
             "provider": container.providers.metadata(),
@@ -111,7 +113,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         }
 
     @fastapi_app.get("/api/providers/keys/status")
-    def providers_keys_status() -> dict:
+    def providers_keys_status() -> dict[str, Any]:
         return {
             "ok": True,
             "keys": container.keys_status(),
@@ -119,7 +121,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         }
 
     @fastapi_app.post("/api/providers/keys")
-    def save_provider_keys(payload: ProviderKeysRequest) -> dict:
+    def save_provider_keys(payload: ProviderKeysRequest) -> dict[str, Any]:
         local_status = save_local_provider_keys(
             data_dir=container.settings.data_dir,
             cerebras_api_key=payload.cerebras_api_key,
@@ -139,7 +141,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         }
 
     @fastapi_app.post("/api/upload-cv")
-    async def upload_cv(request: Request, file: UploadFile = File(...)) -> dict:
+    async def upload_cv(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
         rate_limit.check(request, bucket="upload_cv", limit=10, window_seconds=60)
         MAX_CV_BYTES = 5 * 1024 * 1024  # 5 MB
         ALLOWED_EXTS = {".pdf", ".docx", ".md", ".markdown", ".txt"}
@@ -202,19 +204,19 @@ def create_app(workspace_dir: Path) -> FastAPI:
         }
 
     @fastapi_app.get("/api/profile")
-    def get_profile() -> dict:
+    def get_profile() -> dict[str, Any]:
         profile = container.db.get_active_candidate_profile()
         active = container.db.get_preference("active_profile_id", "")
         return {"profile": profile, "active_profile_id": active}
 
     @fastapi_app.get("/api/profiles")
-    def get_profiles() -> dict:
+    def get_profiles() -> dict[str, Any]:
         profiles = container.db.list_candidate_profiles()
         active = container.db.get_preference("active_profile_id", "")
         return {"profiles": profiles, "active_profile_id": active}
 
     @fastapi_app.post("/api/profiles/{profile_id}/activate")
-    def activate_profile(profile_id: int) -> dict:
+    def activate_profile(profile_id: int) -> dict[str, Any]:
         profile = container.db.get_candidate_profile(profile_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
@@ -227,20 +229,20 @@ def create_app(workspace_dir: Path) -> FastAPI:
         location: str | None = Query(default=None),
         is_remote: bool = Query(default=False),
         sites: str = Query(default="linkedin,indeed"),
-    ):
+    ) -> StreamingResponse:
         term_list = (
             [t.strip() for t in search_terms.split(",") if t.strip()] if search_terms else []
         )
         site_list = [s.strip() for s in sites.split(",") if s.strip()]
 
         payload = ScanRequest(
-            search_terms=term_list if term_list else None,
+            search_terms=term_list,
             location=location,
             is_remote=is_remote,
             sites=site_list,
         )
 
-        def event_generator():
+        def event_generator() -> Iterator[str]:
             import json
 
             try:
@@ -257,7 +259,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @fastapi_app.post("/api/scan")
-    def scan(request: Request, payload: ScanRequest) -> dict:
+    def scan(request: Request, payload: ScanRequest) -> dict[str, Any]:
         rate_limit.check(request, bucket="scan", limit=5, window_seconds=60)
         result = {}
         for event in run_scan(
@@ -281,7 +283,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         min_score: int | None = Query(default=None, ge=0, le=10),
         max_age_days: int | None = Query(default=None, ge=1, le=365),
         limit: int = Query(default=200, ge=1, le=2000),
-    ) -> dict:
+    ) -> dict[str, Any]:
         jobs = container.db.list_jobs(
             status=status,
             only_favorites=only_favorites,
@@ -294,14 +296,14 @@ def create_app(workspace_dir: Path) -> FastAPI:
         return {"jobs": jobs}
 
     @fastapi_app.get("/api/jobs/{job_id}")
-    def get_job_detail(job_id: int) -> dict:
+    def get_job_detail(job_id: int) -> dict[str, Any]:
         job = container.db.get_job_with_analysis(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         return {"job": job}
 
     @fastapi_app.post("/api/jobs/{job_id}/cover-letter")
-    def generate_cover_letter(job_id: int) -> dict:
+    def generate_cover_letter(job_id: int) -> dict[str, Any]:
         job = container.db.get_job_with_analysis(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
@@ -348,11 +350,11 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         return {"cover_letter": cover_letter}
 
     @fastapi_app.get("/api/analytics")
-    def get_analytics() -> dict:
+    def get_analytics() -> dict[str, Any]:
         return container.db.get_analytics()
 
     @fastapi_app.get("/api/recommendations")
-    def recommendations(limit: int = Query(default=5, ge=1, le=20)) -> dict:
+    def recommendations(limit: int = Query(default=5, ge=1, le=20)) -> dict[str, Any]:
         jobs = container.db.get_recommended_jobs(limit=limit)
         return {
             "jobs": jobs,
@@ -360,7 +362,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         }
 
     @fastapi_app.post("/api/jobs/manual")
-    def add_manual_job(payload: ManualJobCreateRequest) -> dict:
+    def add_manual_job(payload: ManualJobCreateRequest) -> dict[str, Any]:
         row = {
             "titolo": payload.titolo,
             "azienda": payload.azienda,
@@ -391,7 +393,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         return {"job_id": job_id, "analysis": analysis}
 
     @fastapi_app.post("/api/jobs/{job_id}/action")
-    def set_job_action(job_id: int, payload: JobActionRequest) -> dict:
+    def set_job_action(job_id: int, payload: JobActionRequest) -> dict[str, Any]:
         job = container.db.get_job(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
@@ -399,7 +401,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         return {"ok": True}
 
     @fastapi_app.post("/api/jobs/{job_id}/favorite")
-    def set_favorite(job_id: int, payload: FavoriteRequest) -> dict:
+    def set_favorite(job_id: int, payload: FavoriteRequest) -> dict[str, Any]:
         job = container.db.get_job(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
@@ -419,35 +421,35 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         return ChatResponse(**result)
 
     @fastapi_app.get("/api/chat/history")
-    def chat_history(session_id: str = "default", limit: int = 30) -> dict:
+    def chat_history(session_id: str = "default", limit: int = 30) -> dict[str, Any]:
         items = container.db.list_chat_messages(session_id=session_id, limit=limit)
         return {"messages": items}
 
     @fastapi_app.get("/api/roles/shortlist")
-    def get_role_shortlist() -> dict:
+    def get_role_shortlist() -> dict[str, Any]:
         return {"roles": roles_shortlist_svc.load(container.db)}
 
     @fastapi_app.post("/api/roles/shortlist")
-    def add_role_shortlist(payload: RoleShortlistRequest) -> dict:
+    def add_role_shortlist(payload: RoleShortlistRequest) -> dict[str, Any]:
         return {"roles": roles_shortlist_svc.add(container.db, payload.roles or [])}
 
     @fastapi_app.delete("/api/roles/shortlist/{role}")
-    def remove_role_shortlist(role: str) -> dict:
+    def remove_role_shortlist(role: str) -> dict[str, Any]:
         return {"roles": roles_shortlist_svc.remove(container.db, role)}
 
     @fastapi_app.get("/api/chat/prompts")
-    def chat_prompts(lang: str | None = None) -> dict:
+    def chat_prompts(lang: str | None = None) -> dict[str, Any]:
         from app.services.chat.context import suggest_chat_prompts
 
         resolved_lang = (lang or container.db.get_preference("ui_language", "en") or "en").lower()
         return {"prompts": suggest_chat_prompts(container.db, lang=resolved_lang)}
 
     @fastapi_app.get("/api/version")
-    def version_info(refresh: bool = False) -> dict:
+    def version_info(refresh: bool = False) -> dict[str, Any]:
         return get_version_info(force_refresh=refresh)
 
     @fastapi_app.post("/api/update")
-    def run_update() -> dict:
+    def run_update() -> dict[str, Any]:
         from scripts.update import update as run_update_script
 
         result = run_update_script(repo_root=workspace_dir)
@@ -456,12 +458,12 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         return result
 
     @fastapi_app.post("/api/preferences")
-    def update_preference(payload: PreferenceUpdateRequest) -> dict:
+    def update_preference(payload: PreferenceUpdateRequest) -> dict[str, Any]:
         container.db.set_preference(payload.key, payload.value)
         return {"ok": True, "preferences": container.db.list_preferences()}
 
     @fastapi_app.get("/api/preferences")
-    def get_preferences() -> dict:
+    def get_preferences() -> dict[str, Any]:
         return {"preferences": container.db.list_preferences()}
 
     @fastapi_app.get("/api/applications/export")
@@ -519,7 +521,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         )
 
     @fastapi_app.post("/api/export/csv")
-    def export_csv() -> dict:
+    def export_csv() -> dict[str, Any]:
         rows = container.db.export_jobs_for_csv()
         if not rows:
             raise HTTPException(status_code=400, detail="No jobs to export")

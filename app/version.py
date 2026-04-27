@@ -7,7 +7,7 @@ import re
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, cast
 
 from app.log import get_logger
 
@@ -36,7 +36,7 @@ def _fetch_latest_release() -> dict[str, Any] | None:
             headers={"Accept": "application/vnd.github+json", "User-Agent": "JobFinder"},
         )
         with urllib.request.urlopen(req, timeout=4) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            return cast(dict[str, Any], json.loads(resp.read().decode("utf-8")))
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             log.info("No GitHub releases yet for %s", GITHUB_REPO)
@@ -55,7 +55,7 @@ def get_version_info(force_refresh: bool = False) -> dict[str, Any]:
         and _cache["data"] is not None
         and now - _cache["fetched_at"] < CACHE_TTL_SECONDS
     ):
-        return _cache["data"]
+        return cast(dict[str, Any], _cache["data"])
 
     release = _fetch_latest_release()
     if release is None:
