@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import os
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -540,5 +541,10 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     return fastapi_app
 
 
-WORKSPACE_DIR = Path(__file__).resolve().parent.parent
+_DEFAULT_WORKSPACE = Path(__file__).resolve().parent.parent
+WORKSPACE_DIR = (
+    Path(os.environ["JOBFINDER_WORKSPACE"]).resolve()
+    if os.environ.get("JOBFINDER_WORKSPACE")
+    else _DEFAULT_WORKSPACE
+)
 app = create_app(WORKSPACE_DIR)
