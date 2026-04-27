@@ -10,12 +10,33 @@
 [![Mypy: strict](https://img.shields.io/badge/mypy-strict-2A6DB2)](https://mypy.readthedocs.io/)
 [![Ruff](https://img.shields.io/badge/ruff-checked-261230)](https://github.com/astral-sh/ruff)
 [![Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-orange)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/github/v/release/DiegoRiccardi1234/Linkedin-searcher?include_prereleases&label=download)](https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases/latest)
 
 > A localhost-first AI-powered job search assistant. Scrape LinkedIn & Indeed, score offers against your CV with the LLM of your choice, and plan applications from a single dashboard.
 
 ![Job Finder demo](screenshots/readme/demo.gif)
 
 > Upload CV → AI Coach suggests roles → one-click scan with live AI scoring.
+
+---
+
+## For non-developers (Windows)
+
+Don't want to install Python? Grab the standalone Windows bundle from the [latest release](https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases/latest):
+
+1. Download `JobFinder-windows.zip` from the release assets.
+2. Right-click → "Extract All" anywhere you like.
+3. Open the extracted folder and double-click `JobFinder.exe`.
+4. Your browser opens automatically on `http://127.0.0.1:8000`.
+5. The app shows a "No API key configured" banner — click **Get a free Cerebras key** to register (no credit card, free tier, 30 seconds), copy your key into **Settings → API keys**, you're done.
+
+Everything stays on your machine: the SQLite DB, your CV, your notes. The bundle is just Python packaged as a single executable, no telemetry, no remote calls except the LLM provider you configure and the LinkedIn / Indeed scrape.
+
+> **Windows SmartScreen**: the first launch may show "Windows protected your PC". Click **More info** → **Run anyway**. The exe is unsigned (code-signing certificates cost ~$200/year and are out of scope for a personal project).
+
+### Updates
+
+When a new release ships, the dashboard surfaces an "Update available" banner. Click **Update now** — the app downloads the new version, replaces its files, and restarts itself, keeping all your data (CV, jobs, settings, API keys).
 
 ---
 
