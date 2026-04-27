@@ -48,24 +48,21 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Demo
 
-**Dashboard** — personalized hero, live analytics, and an always-on AI Career Coach in the right rail.
+The animated hero above walks through six beats end-to-end:
 
-![Dashboard](screenshots/readme/dashboard-en.png)
+1. **Dashboard** with personalized hero, analytics, and the always-on AI Career Coach.
+2. **Settings** — provider keys, scan parameters, language picker.
+3. **Job Search wizard** — analyze your CV, pick roles from AI-suggested chips.
+4. **Chat coach** — natural-language Q&A with clickable role pills.
+5. **Live scan** — animated progress bar, per-job score chips (green/yellow/red), real-time feed.
+6. Settle back on the dashboard with results.
 
-**Job Search wizard** — guided 3-step flow: analyze your CV, pick target roles from AI-suggested chips, launch the scan.
+A static look at the 3-step wizard, for readers who can't render the GIF:
 
-![Job Search](screenshots/readme/job-search-en.png)
+![Job Search wizard](screenshots/readme/job-search-en.png)
 
-> 🎯 Step 1 reads your active CV and surfaces matching role suggestions as clickable chips.
-> ✨ Dark mode is included — one-click toggle in the top bar.
-
-**AI Career Coach chat** — ask questions in plain language; the coach suggests target roles as clickable pills and can auto-fill the scan form.
-
-![Chat](screenshots/readme/chat-view-en.png)
-
-**Live scan progress** — during a scan you see each portal scraped, every job analyzed, and its score (green/yellow/red) in a live feed. Minimize it to keep browsing.
-
-![Scan progress](screenshots/readme/scan-progress-en.png)
+> 🎯 Step 1 reads your active CV and surfaces matching role suggestions.
+> ✨ Dark mode toggle in the top bar.
 
 ---
 

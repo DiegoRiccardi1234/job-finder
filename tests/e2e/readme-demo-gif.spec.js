@@ -159,7 +159,7 @@ function cleanupFrames() {
 }
 
 test("record README demo GIF", async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   ensureDirs();
 
   await page.setViewportSize(VIEWPORT);
@@ -175,57 +175,128 @@ test("record README demo GIF", async ({ page }) => {
 
   let idx = 0;
 
-  // Beat 1 — Dashboard hero
+  // Beat 1 — Dashboard hero (analytics, hero, chat panel)
   await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+  idx = await captureFor(page, 1600, idx);
+
+  // Beat 2 — Settings (provider keys form, scan parameters)
+  await page.locator(".topnav .nav-link[data-view='settings']").click();
+  await page.evaluate(() => {
+    // Defensive: blank any pre-filled API key inputs so the GIF never leaks them.
+    document.querySelectorAll("input[type='password']").forEach((el) => {
+      el.value = "";
+    });
+    window.scrollTo(0, 0);
+  });
   await page.waitForTimeout(400);
   idx = await captureFor(page, 1500, idx);
 
-  // Beat 2 — Open Job Search wizard
+  // Beat 3 — Job Search wizard, step 1 with role chips populated
   await page.locator(".topnav .nav-link[data-view='job-search']").click();
   await page.waitForTimeout(300);
-  idx = await captureFor(page, 1200, idx);
-
-  // Beat 3 — Analyze CV → role chips
   await page.locator("#wizardAnalyzeBtn").click();
-  await page.waitForTimeout(700);
-  idx = await captureFor(page, 1500, idx);
+  await page.waitForTimeout(800);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  idx = await captureFor(page, 1800, idx);
 
-  // Beat 4 — Back to dashboard with chat panel populated
+  // Beat 4 — Chat coach bubbles with role pills (dashboard right rail)
   await page.locator(".topnav .nav-link[data-view='dashboard']").click();
   await page.evaluate(() => {
     const box = document.getElementById("chatBox");
     if (!box) return;
     box.innerHTML = "";
-    const mk = (role, html) => {
+    const mk = (role, html, extra = "") => {
       const div = document.createElement("div");
       div.className = `chat-item ${role}`;
-      div.innerHTML = `<div class="role">${role === "user" ? "You" : "AI Coach"}</div><div class="bubble">${html}</div>`;
+      div.innerHTML = `<div class="role">${role === "user" ? "You" : "AI Coach"}</div><div class="bubble">${html}</div>${extra}`;
       box.appendChild(div);
     };
     mk("user", "Which roles best fit my CV?");
     mk(
       "assistant",
-      "Based on your CV I'd target <b>Backend Engineer</b>, <b>Data Engineer</b>, <b>ML Engineer</b>.",
+      "Strong <b>backend</b> and <b>data engineering</b> skills. I'd target these first:",
+      `
+      <div class="role-pill-row">
+        <button class="role-pill">Backend Engineer (Python)</button>
+        <button class="role-pill">Data Engineer</button>
+        <button class="role-pill">ML Engineer</button>
+        <button class="role-pill">Platform Engineer</button>
+      </div>`,
+    );
+    mk("user", "Find jobs in Milan, remote ok.");
+    mk(
+      "assistant",
+      "Searching <b>Backend Engineer</b> + <b>Data Engineer</b> in <b>Milan</b> + remote. Launching scan...",
     );
     box.scrollTop = box.scrollHeight;
   });
   await page.waitForTimeout(400);
   idx = await captureFor(page, 1800, idx);
 
-  // Beat 5 — Scan progress overlay
+  // Beat 5 — Scan progress overlay with animated progress + live feed
   await page.evaluate(() => {
     const overlay = document.getElementById("scanOverlay");
     const fill = document.getElementById("scanProgressFill");
     const text = document.getElementById("scanProgressText");
-    if (!overlay || !fill || !text) return;
+    const feed = document.getElementById("scanFeed");
+    if (!overlay || !feed) return;
     overlay.style.display = "flex";
-    fill.style.width = "62%";
-    text.textContent = "Analyzed: Senior Data Engineer @ Satispay — Score 8/10";
+    fill.style.width = "30%";
+    text.textContent = "Searching LinkedIn for: Backend Engineer, Data Engineer";
+    const rows = [
+      { icon: "travel_explore", text: "Searching: <b>Backend Engineer</b>", chip: null },
+      { icon: "manage_search", text: "Found 24 ads on <b>LinkedIn</b>", chip: null },
+      { icon: "manage_search", text: "Found 18 ads on <b>Indeed</b>", chip: null },
+      { icon: "check_circle", text: "<b>Backend Python Engineer</b> @ Nexi", chip: { label: "7/10", cls: "score-high" } },
+      { icon: "check_circle", text: "<b>Platform Engineer</b> @ Bending Spoons", chip: { label: "6/10", cls: "score-mid" } },
+    ];
+    feed.innerHTML = "";
+    rows.forEach((r) => {
+      const li = document.createElement("li");
+      const chipHtml = r.chip ? `<span class="feed-chip ${r.chip.cls}">${r.chip.label}</span>` : "";
+      li.innerHTML = `<span class="material-symbols-outlined feed-icon">${r.icon}</span><span class="feed-text">${r.text}</span>${chipHtml}`;
+      feed.appendChild(li);
+    });
+    feed.scrollTop = feed.scrollHeight;
   });
   await page.waitForTimeout(400);
-  idx = await captureFor(page, 1800, idx);
+  idx = await captureFor(page, 1500, idx);
 
-  expect(idx).toBeGreaterThan(50);
+  // Animate scan progress 30% → 90% with new feed entries scrolling in
+  for (const step of [
+    { pct: 50, txt: "Analyzed: Backend Python Engineer @ Nexi — Score 7/10", row: { icon: "check_circle", text: "<b>Senior Data Engineer</b> @ Satispay", chip: { label: "8/10", cls: "score-high" } } },
+    { pct: 70, txt: "Analyzed: Senior Data Engineer @ Satispay — Score 8/10", row: { icon: "check_circle", text: "<b>Junior Developer</b> @ StartupX", chip: { label: "3/10", cls: "score-low" } } },
+    { pct: 90, txt: "Analyzed: ML Engineer @ Prima — Score 7/10", row: { icon: "check_circle", text: "<b>ML Engineer</b> @ Prima", chip: { label: "7/10", cls: "score-high" } } },
+  ]) {
+    await page.evaluate((s) => {
+      const fill = document.getElementById("scanProgressFill");
+      const text = document.getElementById("scanProgressText");
+      const feed = document.getElementById("scanFeed");
+      if (fill) fill.style.width = `${s.pct}%`;
+      if (text) text.textContent = s.txt;
+      if (feed) {
+        const li = document.createElement("li");
+        const chipHtml = s.row.chip ? `<span class="feed-chip ${s.row.chip.cls}">${s.row.chip.label}</span>` : "";
+        li.innerHTML = `<span class="material-symbols-outlined feed-icon">${s.row.icon}</span><span class="feed-text">${s.row.text}</span>${chipHtml}`;
+        feed.appendChild(li);
+        feed.scrollTop = feed.scrollHeight;
+      }
+    }, step);
+    idx = await captureFor(page, 700, idx);
+  }
+
+  // Beat 6 — Close overlay, settle on a clean dashboard frame
+  await page.evaluate(() => {
+    const overlay = document.getElementById("scanOverlay");
+    if (overlay) overlay.style.display = "none";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(300);
+  idx = await captureFor(page, 1000, idx);
+
+  expect(idx).toBeGreaterThan(60);
 
   if (!ffmpegAvailable() && !pythonPillowAvailable()) {
     test.skip(true, "Neither ffmpeg nor Python+Pillow on PATH; skipping assembly. Frames left in tests/e2e/_demo_frames/.");
@@ -233,7 +304,7 @@ test("record README demo GIF", async ({ page }) => {
   }
 
   const tool = buildGif();
-  console.log(`[record-demo] GIF built with ${tool}`);
+  console.log(`[record-demo] GIF built with ${tool} from ${idx} frames`);
   cleanupFrames();
   expect(fs.existsSync(OUT_GIF)).toBe(true);
 });
