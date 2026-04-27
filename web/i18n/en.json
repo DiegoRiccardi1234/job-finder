@@ -44,7 +44,8 @@
     "title": "Analytics",
     "appStatus": "Application Status",
     "scoreDist": "AI Score Distribution",
-    "matchScore": "Match Score"
+    "matchScore": "Match Score",
+    "topCompanies": "Top Companies"
   },
   "recommendations": {
     "title": "Top Picks for You",
@@ -136,7 +137,10 @@
     "aiCareerCoach": "AI Career Coach",
     "autoApi": "Auto API",
     "chatPlaceholder": "e.g. Find Python jobs in Milan, or What roles fit my CV?",
-    "settings": "Settings"
+    "settings": "Settings",
+    "expand": "Expand chat",
+    "collapse": "Collapse chat",
+    "savedToShortlist": "Role added to your search"
   },
   "offcanvas": {
     "details": "Details",
@@ -158,7 +162,13 @@
     "listingMeta": "Listing Meta",
     "search": "Search",
     "found": "Found",
-    "companyRep": "Company Rep"
+    "companyRep": "Company Rep",
+    "breakdown": "Match Breakdown",
+    "axisSkills": "Skills",
+    "axisSeniority": "Seniority",
+    "axisRemote": "Remote",
+    "axisSalary": "Salary",
+    "axisContract": "Contract"
   },
   "scan": {
     "scanning": "Scanning job portals...",
@@ -170,7 +180,11 @@
     "analyzed": "Analyzed: {title} @ {company} — Score {score}/10",
     "complete": "Done! {newJobs} new jobs, {analyzed} analyzed.",
     "connectionLost": "Connection lost. Check results below.",
-    "error": "Error"
+    "error": "Error",
+    "feedStarted": "Searching for: <b>{terms}</b>",
+    "feedScraped": "Found {found} ads on <b>{portal}</b>",
+    "feedAnalyzed": "<b>{title}</b> @ {company}",
+    "feedMinimize": "Minimize"
   },
   "toast": {
     "enterKeyOrProvider": "Enter at least one key or choose a primary provider.",
@@ -213,5 +227,18 @@
   },
   "common": {
     "close": "Close"
+  },
+  "onboarding": {
+    "title": "Welcome to Job Finder",
+    "intro": "Three quick steps to get going:",
+    "stepCv": "Upload your CV in Settings",
+    "stepScan": "Launch your first job scan",
+    "stepChat": "Chat with the Career Coach",
+    "gotoSettings": "Upload CV",
+    "dismiss": "Skip for now"
+  },
+  "banner": {
+    "noKey": "No AI provider configured — chat uses rule-based replies.",
+    "configureKey": "Configure a key"
   }
 }

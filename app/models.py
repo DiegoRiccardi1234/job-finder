@@ -65,6 +65,11 @@ class ChatResponse(BaseModel):
     answer: str
     updated_preferences: dict[str, Any] = Field(default_factory=dict)
     action: dict[str, Any] | None = None
+    suggested_roles: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RoleShortlistRequest(BaseModel):
+    roles: list[str] = Field(default_factory=list)
 
 
 class PreferenceUpdateRequest(BaseModel):

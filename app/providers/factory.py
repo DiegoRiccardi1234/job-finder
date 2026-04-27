@@ -123,7 +123,10 @@ class ProviderManager:
         active_model = model_name if model_name else self.active_model
         if not provider:
             raise RuntimeError("No LLM provider available")
-        return provider.complete_json(prompt=prompt, model=active_model, max_tokens=max_tokens)
+        return _with_retry(
+            lambda: provider.complete_json(prompt=prompt, model=active_model, max_tokens=max_tokens),
+            provider_label=provider_name or self.active_provider_name or "unknown",
+        )
 
     def chat(
         self,
@@ -136,4 +139,65 @@ class ProviderManager:
         active_model = model_name if model_name else self.active_model
         if not provider:
             raise RuntimeError("No LLM provider available")
-        return provider.chat(messages=messages, model=active_model, max_tokens=max_tokens)
+        return _with_retry(
+            lambda: provider.chat(messages=messages, model=active_model, max_tokens=max_tokens),
+            provider_label=provider_name or self.active_provider_name or "unknown",
+        )
+
+
+# ─── Retry helper ──────────────────────────────────────────────
+import os as _os
+import random as _random
+import time as _time
+
+
+_RETRYABLE_MARKERS = (
+    "429",
+    "500",
+    "502",
+    "503",
+    "504",
+    "timeout",
+    "connection reset",
+    "rate limit",
+    "too many requests",
+    "queue_exceeded",
+    "service unavailable",
+    "temporarily unavailable",
+)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    if isinstance(status, int) and status in (408, 409, 425, 429, 500, 502, 503, 504):
+        return True
+    text = str(exc).lower()
+    return any(marker in text for marker in _RETRYABLE_MARKERS)
+
+
+def _with_retry(fn, provider_label: str):
+    max_attempts = max(1, int(_os.environ.get("LLM_MAX_RETRIES", "3")))
+    base = float(_os.environ.get("LLM_RETRY_BASE_SECONDS", "1.0"))
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001 — rethrow unchanged after last retry
+            last_exc = exc
+            if attempt >= max_attempts or not _is_retryable(exc):
+                raise
+            delay = base * (2 ** (attempt - 1))
+            jitter = delay * 0.3 * (2 * _random.random() - 1)
+            wait = max(0.1, delay + jitter)
+            log.warning(
+                "Provider %s attempt %d/%d failed (%s); retrying in %.2fs",
+                provider_label,
+                attempt,
+                max_attempts,
+                exc.__class__.__name__,
+                wait,
+            )
+            _time.sleep(wait)
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("retry loop exited unexpectedly")

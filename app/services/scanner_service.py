@@ -1,7 +1,20 @@
 import json
+import random
 import re
 import time
 from typing import Any
+
+# Common technical keywords. If a scrape for one of these returns zero rows,
+# it's suspicious — likely a DOM/selector regression on the scraper side
+# rather than an actual lack of listings.
+_COMMON_CANARY_TERMS = {
+    "python", "java", "javascript", "sql", "react", "data analyst",
+    "data engineer", "devops", "qa tester", "cloud engineer",
+}
+
+
+def _is_common_term(term: str) -> bool:
+    return term.strip().lower() in _COMMON_CANARY_TERMS
 
 from app.config import AppSettings
 from app.db import Database
@@ -82,7 +95,14 @@ JSON richiesto:
   "ral_stimata": "XX.000€-YY.000€|Non stimabile",
   "reputazione_azienda": "Ottima|Buona|Nella media|Scarsa|Sconosciuta",
   "adatta_neolaureati": "Sì|No|Non specificato",
-  "note_azienda": "1 frase"
+  "note_azienda": "1 frase",
+  "match_axes": {{
+    "skills_match": <0-10>,
+    "seniority_match": <0-10>,
+    "remote_match": <0-10>,
+    "salary_match": <0-10>,
+    "contract_match": <0-10>
+  }}
 }}
 """
 
@@ -185,6 +205,13 @@ def _fallback_analysis(
         "reputazione_azienda": "Sconosciuta",
         "adatta_neolaureati": "Sì" if any(token in offer_text for token in ["junior", "stage", "intern", "entry"]) else "Non specificato",
         "note_azienda": f"Valutazione automatica fallback per {azienda}.",
+        "match_axes": {
+            "skills_match": max(0, min(10, score + min(2, len(overlap) // 2))),
+            "seniority_match": 8 if any(t in offer_text for t in ["junior", "entry", "stage", "intern"]) else (3 if any(t in offer_text for t in ["senior", "lead"]) else 6),
+            "remote_match": 9 if any(t in offer_text for t in ["remote", "smart working"]) else (6 if "hybrid" in offer_text or "ibrid" in offer_text else 4),
+            "salary_match": 5,
+            "contract_match": 3 if any(t in offer_text for t in ["partita iva", "p.iva"]) else 7,
+        },
     }
 
 
@@ -266,7 +293,11 @@ def run_scan(
     totale_analizzati = 0
     totale_scartati = 0
 
-    for term in terms:
+    for idx, term in enumerate(terms):
+        # Paced scraping — reduce the chance of rate-limit bans on LinkedIn / Indeed.
+        if idx > 0:
+            time.sleep(random.uniform(0.8, 2.4))
+
         try:
             df = scrape_jobs(
                 site_name=payload.sites,
@@ -279,11 +310,29 @@ def run_scan(
             )
         except Exception as exc:
             log.warning("scrape_jobs failed (term=%r, location=%r): %s", term, location, exc)
+            yield {"status": "scrape_error", "term": term, "error": str(exc)}
             continue
 
         df = df.drop_duplicates(subset=["title", "company"])
         total_rows = len(df)
         totale_trovati += total_rows
+
+        if total_rows == 0 and _is_common_term(term):
+            log.warning(
+                "SCRAPER_EMPTY_BUT_EXPECTED: term=%r location=%r returned 0 rows. "
+                "Possible DOM/selector regression upstream.",
+                term,
+                location,
+            )
+            yield {
+                "status": "canary_warning",
+                "term": term,
+                "message": (
+                    "The search returned 0 results for a common keyword. "
+                    "The source site may have changed its layout — please report this."
+                ),
+            }
+
         yield {"status": "scraped", "term": term, "found": total_rows}
 
         for _, row in df.iterrows():

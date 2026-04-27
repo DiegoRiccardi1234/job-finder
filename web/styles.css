@@ -3,6 +3,8 @@
    Light-first, indigo accent, Inter font, subtle elevation.
    ============================================================= */
 
+@import url("./styles/chat.css");
+
 :root {
   /* palette */
   --bg: #ffffff;
@@ -32,27 +34,27 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
 
-  --fs-xs: 12px;
-  --fs-sm: 13px;
-  --fs-base: 14px;
-  --fs-md: 15px;
-  --fs-lg: 18px;
-  --fs-xl: 22px;
-  --fs-2xl: 28px;
-  --fs-3xl: 36px;
+  --fs-xs: clamp(11px, 0.75vw + 6px, 13px);
+  --fs-sm: clamp(12px, 0.85vw + 7px, 14px);
+  --fs-base: clamp(13px, 0.95vw + 7px, 15px);
+  --fs-md: clamp(14px, 1vw + 8px, 16px);
+  --fs-lg: clamp(16px, 1.2vw + 9px, 19px);
+  --fs-xl: clamp(19px, 1.4vw + 11px, 23px);
+  --fs-2xl: clamp(22px, 2vw + 12px, 30px);
+  --fs-3xl: clamp(26px, 2.6vw + 14px, 38px);
 
   --lh-tight: 1.2;
   --lh-base: 1.55;
 
   /* spacing (4px base) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-  --space-8: 64px;
+  --space-1: clamp(3px, 0.25vw + 2px, 5px);
+  --space-2: clamp(6px, 0.45vw + 4px, 9px);
+  --space-3: clamp(9px, 0.7vw + 5px, 14px);
+  --space-4: clamp(12px, 1vw + 6px, 18px);
+  --space-5: clamp(18px, 1.5vw + 9px, 28px);
+  --space-6: clamp(22px, 2.2vw + 10px, 36px);
+  --space-7: clamp(32px, 3.2vw + 12px, 52px);
+  --space-8: clamp(44px, 4vw + 18px, 72px);
 
   /* radii */
   --r-sm: 6px;
@@ -247,14 +249,19 @@ input, select, textarea { font-family: inherit; font-size: var(--fs-base); }
 /* ============== page grid ============== */
 .page-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: var(--space-6);
-  padding: var(--space-6);
-  max-width: 1480px;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 32vw, 620px);
+  gap: clamp(var(--space-3), 1.6vw, var(--space-6));
+  padding: clamp(var(--space-3), 1.6vw, var(--space-6));
+  max-width: min(1700px, 100%);
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
-@media (max-width: 1100px) {
+@media (min-width: 1400px) {
+  .page-grid { grid-template-columns: minmax(0, 1fr) minmax(520px, 640px); }
+}
+
+@media (max-width: 960px) {
   .page-grid { grid-template-columns: 1fr; }
 }
 
@@ -832,114 +839,6 @@ button.danger:hover { background: var(--danger-soft); border-color: var(--danger
 }
 .new-analysis:hover { background: var(--accent-hover); }
 
-.coach-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-.coach-panel.rail-chat { flex: 1; min-height: 0; max-height: calc(100vh - 180px); display: flex; flex-direction: column; }
-
-.coach-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.coach-head h3 {
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chat-box {
-  flex: 1;
-  min-height: 520px;
-  max-height: none;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
-.chat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: 92%;
-  font-size: var(--fs-sm);
-  line-height: 1.5;
-}
-.chat-item .role {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-.chat-item .bubble {
-  padding: 8px 12px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  word-wrap: break-word;
-}
-.chat-item.user { align-self: flex-end; align-items: flex-end; }
-.chat-item.user .bubble { background: var(--accent); color: #fff; border-color: var(--accent); }
-.chat-item.system .bubble {
-  background: var(--warning-soft);
-  border-color: var(--warning);
-  color: var(--warning);
-  font-size: var(--fs-xs);
-}
-
-.chat-quick-prompts { display: flex; flex-wrap: wrap; gap: 6px; }
-.chat-quick-prompts button {
-  padding: 4px 10px;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  transition: all var(--transition);
-}
-.chat-quick-prompts button:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
-
-.chat-form { display: flex; gap: var(--space-2); }
-.chat-form input {
-  flex: 1;
-  padding: 8px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  transition: border-color var(--transition), box-shadow var(--transition);
-}
-.chat-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
-.chat-form button {
-  padding: 8px 14px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  transition: background var(--transition);
-}
-.chat-form button:hover { background: var(--accent-hover); }
-
 /* ============== analytics ============== */
 .analytics-grid {
   display: grid;
@@ -1233,7 +1132,7 @@ button[type="submit"]:hover, .button:hover {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   padding: var(--space-5);
-  width: 360px;
+  width: min(360px, 90vw);
   position: relative;
 }
 .tutorial-card::after {
@@ -1355,3 +1254,4 @@ pre {
   border-color: var(--accent);
   color: var(--accent);
 }
+

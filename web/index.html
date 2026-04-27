@@ -114,6 +114,10 @@
             <h4><span class="material-symbols-outlined">insights</span> <span data-i18n="analytics.scoreDist">AI Score Distribution</span></h4>
             <canvas id="scoreChart"></canvas>
           </div>
+          <div class="analytics-card">
+            <h4><span class="material-symbols-outlined">apartment</span> <span data-i18n="analytics.topCompanies">Top Companies</span></h4>
+            <canvas id="topCompaniesChart"></canvas>
+          </div>
         </div>
       </section>
 
@@ -371,7 +375,7 @@
 
       <button type="button" class="new-analysis" id="railRecommendBtn"><span class="material-symbols-outlined">auto_awesome</span> <span data-i18n="coach.newAnalysis">New Analysis</span></button>
 
-      <div class="coach-panel rail-chat">
+      <div class="coach-panel rail-chat" id="coachPanel">
         <div class="coach-head">
           <h3><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="coach.aiCareerCoach">AI Career Coach</span></h3>
           <select id="chatModelSelector" class="mini-select" title="Select Chat API">
@@ -401,14 +405,20 @@
   <!-- Scan Overlay -->
   <div id="scanOverlay" class="scan-overlay" style="display:none;">
     <div class="scan-modal">
-      <span class="material-symbols-outlined scan-spinner">hourglass_top</span>
-      <h3 data-i18n="scan.scanning">Scanning job portals...</h3>
+      <div class="scan-modal-head">
+        <span class="material-symbols-outlined scan-spinner">hourglass_top</span>
+        <h3 data-i18n="scan.scanning">Scanning job portals...</h3>
+        <button id="minimizeScanBtn" class="icon-btn" type="button" title="Minimize" data-i18n-title="scan.feedMinimize">
+          <span class="material-symbols-outlined">minimize</span>
+        </button>
+      </div>
       <div class="progress-bar"><div class="progress-fill" id="scanProgressFill"></div></div>
       <p id="scanProgressText" class="micro" style="margin-top:8px;" data-i18n="scan.initializing">Initializing...</p>
-      <button id="cancelScanBtn" class="secondary" style="margin-top:16px;" data-i18n="scan.closePause">Close / Pause</button>
+      <ul id="scanFeed" class="scan-feed" aria-live="polite"></ul>
+      <button id="cancelScanBtn" class="secondary" style="margin-top:12px;" data-i18n="scan.closePause">Close / Pause</button>
     </div>
   </div>
 
-  <script src="/web/app.js"></script>
+  <script type="module" src="/web/app.js"></script>
 </body>
 </html>

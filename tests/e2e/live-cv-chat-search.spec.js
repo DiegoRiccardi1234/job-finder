@@ -4,6 +4,13 @@ const path = require("path");
 
 const CV_PATH = path.join(process.cwd(), "Test-Mio-CV", "CV_Diego_Riccardi_IT.pdf");
 
+// This is an end-to-end live-LLM + live-scan scenario. Skip by default to keep
+// the default test run deterministic and fast. Enable with RUN_LIVE_LLM=1.
+test.skip(
+  process.env.RUN_LIVE_LLM !== "1",
+  "live flow skipped — set RUN_LIVE_LLM=1 to enable"
+);
+
 async function postJson(page, url, payload) {
   return page.evaluate(async ({ endpoint, body }) => {
     const response = await fetch(endpoint, {

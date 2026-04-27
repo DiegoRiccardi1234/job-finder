@@ -1,3 +1,8 @@
+import { api, escapeHtml, setText, truncate, showToast } from "./modules/helpers.js";
+import { initTheme } from "./modules/theme.js";
+import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistApi } from "./modules/shortlist.js";
+
+initTheme();
 
 // ─── i18n System ──────────────────────────────────────────────
 let _i18nStrings = {};
@@ -41,6 +46,9 @@ async function loadLanguage(lang) {
   localStorage.setItem('language', lang);
   document.documentElement.setAttribute('lang', lang);
   applyTranslations();
+  if (typeof loadChatPrompts === "function") {
+    loadChatPrompts().catch(() => {});
+  }
 
   // Notify backend of language change
   fetch('/api/preferences', {
@@ -88,32 +96,6 @@ if (langSelect) {
   langSelect.addEventListener('change', () => {
     loadLanguage(langSelect.value);
   });
-}
-
-// Theme Toggle
-const themeToggle = document.getElementById('themeToggle');
-if (themeToggle) {
-    themeToggle.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-    });
-}
-// Apply saved theme
-const savedTheme = localStorage.getItem('theme') || 'light';
-document.documentElement.setAttribute('data-theme', savedTheme);
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `API Error ${response.status}`);
-  }
-  return response.json();
 }
 
 let selectedJobId = null;
@@ -195,45 +177,130 @@ function activateView(viewName) {
   });
 }
 
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 function roleLabel(role) {
   if (role === "assistant") return "Coach";
   if (role === "user") return "You";
   return "System";
 }
 
-function appendChat(role, content) {
+async function addRolesToShortlist(keywords, label) {
+  const kws = (keywords || []).filter(Boolean).map(String);
+  if (!kws.length) return;
+  await _addToShortlistApi(kws);
+  if (window.getKeywords && typeof window.getKeywords.addMultiple === "function") {
+    window.getKeywords.addMultiple(kws);
+  }
+  const msg = t("coach.savedToShortlist") || "Role added to your search";
+  showToast(`${msg}${label ? ": " + label : ""}`, "info");
+}
+
+function renderCoachMarkdown(raw) {
+  // Input is already HTML-escaped. Apply minimal markdown: **bold**, *italic*,
+  // `code`, and `-` bullet lists. Preserves safety (no unescaped passthrough).
+  const escaped = escapeHtml(raw || "");
+  const lines = escaped.split(/\r?\n/);
+  const html = [];
+  let inList = false;
+  for (const line of lines) {
+    const bulletMatch = line.match(/^\s*-\s+(.*)$/);
+    if (bulletMatch) {
+      if (!inList) { html.push("<ul>"); inList = true; }
+      html.push(`<li>${bulletMatch[1]}</li>`);
+    } else {
+      if (inList) { html.push("</ul>"); inList = false; }
+      html.push(line);
+    }
+  }
+  if (inList) html.push("</ul>");
+  let joined = html.join("\n");
+  joined = joined.replace(/\*\*([^*\n]+)\*\*/g, '<strong class="role-name">$1</strong>');
+  joined = joined.replace(/(^|[\s(>])\*([^*\n]+)\*(?=[\s<.,;:!?)]|$)/g, '$1<em class="coach-hint">$2</em>');
+  joined = joined.replace(/(^|[\s(>])_([^_\n]+)_(?=[\s<.,;:!?)]|$)/g, '$1<em class="coach-hint">$2</em>');
+  joined = joined.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  // Replace newlines outside lists with <br>. Existing <ul>/<li> already block.
+  joined = joined.replace(/\n(?!<)/g, "<br>");
+  joined = joined.replace(/\n/g, "");
+  return joined;
+}
+
+function appendChat(role, content, extras) {
   const box = document.getElementById("chatBox");
   if (!box) return;
 
   const item = document.createElement("div");
   item.className = `chat-item ${role}`;
-  const safeContent = escapeHtml(content).replaceAll("\n", "<br>");
-  item.innerHTML = `
-    <div class="role">${roleLabel(role)}</div>
-    <div class="bubble">${safeContent}</div>
-  `;
+
+  const roleDiv = document.createElement("div");
+  roleDiv.className = "role";
+  roleDiv.textContent = roleLabel(role);
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  if (role === "assistant") {
+    bubble.innerHTML = renderCoachMarkdown(content);
+  } else {
+    bubble.innerHTML = escapeHtml(content).replaceAll("\n", "<br>");
+  }
+
+  item.appendChild(roleDiv);
+  item.appendChild(bubble);
+
+  const roles = extras && Array.isArray(extras.suggested_roles) ? extras.suggested_roles : [];
+  if (role === "assistant" && roles.length) {
+    const pillRow = document.createElement("div");
+    pillRow.className = "role-pill-row";
+    for (const r of roles) {
+      if (!r || !r.label) continue;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "role-pill";
+      pill.textContent = r.label;
+      const kws = Array.isArray(r.keywords) && r.keywords.length ? r.keywords : [r.label];
+      pill.addEventListener("click", () => { addRolesToShortlist(kws, r.label); });
+      pillRow.appendChild(pill);
+    }
+    if (pillRow.childElementCount) item.appendChild(pillRow);
+  }
+
   box.appendChild(item);
   box.scrollTop = box.scrollHeight;
+}
+
+function ensureNoKeyBanner(show, message) {
+  let banner = document.getElementById("noApiKeyBanner");
+  if (!show) {
+    if (banner) banner.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "noApiKeyBanner";
+    banner.className = "no-key-banner";
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+  banner.innerHTML = `
+    <span class="material-symbols-outlined">warning</span>
+    <span>${escapeHtml(message)}</span>
+    <a href="#" id="noApiKeyBannerLink" class="no-key-banner-link">${t("banner.configureKey")}</a>
+    <button type="button" id="noApiKeyBannerClose" class="no-key-banner-close" aria-label="close">×</button>
+  `;
+  banner.querySelector("#noApiKeyBannerClose").addEventListener("click", () => banner.remove());
+  banner.querySelector("#noApiKeyBannerLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    activateView("settings");
+    const keys = document.getElementById("keysForm");
+    if (keys && keys.scrollIntoView) keys.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 }
 
 async function loadHealth() {
   const health = await api("/api/health");
   setText("providerBadge", `Provider: ${health.provider.active_provider}`);
   setText("modelBadge", `Model: ${health.provider.active_model}`);
+
+  const active = String(health.provider.active_provider || "").toLowerCase();
+  const missing = !active || active === "none" || active === "fallback" || health.provider.available === false;
+  ensureNoKeyBanner(missing, t("banner.noKey"));
 
   const prefs = health.preferences || {};
   const linkedinInput = document.getElementById("linkedinUrl");
@@ -352,9 +419,62 @@ async function activateProfile(profileId) {
   showToast(t("toast.profileActive", { id: profileId }), "info");
 }
 
-function truncate(value, max = 120) {
-  const text = String(value || "");
-  return text.length > max ? `${text.slice(0, max)}...` : text;
+let _matchRadarChart = null;
+
+function renderMatchRadar(axes) {
+  const canvas = document.getElementById("detailMatchRadar");
+  if (!canvas || typeof window.Chart === "undefined") return;
+  const data = axes && typeof axes === "object" ? axes : {};
+  const labels = [
+    t("offcanvas.axisSkills"),
+    t("offcanvas.axisSeniority"),
+    t("offcanvas.axisRemote"),
+    t("offcanvas.axisSalary"),
+    t("offcanvas.axisContract"),
+  ];
+  const values = [
+    Number(data.skills_match) || 0,
+    Number(data.seniority_match) || 0,
+    Number(data.remote_match) || 0,
+    Number(data.salary_match) || 0,
+    Number(data.contract_match) || 0,
+  ];
+  if (_matchRadarChart) {
+    _matchRadarChart.destroy();
+    _matchRadarChart = null;
+  }
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
+  const textColor = isDark ? "#cbd5e1" : "#334155";
+  _matchRadarChart = new window.Chart(canvas, {
+    type: "radar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: t("offcanvas.matchScore"),
+          data: values,
+          backgroundColor: "rgba(99,91,255,0.25)",
+          borderColor: "#635bff",
+          pointBackgroundColor: "#635bff",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0,
+          max: 10,
+          ticks: { stepSize: 2, color: textColor, backdropColor: "transparent" },
+          angleLines: { color: gridColor },
+          grid: { color: gridColor },
+          pointLabels: { color: textColor, font: { size: 11 } },
+        },
+      },
+    },
+  });
 }
 
 async function showJobDetail(jobId) {
@@ -425,12 +545,17 @@ async function showJobDetail(jobId) {
         <div class="info-card mt-8">
             <p class="text-sm">💡 <strong>${t("offcanvas.aiVerdict")}:</strong> ${escapeHtml((analysis ? analysis.riassunto : null) || "")}</p>
         </div>
+        <div class="mt-16 info-card">
+          <h4>${t("offcanvas.breakdown")}</h4>
+          <canvas id="detailMatchRadar" height="220"></canvas>
+        </div>
         <div class="mt-16">
           <h4>${t("offcanvas.listingMeta")}</h4>
           <p class="text-sm text-dim">${t("offcanvas.search")}: ${escapeHtml(job.ricerca_usata)} | ${t("jobs.source")}: ${escapeHtml(job.fonte || "App")} | ${t("offcanvas.found")}: ${escapeHtml(job.first_seen_at || "")} | ${t("offcanvas.companyRep")}: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
         </div>
       </div>
     `;
+    renderMatchRadar(analysis && analysis.match_axes);
   }
   
   const inlineDetail = document.getElementById('jobDetailInline');
@@ -540,7 +665,7 @@ async function loadChatPrompts() {
 
   wrap.innerHTML = "";
   try {
-    const payload = await api("/api/chat/prompts");
+    const payload = await api(`/api/chat/prompts?lang=${encodeURIComponent(_currentLang || "en")}`);
     const prompts = payload.prompts || [];
     for (const prompt of prompts) {
       const btn = document.createElement("button");
@@ -561,7 +686,17 @@ async function sendChatMessage(message) {
   const text = String(message || "").trim();
   if (!text) return;
 
-  showToast(text, "info");
+  appendChat("user", text);
+
+  const chatBox = document.getElementById("chatBox");
+  let pendingEl = null;
+  if (chatBox) {
+    pendingEl = document.createElement("div");
+    pendingEl.className = "chat-item assistant pending";
+    pendingEl.innerHTML = '<div class="role">AI</div><div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+    chatBox.appendChild(pendingEl);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
 
   try {
     const providerSelector = document.getElementById("chatModelSelector");
@@ -571,7 +706,8 @@ async function sendChatMessage(message) {
       method: "POST",
       body: JSON.stringify({ message: text, session_id: "default", provider: providerVal }),
     });
-    appendChat("assistant", result.answer || "No response available.");
+    if (pendingEl && pendingEl.parentNode) pendingEl.parentNode.removeChild(pendingEl);
+    appendChat("assistant", result.answer || "No response available.", { suggested_roles: result.suggested_roles });
 
     if (result.action && result.action.type === "FILL_SCAN_FORM") {
       // populate tags
@@ -587,6 +723,7 @@ async function sendChatMessage(message) {
       }
     }
   } catch (error) {
+    if (pendingEl && pendingEl.parentNode) pendingEl.parentNode.removeChild(pendingEl);
     appendChat("assistant", `${t("toast.chatError")}: ${error.message}`);
   }
 }
@@ -840,9 +977,23 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
   const overlay = document.getElementById("scanOverlay");
   const progressText = document.getElementById("scanProgressText");
   const progressFill = document.getElementById("scanProgressFill");
+  const feedEl = document.getElementById("scanFeed");
   overlay.style.display = "flex";
+  overlay.classList.remove("minimized");
   progressFill.style.width = "5%";
   progressText.textContent = t("scan.connecting");
+  if (feedEl) feedEl.innerHTML = "";
+
+  const appendFeed = (iconName, textHtml, chip) => {
+    if (!feedEl) return;
+    const li = document.createElement("li");
+    const chipHtml = chip ? `<span class="feed-chip ${chip.cls || ""}">${chip.label}</span>` : "";
+    li.innerHTML = `<span class="material-symbols-outlined feed-icon">${iconName}</span><span class="feed-text">${textHtml}</span>${chipHtml}`;
+    feedEl.appendChild(li);
+    while (feedEl.children.length > 50) feedEl.removeChild(feedEl.firstChild);
+    feedEl.scrollTop = feedEl.scrollHeight;
+  };
+  const escHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   let analysisCount = 0;
   let totalFound = 0;
@@ -852,28 +1003,36 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
     try {
       const data = JSON.parse(e.data);
       if (data.status === "started") {
-        progressText.textContent = `${t("scan.searching")}: ${(data.terms || []).join(", ")}`;
+        const terms = (data.terms || []).join(", ");
+        progressText.textContent = `${t("scan.searching")}: ${terms}`;
         progressFill.style.width = "10%";
+        appendFeed("travel_explore", t("scan.feedStarted", { terms: escHtml(terms) }));
       } else if (data.status === "scraped") {
         totalFound += data.found || 0;
         progressText.textContent = t("scan.foundJobs", { count: totalFound });
         progressFill.style.width = "30%";
+        appendFeed("manage_search", t("scan.feedScraped", { found: data.found || 0, portal: escHtml(data.portal || data.site || "") }));
       } else if (data.status === "analyzed") {
         analysisCount++;
         const pct = Math.min(30 + (analysisCount * 3), 90);
         progressFill.style.width = pct + "%";
         const j = data.job || {};
-        progressText.textContent = t("scan.analyzed", { title: j.titolo || "?", company: j.azienda || "?", score: j.score || 0 });
+        const score = Number(j.score || 0);
+        const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
+        progressText.textContent = t("scan.analyzed", { title: j.titolo || "?", company: j.azienda || "?", score: score });
+        appendFeed("check_circle", t("scan.feedAnalyzed", { title: escHtml(j.titolo || "?"), company: escHtml(j.azienda || "?") }), { label: `${score}/10`, cls });
       } else if (data.status === "complete") {
         progressFill.style.width = "100%";
         progressText.textContent = t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 });
+        appendFeed("task_alt", t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 }));
         evtSource.close();
-        setTimeout(() => { overlay.style.display = "none"; }, 2000);
+        setTimeout(() => { overlay.style.display = "none"; overlay.classList.remove("minimized"); }, 2500);
         Promise.all([loadJobs(), loadRecommendations()]);
       } else if (data.error) {
         progressText.textContent = `${t("scan.error")}: ${data.error}`;
+        appendFeed("error", `${t("scan.error")}: ${escHtml(data.error)}`);
         evtSource.close();
-        setTimeout(() => { overlay.style.display = "none"; }, 3000);
+        setTimeout(() => { overlay.style.display = "none"; overlay.classList.remove("minimized"); }, 3000);
       }
     } catch (_) {}
   };
@@ -887,8 +1046,14 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
   document.getElementById("cancelScanBtn").onclick = () => {
     evtSource.close();
     overlay.style.display = "none";
+    overlay.classList.remove("minimized");
     Promise.all([loadJobs(), loadRecommendations()]);
   };
+
+  const minimizeBtn = document.getElementById("minimizeScanBtn");
+  if (minimizeBtn) {
+    minimizeBtn.onclick = () => overlay.classList.toggle("minimized");
+  }
 });
 
 document.getElementById("manualForm").addEventListener("submit", async (event) => {
@@ -1112,25 +1277,6 @@ bootstrap().catch((error) => {
 });
 
 
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    
-    // Auto-remove after 3 seconds
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(100%)';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-    
-    container.appendChild(toast);
-}
-
-
 const closeDetailBtn = document.getElementById('closeDetailBtn');
 if (closeDetailBtn) {
     closeDetailBtn.addEventListener('click', () => {
@@ -1142,6 +1288,7 @@ if (closeDetailBtn) {
 
 let statusChart = null;
 let scoreChart = null;
+let topCompaniesChart = null;
 
 async function loadAnalytics() {
     try {
@@ -1177,6 +1324,27 @@ async function loadAnalytics() {
                     }]
                 },
                 options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+        }
+        const companiesCtx = document.getElementById('topCompaniesChart');
+        if (companiesCtx && Array.isArray(data.top_companies)) {
+            if (topCompaniesChart) topCompaniesChart.destroy();
+            topCompaniesChart = new Chart(companiesCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.top_companies.map(c => c.company),
+                    datasets: [{
+                        label: t('analytics.topCompanies') || 'Top Companies',
+                        data: data.top_companies.map(c => c.count),
+                        backgroundColor: '#635bff',
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true } },
+                },
             });
         }
     } catch (e) {
@@ -1260,6 +1428,16 @@ function setupTagInput(containerId, inputId) {
 
 const getKeywords = setupTagInput('keywordsContainer', 'keywordsInput');
 const getLocations = setupTagInput('locationsContainer', 'locationsInput');
+window.getKeywords = getKeywords;
+window.getLocations = getLocations;
+
+async function loadRoleShortlist() {
+  const roles = await _loadShortlistApi();
+  if (roles.length && getKeywords && typeof getKeywords.addMultiple === "function") {
+    getKeywords.addMultiple(roles);
+  }
+}
+loadRoleShortlist();
 
 // ─── Update Banner ──────────────────────────────────────────────
 async function checkForUpdate() {
@@ -1357,21 +1535,34 @@ if (_origAppendChat) {
   };
 }
 
-function showFirstTimeTutorial() {
+async function showFirstTimeTutorial() {
   if (localStorage.getItem('tutorialSeen')) return;
+
+  // Only show if user truly has nothing yet.
+  let hasCv = false;
+  try {
+    const health = await api('/api/health');
+    hasCv = Boolean(health && health.profile && health.profile.source_name);
+  } catch { /* ignore */ }
+  if (hasCv) {
+    localStorage.setItem('tutorialSeen', '1');
+    return;
+  }
+
   const overlay = document.createElement('div');
   overlay.className = 'tutorial-overlay';
   overlay.innerHTML = `
     <div class="tutorial-card">
-      <h3>Meet your AI Career Coach</h3>
-      <p>Use the chat on the right to:</p>
-      <ul>
-        <li>Discover which roles match your CV</li>
-        <li>Get search keywords for a specific city</li>
-        <li>Pick the best jobs to apply for first</li>
-      </ul>
+      <h3>${t('onboarding.title')}</h3>
+      <p>${t('onboarding.intro')}</p>
+      <ol class="onboarding-steps">
+        <li data-step="cv"><span class="step-dot"></span>${t('onboarding.stepCv')}</li>
+        <li data-step="scan"><span class="step-dot"></span>${t('onboarding.stepScan')}</li>
+        <li data-step="chat"><span class="step-dot"></span>${t('onboarding.stepChat')}</li>
+      </ol>
       <div class="tutorial-actions">
-        <button type="button" class="ghost-btn" id="tutorialDismiss">Got it</button>
+        <button type="button" class="secondary" id="tutorialGoto">${t('onboarding.gotoSettings')}</button>
+        <button type="button" class="ghost-btn" id="tutorialDismiss">${t('onboarding.dismiss')}</button>
       </div>
     </div>
   `;
@@ -1379,6 +1570,15 @@ function showFirstTimeTutorial() {
   overlay.querySelector('#tutorialDismiss').addEventListener('click', () => {
     localStorage.setItem('tutorialSeen', '1');
     overlay.remove();
+  });
+  overlay.querySelector('#tutorialGoto').addEventListener('click', () => {
+    localStorage.setItem('tutorialSeen', '1');
+    overlay.remove();
+    activateView('settings');
+    const cvSection = document.getElementById('cvFile');
+    if (cvSection && cvSection.scrollIntoView) {
+      cvSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   });
 }
 

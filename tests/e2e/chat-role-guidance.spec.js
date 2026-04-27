@@ -4,6 +4,12 @@ const path = require("path");
 
 const CV_PATH = path.join(process.cwd(), "Test-Mio-CV", "CV_Diego_Riccardi_IT.pdf");
 
+// These tests hit a real LLM provider. Opt in via RUN_LIVE_LLM=1.
+test.skip(
+  process.env.RUN_LIVE_LLM !== "1",
+  "live LLM tests skipped — set RUN_LIVE_LLM=1 to enable"
+);
+
 async function postJson(page, url, payload) {
   return page.evaluate(async ({ endpoint, body }) => {
     const response = await fetch(endpoint, {

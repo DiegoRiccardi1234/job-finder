@@ -3,7 +3,9 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+
+from app import rate_limit
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -20,9 +22,11 @@ from app.models import (
     ManualJobCreateRequest,
     PreferenceUpdateRequest,
     ProviderKeysRequest,
+    RoleShortlistRequest,
     ScanRequest,
 )
 from app.providers.factory import ProviderManager
+from app.services import roles_shortlist as roles_shortlist_svc
 from app.services.chat_service import handle_chat_message
 from app.services.scanner_service import analyze_offer, run_scan
 
@@ -127,7 +131,8 @@ def create_app(workspace_dir: Path) -> FastAPI:
         }
 
     @fastapi_app.post("/api/upload-cv")
-    async def upload_cv(file: UploadFile = File(...)) -> dict:
+    async def upload_cv(request: Request, file: UploadFile = File(...)) -> dict:
+        rate_limit.check(request, bucket="upload_cv", limit=10, window_seconds=60)
         MAX_CV_BYTES = 5 * 1024 * 1024  # 5 MB
         ALLOWED_EXTS = {".pdf", ".docx", ".md", ".markdown", ".txt"}
 
@@ -218,7 +223,8 @@ def create_app(workspace_dir: Path) -> FastAPI:
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @fastapi_app.post("/api/scan")
-    def scan(payload: ScanRequest) -> dict:
+    def scan(request: Request, payload: ScanRequest) -> dict:
+        rate_limit.check(request, bucket="scan", limit=5, window_seconds=60)
         result = {}
         for event in run_scan(
             db=container.db,
@@ -367,7 +373,8 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         return {"ok": True}
 
     @fastapi_app.post("/api/chat", response_model=ChatResponse)
-    def chat(payload: ChatRequest) -> ChatResponse:
+    def chat(request: Request, payload: ChatRequest) -> ChatResponse:
+        rate_limit.check(request, bucket="chat", limit=20, window_seconds=60)
         result = handle_chat_message(
             db=container.db,
             provider_manager=container.providers,
@@ -382,16 +389,24 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         items = container.db.list_chat_messages(session_id=session_id, limit=limit)
         return {"messages": items}
 
+    @fastapi_app.get("/api/roles/shortlist")
+    def get_role_shortlist() -> dict:
+        return {"roles": roles_shortlist_svc.load(container.db)}
+
+    @fastapi_app.post("/api/roles/shortlist")
+    def add_role_shortlist(payload: RoleShortlistRequest) -> dict:
+        return {"roles": roles_shortlist_svc.add(container.db, payload.roles or [])}
+
+    @fastapi_app.delete("/api/roles/shortlist/{role}")
+    def remove_role_shortlist(role: str) -> dict:
+        return {"roles": roles_shortlist_svc.remove(container.db, role)}
+
     @fastapi_app.get("/api/chat/prompts")
-    def chat_prompts() -> dict:
-        return {
-            "prompts": [
-                "Which roles best fit my CV?",
-                "Find Python jobs in Milan",
-                "Suggest search terms for a Junior QA role",
-                "Recommend the top 5 jobs I should apply for",
-            ]
-        }
+    def chat_prompts(lang: str | None = None) -> dict:
+        from app.services.chat.context import suggest_chat_prompts
+
+        resolved_lang = (lang or container.db.get_preference("ui_language", "en") or "en").lower()
+        return {"prompts": suggest_chat_prompts(container.db, lang=resolved_lang)}
 
     @fastapi_app.get("/api/version")
     def version_info(refresh: bool = False) -> dict:
@@ -414,6 +429,63 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     @fastapi_app.get("/api/preferences")
     def get_preferences() -> dict:
         return {"preferences": container.db.list_preferences()}
+
+    @fastapi_app.get("/api/applications/export")
+    def export_applications(format: str = "csv") -> StreamingResponse:
+        rows_all = container.db.export_jobs_for_csv()
+        tracking_statuses = {"applied", "interviewing", "rejected"}
+        # export_jobs_for_csv doesn't include status — use get_top_jobs instead to get raw status
+        cur = container.db.conn.cursor()
+        raw_rows = cur.execute(
+            "SELECT titolo, azienda, sede, status, punteggio_ai, consiglio, link, "
+            "updated_at, first_seen_at FROM jobs WHERE status IN (?, ?, ?) "
+            "ORDER BY updated_at DESC",
+            ("applied", "interviewing", "rejected"),
+        ).fetchall()
+
+        records = [
+            {
+                "title": r[0] or "",
+                "company": r[1] or "",
+                "location": r[2] or "",
+                "status": r[3] or "",
+                "ai_score": r[4] or 0,
+                "advice": r[5] or "",
+                "url": r[6] or "",
+                "updated_at": r[7] or "",
+                "first_seen_at": r[8] or "",
+            }
+            for r in raw_rows
+        ]
+
+        fmt = (format or "csv").lower()
+        if fmt == "json":
+            import json as _json_export
+
+            body = _json_export.dumps(records, ensure_ascii=False, indent=2)
+            filename = f"applications_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+            return StreamingResponse(
+                iter([body.encode("utf-8")]),
+                media_type="application/json",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+
+        # CSV
+        from io import StringIO
+
+        buf = StringIO()
+        if records:
+            writer = csv.DictWriter(buf, fieldnames=list(records[0].keys()), delimiter=";")
+            writer.writeheader()
+            writer.writerows(records)
+        else:
+            buf.write("")
+        filename = f"applications_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        return StreamingResponse(
+            iter([buf.getvalue().encode("utf-8-sig")]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     @fastapi_app.post("/api/export/csv")
     def export_csv() -> dict:

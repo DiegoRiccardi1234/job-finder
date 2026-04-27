@@ -35,81 +35,9 @@ class Database:
             self.conn.execute("PRAGMA synchronous=NORMAL")
         except sqlite3.DatabaseError:
             pass
-        self._init_schema()
+        from app.migrations import apply_migrations
 
-    def _init_schema(self) -> None:
-        cur = self.conn.cursor()
-        cur.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS jobs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_hash TEXT NOT NULL UNIQUE,
-                titolo TEXT NOT NULL,
-                azienda TEXT NOT NULL,
-                descrizione TEXT DEFAULT '',
-                sede TEXT DEFAULT '',
-                fonte TEXT DEFAULT '',
-                link TEXT DEFAULT '',
-                ricerca_usata TEXT DEFAULT '',
-                modalita TEXT DEFAULT '',
-                analysis_json TEXT,
-                punteggio_ai INTEGER DEFAULT 0,
-                consiglio TEXT DEFAULT '',
-                status TEXT DEFAULT 'open',
-                is_favorite INTEGER DEFAULT 0,
-                is_new INTEGER DEFAULT 1,
-                first_seen_at TEXT NOT NULL,
-                last_seen_at TEXT NOT NULL,
-                analyzed_at TEXT,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS scan_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                started_at TEXT NOT NULL,
-                finished_at TEXT,
-                location TEXT DEFAULT '',
-                is_remote INTEGER DEFAULT 0,
-                terms_json TEXT DEFAULT '[]',
-                totale_trovati INTEGER DEFAULT 0,
-                totale_nuovi INTEGER DEFAULT 0,
-                totale_analizzati INTEGER DEFAULT 0,
-                totale_scartati INTEGER DEFAULT 0
-            );
-
-            CREATE TABLE IF NOT EXISTS candidate_profiles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_name TEXT NOT NULL,
-                markdown TEXT NOT NULL,
-                summary_json TEXT DEFAULT '{}',
-                created_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS chat_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS preferences (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS job_actions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id INTEGER NOT NULL,
-                action TEXT NOT NULL,
-                notes TEXT DEFAULT '',
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(job_id) REFERENCES jobs(id)
-            );
-            """
-        )
-        self.conn.commit()
+        apply_migrations(self.conn)
 
     def close(self) -> None:
         self.conn.close()
@@ -428,27 +356,60 @@ class Database:
                 return profile
         return self.get_latest_candidate_profile()
 
-    def save_chat_message(self, session_id: str, role: str, content: str) -> None:
-        self.conn.execute(
-            "INSERT INTO chat_messages(session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-            (session_id, role, content, now_iso()),
+    def save_chat_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        content_type: str = "message",
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO chat_messages(session_id, role, content, content_type, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (session_id, role, content, content_type, now_iso()),
         )
         self.conn.commit()
+        return int(cur.lastrowid)
 
-    def list_chat_messages(self, session_id: str, limit: int = 30) -> list[dict[str, Any]]:
+    def list_chat_messages(
+        self,
+        session_id: str,
+        limit: int = 30,
+        include_types: tuple[str, ...] | None = None,
+    ) -> list[dict[str, Any]]:
         cur = self.conn.cursor()
-        cur.execute(
-            """
-            SELECT * FROM chat_messages
-            WHERE session_id = ?
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (session_id, limit),
-        )
+        if include_types:
+            placeholders = ",".join("?" * len(include_types))
+            cur.execute(
+                f"SELECT * FROM chat_messages WHERE session_id = ? "
+                f"AND content_type IN ({placeholders}) "
+                "ORDER BY id DESC LIMIT ?",
+                (session_id, *include_types, limit),
+            )
+        else:
+            cur.execute(
+                "SELECT * FROM chat_messages WHERE session_id = ? "
+                "ORDER BY id DESC LIMIT ?",
+                (session_id, limit),
+            )
         rows = [dict(r) for r in cur.fetchall()]
         rows.reverse()
         return rows
+
+    def count_chat_messages(self, session_id: str, content_type: str = "message") -> int:
+        cur = self.conn.execute(
+            "SELECT COUNT(*) FROM chat_messages WHERE session_id = ? AND content_type = ?",
+            (session_id, content_type),
+        )
+        row = cur.fetchone()
+        return int(row[0] if row else 0)
+
+    def delete_chat_messages_by_ids(self, ids: list[int]) -> None:
+        if not ids:
+            return
+        placeholders = ",".join("?" * len(ids))
+        self.conn.execute(f"DELETE FROM chat_messages WHERE id IN ({placeholders})", ids)
+        self.conn.commit()
 
     def get_analytics(self) -> dict:
         cursor = self.conn.cursor()
@@ -482,12 +443,20 @@ class Database:
             if 0 <= score <= 10:
                 score_distribution[str(score)] = int(row[1] or 0)
 
+        top_companies: list[dict[str, Any]] = []
+        for row in cursor.execute(
+            "SELECT azienda, COUNT(*) AS c FROM jobs WHERE azienda != '' "
+            "GROUP BY azienda ORDER BY c DESC LIMIT 5"
+        ).fetchall():
+            top_companies.append({"company": str(row[0]), "count": int(row[1] or 0)})
+
         return {
             "total": total,
             "applied": applied,
             "rejected": rejected,
             "jobs_by_status": jobs_by_status,
             "score_distribution": score_distribution,
+            "top_companies": top_companies,
         }
 
     def save_cover_letter(self, job_id: int, letter: str) -> None:

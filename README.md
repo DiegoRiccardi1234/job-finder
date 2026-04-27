@@ -52,6 +52,18 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ![Dark mode](screenshots/readme/dashboard-dark-en.png)
 
+**AI Career Coach chat** — ask questions in plain language; the coach suggests target roles as clickable pills and can auto-fill the scan form.
+
+![Chat](screenshots/readme/chat-view-en.png)
+
+**Live scan progress** — during a scan you see each portal scraped, every job analyzed, and its score (green/yellow/red) in a live feed. Minimize it to keep browsing.
+
+![Scan progress](screenshots/readme/scan-progress-en.png)
+
+**CV-driven role chips** — Step 1 reads your active CV and surfaces matching role suggestions; click to add as search keywords.
+
+![CV analysis](screenshots/readme/cv-analysis-en.png)
+
 ---
 
 ## Architecture

@@ -44,7 +44,8 @@
     "title": "Analytiques",
     "appStatus": "État des Candidatures",
     "scoreDist": "Distribution des Scores IA",
-    "matchScore": "Score"
+    "matchScore": "Score",
+    "topCompanies": "Entreprises fréquentes"
   },
   "recommendations": {
     "title": "Meilleurs pour Vous",
@@ -136,7 +137,10 @@
     "aiCareerCoach": "AI Career Coach",
     "autoApi": "API Auto",
     "chatPlaceholder": "ex. Trouver des emplois Python à Milan, ou Quels rôles correspondent à mon CV?",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "expand": "Agrandir le chat",
+    "collapse": "Réduire le chat",
+    "savedToShortlist": "Rôle ajouté à ta recherche"
   },
   "offcanvas": {
     "details": "Détails",
@@ -158,7 +162,13 @@
     "listingMeta": "Méta de l'Annonce",
     "search": "Recherche",
     "found": "Trouvé",
-    "companyRep": "Réputation"
+    "companyRep": "Réputation",
+    "breakdown": "Détail du Match",
+    "axisSkills": "Compétences",
+    "axisSeniority": "Séniorité",
+    "axisRemote": "Télétravail",
+    "axisSalary": "Salaire",
+    "axisContract": "Contrat"
   },
   "scan": {
     "scanning": "Scan des portails d'emploi...",
@@ -170,7 +180,11 @@
     "analyzed": "Analysé : {title} @ {company} — Score {score}/10",
     "complete": "Terminé ! {newJobs} nouveaux emplois, {analyzed} analysés.",
     "connectionLost": "Connexion perdue. Vérifiez les résultats ci-dessous.",
-    "error": "Erreur"
+    "error": "Erreur",
+    "feedStarted": "Recherche : <b>{terms}</b>",
+    "feedScraped": "{found} annonces trouvées sur <b>{portal}</b>",
+    "feedAnalyzed": "<b>{title}</b> @ {company}",
+    "feedMinimize": "Réduire"
   },
   "toast": {
     "enterKeyOrProvider": "Entrez au moins une clé ou choisissez un fournisseur principal.",
@@ -213,5 +227,18 @@
   },
   "common": {
     "close": "Fermer"
+  },
+  "onboarding": {
+    "title": "Bienvenue sur Job Finder",
+    "intro": "Trois étapes rapides pour démarrer :",
+    "stepCv": "Charge ton CV dans Paramètres",
+    "stepScan": "Lance ta première recherche",
+    "stepChat": "Discute avec le Career Coach",
+    "gotoSettings": "Charger CV",
+    "dismiss": "Passer"
+  },
+  "banner": {
+    "noKey": "Aucun fournisseur IA configuré — le chat utilise des réponses rule-based.",
+    "configureKey": "Configurer une clé"
   }
 }
