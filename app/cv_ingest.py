@@ -160,13 +160,52 @@ _DATE_RANGE_RE = re.compile(
 )
 
 
+_WORK_SECTION_HEADER_RE = re.compile(
+    r"(?:^|\n)\s*("
+    r"esperienza\s+lavorativa|esperienze\s+lavorative|esperienza\s+professionale|esperienza"
+    r"|work\s+experience|professional\s+experience|experience"
+    r"|experiencia\s+laboral|experiencia\s+profesional"
+    r"|expérience\s+professionnelle|expériences\s+professionnelles|expérience"
+    r"|berufserfahrung|berufliche\s+erfahrung"
+    r")\s*[:\n]",
+    re.IGNORECASE,
+)
+_OTHER_SECTION_HEADER_RE = re.compile(
+    r"(?:^|\n)\s*("
+    r"istruzione|formazione|education|educación|formation|ausbildung|"
+    r"competenze|skills|skill|hard\s+skills|soft\s+skills|"
+    r"lingue|languages|idiomas|langues|sprachen|"
+    r"certificaz|certificat|certifications|"
+    r"progetti|projects|proyectos|projets|projekte|"
+    r"profilo|profile|summary|sobre|à\s+propos|über\s+mich|"
+    r"interessi|interests|hobby|hobbies|aficiones|loisirs"
+    r")\s*[:\n]",
+    re.IGNORECASE,
+)
+
+
+def _scope_work_section(text: str) -> str:
+    """Return only the substring inside the work-experience section, if detectable."""
+    work_match = _WORK_SECTION_HEADER_RE.search(text)
+    if not work_match:
+        return text
+    start = work_match.end()
+    rest = text[start:]
+    next_section = _OTHER_SECTION_HEADER_RE.search(rest)
+    if next_section:
+        return rest[: next_section.start()]
+    return rest
+
+
 def _estimate_years_experience(text: str) -> int:
     from datetime import datetime as _dt
 
     now = _dt.now()
-    months_total = 0
-    seen: set[tuple[int, int, int, int]] = set()
-    for match in _DATE_RANGE_RE.finditer(text):
+    now_months = now.year * 12 + now.month
+
+    scoped = _scope_work_section(text)
+    intervals: list[tuple[int, int]] = []
+    for match in _DATE_RANGE_RE.finditer(scoped):
         start_y = int(match.group("start_y"))
         start_m = int(match.group("start_m") or 1)
         end_y_raw = match.group("end_y")
@@ -179,14 +218,27 @@ def _estimate_years_experience(text: str) -> int:
             end_m = now.month
         if start_y < 1970 or end_y < start_y or end_y > now.year + 1:
             continue
-        key = (start_y, start_m, end_y, end_m)
-        if key in seen:
+        sm = start_y * 12 + start_m
+        em = end_y * 12 + end_m
+        em = min(em, now_months)
+        if em <= sm:
             continue
-        seen.add(key)
-        span = (end_y - start_y) * 12 + (end_m - start_m)
-        if span > 0:
-            months_total += span
-    return max(0, round(months_total / 12))
+        intervals.append((sm, em))
+
+    if not intervals:
+        return 0
+
+    intervals.sort()
+    merged: list[list[int]] = [list(intervals[0])]
+    for sm, em in intervals[1:]:
+        if sm <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], em)
+        else:
+            merged.append([sm, em])
+
+    months_total = sum(end - start for start, end in merged)
+    years = round(months_total / 12)
+    return max(0, min(60, years))
 
 
 def _estimate_experience_level(years: int) -> str:
@@ -199,8 +251,15 @@ def _estimate_experience_level(years: int) -> str:
     return "entry"
 
 
-def summarize_profile_with_llm(markdown_text: str, provider_manager: "Any") -> dict[str, Any]:
-    """Rich profile summary using LLM. Falls back to keyword-based if LLM fails."""
+def summarize_profile_with_llm(
+    markdown_text: str, provider_manager: "Any", on_retry: Any = None
+) -> dict[str, Any]:
+    """Rich profile summary using LLM. Falls back to keyword-based if LLM fails.
+
+    Retries up to 5 times with longer waits (3s, 5s, 7s, 9s) on transient
+    errors like 429 rate-limits. Calls ``on_retry(attempt, wait_seconds, exc)``
+    between attempts, if provided, so the caller can stream progress events.
+    """
     prompt = (
         "You are an expert career advisor. Analyze this CV/resume and extract a structured profile.\n"
         "Return a JSON object with these fields:\n"
@@ -214,10 +273,38 @@ def summarize_profile_with_llm(markdown_text: str, provider_manager: "Any") -> d
         "- summary: 2-3 sentence professional summary\n\n"
         f"CV Content:\n{markdown_text[:3000]}"
     )
-    try:
-        result = provider_manager.complete_json(prompt=prompt, max_tokens=600)
-        if isinstance(result, dict):
-            return result
-    except Exception as exc:
-        log.warning("LLM profile summarization failed, falling back to heuristic: %s", exc)
+    import time as _time
+
+    delays = [3.0, 5.0, 7.0, 9.0]
+    last_exc: Exception | None = None
+    for attempt in range(1, 1 + len(delays) + 1):
+        try:
+            result = provider_manager.complete_json(prompt=prompt, max_tokens=600)
+            if isinstance(result, dict):
+                heuristic = summarize_profile(markdown_text)
+                # Merge LLM output with heuristic-derived fields so years_experience
+                # and experience_level always have a sensible fallback.
+                heuristic.update({k: v for k, v in result.items() if v not in (None, "", [])})
+                return heuristic
+        except Exception as exc:
+            last_exc = exc
+            if attempt > len(delays):
+                break
+            wait = delays[attempt - 1]
+            log.warning(
+                "LLM CV summarization attempt %d/%d failed (%s); retrying in %.1fs",
+                attempt,
+                len(delays) + 1,
+                exc.__class__.__name__,
+                wait,
+            )
+            if callable(on_retry):
+                import contextlib
+
+                with contextlib.suppress(Exception):
+                    on_retry(attempt, wait, exc)
+            _time.sleep(wait)
+
+    if last_exc is not None:
+        log.warning("LLM CV summarization gave up after retries; using heuristic: %s", last_exc)
     return summarize_profile(markdown_text)

@@ -1064,20 +1064,50 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   const formData = new FormData();
   formData.append("file", fileInput.files[0]);
 
-  const response = await fetch("/api/upload-cv", {
-    method: "POST",
-    body: formData,
-  });
-  if (!response.ok) {
-    setText("cvSummary", `${t("toast.uploadError")}: ${await response.text()}`);
-    return;
+  const submitBtn = event.currentTarget.querySelector('button[type="submit"]');
+  const originalLabel = submitBtn ? submitBtn.innerHTML : "";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span class="spinner-inline"></span> ${t("toast.cvAnalyzing") || "Analyzing CV with AI..."}`;
   }
+  showToast(t("toast.cvAnalyzing") || "Analyzing CV with AI...", "info");
 
-  const payload = await response.json();
-  setText("cvSummary", JSON.stringify(payload, null, 2));
-  await loadProfiles();
-  await loadProfileView();
-  await loadRecommendations();
+  try {
+    const response = await fetch("/api/upload-cv", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      setText("cvSummary", `${t("toast.uploadError")}: ${await response.text()}`);
+      showToast(t("toast.uploadError") || "Upload failed", "error");
+      return;
+    }
+
+    const payload = await response.json();
+    setText("cvSummary", JSON.stringify(payload, null, 2));
+    await loadProfiles();
+    await loadProfileView();
+    await loadRecommendations();
+
+    if (payload.summary_method === "llm") {
+      const msg = payload.retries
+        ? (t("toast.cvLlmRetried") || "AI summary ready (retried {n}×)").replace("{n}", payload.retries)
+        : (t("toast.cvLlmOk") || "AI summary ready");
+      showToast(msg, "info");
+    } else {
+      showToast(
+        t("toast.cvHeuristic") || "AI was busy — used a quick fallback. Re-upload later for full analysis.",
+        "info",
+      );
+    }
+  } catch (err) {
+    showToast(`${t("toast.uploadError") || "Upload failed"}: ${err.message}`, "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalLabel;
+    }
+  }
 });
 
 {

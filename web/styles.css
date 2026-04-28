@@ -1693,6 +1693,18 @@ pre {
   font-size: 1rem;
 }
 .profile-action-card form { display: flex; flex-direction: column; gap: var(--space-2); }
+.spinner-inline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .profile-history-list {
   display: flex;
   flex-direction: column;

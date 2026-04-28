@@ -198,8 +198,20 @@ def create_app(workspace_dir: Path) -> FastAPI:
                 "deduplicated": True,
             }
 
+        summary_method = "heuristic"
+        retry_count = 0
+
+        def _track_retry(attempt: int, wait: float, exc: Exception) -> None:
+            nonlocal retry_count
+            retry_count = attempt
+
         try:
-            summary = summarize_profile_with_llm(markdown, container.providers)
+            summary = summarize_profile_with_llm(
+                markdown, container.providers, on_retry=_track_retry
+            )
+            # If the result is structurally richer than the heuristic, mark as llm.
+            if any(k in summary for k in ("strengths", "industries", "summary")):
+                summary_method = "llm"
         except Exception as exc:
             container.log.warning("LLM CV summarization failed, using heuristic: %s", exc)
             summary = summarize_profile(markdown)
@@ -221,6 +233,8 @@ def create_app(workspace_dir: Path) -> FastAPI:
             "profile_id": profile_id,
             "source": file.filename,
             "summary": summary,
+            "summary_method": summary_method,
+            "retries": retry_count,
         }
 
     @fastapi_app.get("/api/profile")
