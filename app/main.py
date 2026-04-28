@@ -238,9 +238,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         if payload.preferred_roles is not None:
             cleaned = [r.strip() for r in payload.preferred_roles if r and r.strip()]
             summary["preferred_roles"] = cleaned
-            container.db.set_preference(
-                "preferred_roles", json.dumps(cleaned, ensure_ascii=False)
-            )
+            container.db.set_preference("preferred_roles", json.dumps(cleaned, ensure_ascii=False))
         if payload.skills is not None:
             summary["skills"] = [s.strip() for s in payload.skills if s and s.strip()]
         if payload.languages is not None:

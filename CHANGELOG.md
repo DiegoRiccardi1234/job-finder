@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- **AI Provider cards** (Settings): six per-provider cards (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter) replace the flat keys form. Each card has its own state machine (empty / configured / fetching / error / active), per-provider Save & fetch, password-visibility toggle, primary radio, ⭐-recommended model dropdown, and a refresh button. Driven by `GET /api/providers/{name}/models`.
+- **Chat per-model selector**: `#chatModelSelectorModel` next to the provider override, populated live from cached provider models. Provider override list filters to providers with a key (others shown as "(no key)" disabled). `/api/chat` accepts an optional `model` field.
+- **"Use as default?" toast**: shown once per session after the first chat override; persists `primary_provider` + `preferred_model` via `POST /api/providers/keys` on confirm.
+- **Profile tab** (`#view-profile`, new module `web/modules/profile.js`): read-only view of the AI-summarized CV (preferred_roles, skills, languages, experience, original markdown), inline chip-list edit for the three list fields, CV history accordion with **Set active** per uploaded CV.
+- **`PATCH /api/profile`** + `Database.update_candidate_profile_summary`: updates the active profile's summary; `preferred_roles` changes also sync to the `preferred_roles` preference used by the role shortlist.
+- **i18n**: `settings.providers.*` (19 keys), `chat.modelOverride/providerOverride/modelAuto/saveAsDefault/saveAsDefaultBody`, `common.yes/no`, `profile.*` (24 keys) and `topbar.profile` across en/it/es/fr/de (259 keys total).
+- **Tests**: `tests/unit/test_providers_models_endpoint.py` (8 tests, including TTL cache hit + force_refresh) and `tests/unit/test_profile_endpoint.py` (9 tests, including PATCH preference sync).
+
+### Removed
+- Orphan `tests/e2e/chat-live-smoke.spec.js` and `tests/e2e/live-cv-chat-search.spec.js` (workflow already removed).
+- `coverage.json` and `CHECKLIST_INIZIALE_2_MIN.md` from version control (the former is now gitignored).
+
 ## [0.1.0] — 2026-04-28
 
 First public release. Standalone Windows bundle, self-update, multi-LLM career-coach chat, scan, kanban, analytics.
