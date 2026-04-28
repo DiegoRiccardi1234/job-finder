@@ -2,24 +2,16 @@
 
 ## [Unreleased]
 
-### Added
-- **AI Provider cards** (Settings): six per-provider cards (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter) replace the flat keys form. Each card has its own state machine (empty / configured / fetching / error / active), per-provider Save & fetch, password-visibility toggle, primary radio, ⭐-recommended model dropdown, and a refresh button. Driven by `GET /api/providers/{name}/models`.
-- **Chat per-model selector**: `#chatModelSelectorModel` next to the provider override, populated live from cached provider models. Provider override list filters to providers with a key (others shown as "(no key)" disabled). `/api/chat` accepts an optional `model` field.
-- **"Use as default?" toast**: shown once per session after the first chat override; persists `primary_provider` + `preferred_model` via `POST /api/providers/keys` on confirm.
-- **Profile tab** (`#view-profile`, new module `web/modules/profile.js`): read-only view of the AI-summarized CV (preferred_roles, skills, languages, experience, original markdown), inline chip-list edit for the three list fields, CV history accordion with **Set active** per uploaded CV.
-- **`PATCH /api/profile`** + `Database.update_candidate_profile_summary`: updates the active profile's summary; `preferred_roles` changes also sync to the `preferred_roles` preference used by the role shortlist.
-- **i18n**: `settings.providers.*` (19 keys), `chat.modelOverride/providerOverride/modelAuto/saveAsDefault/saveAsDefaultBody`, `common.yes/no`, `profile.*` (24 keys) and `topbar.profile` across en/it/es/fr/de (259 keys total).
-- **Tests**: `tests/unit/test_providers_models_endpoint.py` (8 tests, including TTL cache hit + force_refresh) and `tests/unit/test_profile_endpoint.py` (9 tests, including PATCH preference sync).
-
-### Removed
-- Orphan `tests/e2e/chat-live-smoke.spec.js` and `tests/e2e/live-cv-chat-search.spec.js` (workflow already removed).
-- `coverage.json` and `CHECKLIST_INIZIALE_2_MIN.md` from version control (the former is now gitignored).
-
 ## [0.1.0] — 2026-04-28
 
-First public release. Standalone Windows bundle, self-update, multi-LLM career-coach chat, scan, kanban, analytics.
+First public release. Standalone Windows bundle, self-update, multi-LLM career-coach chat, scan, kanban, analytics, AI Provider cards, Profile tab.
 
 ### Added
+- **AI Provider cards** (Settings): six per-provider cards (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter) replace the flat keys form. Each card has its own state machine (empty / configured / fetching / error / active), per-provider Save & fetch, password-visibility toggle, primary radio, ⭐-recommended model dropdown, and a refresh button. Driven by `GET /api/providers/{name}/models` with a 5-minute TTL cache.
+- **Chat per-model selector**: `#chatModelSelectorModel` next to the provider override, populated live from cached provider models. Provider override list filters to providers with a key (others shown as "(no key)" disabled). `/api/chat` accepts an optional `model` field that flows through `handle_chat_message` → `provider_manager.chat(model_name=…)`.
+- **"Use as default?" toast**: shown once per session after the first chat override; persists `primary_provider` + `preferred_model` via `POST /api/providers/keys` on confirm.
+- **Profile tab** (`#view-profile`, new module `web/modules/profile.js`): read-only view of the AI-summarized CV (preferred_roles, skills, languages, experience, original markdown), inline chip-list edit for the three list fields, CV history accordion with **Set active** per uploaded CV.
+- **`PATCH /api/profile`**, `GET /api/profiles`, `POST /api/profiles/{id}/activate` + `Database.update_candidate_profile_summary`: updates the active profile's summary; `preferred_roles` changes also sync to the `preferred_roles` preference used by the role shortlist.
 - **Unit test suite** (`tests/unit/`): coverage for chat context, handler parsing, fallback, CV ingest, scanner helpers, role shortlist, migrations, memory summarizer, provider retry, rate limiter, scraper canary.
 - **Schema migrations** (`app/migrations/`): lightweight `schema_version`-tracked migrations, baseline detection for pre-existing DBs. 001 init schema, 002 `chat_messages.content_type`.
 - **Role shortlist service** (`app/services/roles_shortlist.py`): dedicated module + `/api/roles/shortlist` GET/POST/DELETE. Dedup case-insensitive.
@@ -35,7 +27,8 @@ First public release. Standalone Windows bundle, self-update, multi-LLM career-c
 - **Export applications**: `GET /api/applications/export?format=csv|json` with tracking-relevant columns.
 - **Onboarding wizard**: 3-step welcome overlay, localized in 5 languages, surfaces only when no CV loaded.
 - **Fluid layout**: clamp-based typography + grid columns; design now scales with viewport without fixed breakpoints below 960px.
-- **i18n**: `coach.expand/collapse/savedToShortlist`, `onboarding.*`, `banner.*`, `analytics.topCompanies`, `offcanvas.breakdown` + axis labels across en/it/es/fr/de.
+- **i18n**: `coach.expand/collapse/savedToShortlist`, `onboarding.*`, `banner.*`, `analytics.topCompanies`, `offcanvas.breakdown` + axis labels, `settings.providers.*` (19 keys), `chat.modelOverride/providerOverride/modelAuto/saveAsDefault/saveAsDefaultBody`, `common.yes/no`, `profile.*` (24 keys), and `topbar.profile` across en/it/es/fr/de — 259 keys per locale, 100% parity.
+- **Unit tests** for the new endpoints: `tests/unit/test_providers_models_endpoint.py` (8 tests, including TTL cache hit + `force_refresh` bypass) and `tests/unit/test_profile_endpoint.py` (9 tests, including PATCH preference sync and CV-switch via `POST /api/profiles/{id}/activate`).
 
 ### Changed
 - **Provider calls** retry on 429/5xx/timeout with exponential backoff + jitter (`LLM_MAX_RETRIES`, `LLM_RETRY_BASE_SECONDS` env).
@@ -68,7 +61,7 @@ First public release. Standalone Windows bundle, self-update, multi-LLM career-c
 - `web/app.js`: extracted i18n into `web/modules/i18n.js` with a `onLanguageChange` callback registry, dropping ~80 LOC from the main entry. Chat / scan / kanban / recommendations splits remain on the follow-up list.
 
 ### Docs
-- README slimmed to 4 demo screenshots, accurate test count (99) and i18n key count (204), refreshed Project structure tree, new Rate limiting and Database migrations sections, expanded Mermaid architecture diagram (rate_limit, migrations, roles_shortlist, chat memory).
+- README slimmed to 4 demo screenshots, accurate test count (122) and i18n key count (259), refreshed Project structure tree, new Rate limiting and Database migrations sections, expanded Mermaid architecture diagram (rate_limit, migrations, roles_shortlist, chat memory).
 - `CONTRIBUTING.md`, `SECURITY.md`, `Makefile` added; `DOCS/schema.md` and `DOCS/security.md` tracked and linked from README.
 - New `tests/e2e/readme-demo-gif.spec.js` records an animated hero GIF via Playwright + ffmpeg (run via `npm run record-demo`).
 - Empty `tests/e2e/screenshots.spec.js` deleted; `readme-cv-showcase.spec.js` renamed to `manual-cv-flow.spec.js` and restricted to the Italian CV.

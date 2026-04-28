@@ -56,12 +56,14 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 ## Features
 
 - **Smart CV analysis** — Upload PDF / DOCX / TXT; the LLM extracts skills, seniority, and ideal roles.
-- **AI Career Coach** — Chat that learns your preferences, suggests search terms, and can autofill the scan form via structured `action` payloads.
+- **Profile tab** — Inspect what the AI understood from your CV, edit `preferred_roles` / `skills` / `languages` inline (chip-list with PATCH), switch between previously uploaded CVs (multi-CV history with **Set active**).
+- **AI Career Coach** — Chat that learns your preferences, suggests search terms, and can autofill the scan form via structured `action` payloads. Override the active provider **and model** per turn; a one-shot toast offers to persist the choice as default.
+- **Provider cards** (Settings) — One card per LLM (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter) with its own state (empty → configured → fetching → active), per-provider Save & fetch, ⭐-recommended model dropdown populated live from the provider's `list_models`, and a refresh button (5-min TTL cache).
 - **Multi-source scan** — LinkedIn + Indeed in parallel, streamed via Server-Sent Events.
 - **Personalized scoring** — Each job gets a 1-10 AI score with pros/cons and an apply/skip recommendation.
 - **Kanban tracking** — Open → Applied → Interviewing → Rejected.
 - **Cover-letter generator** — One-click, tailored to the job and your CV.
-- **Multilingual UI** — English, Italian, Spanish, French, German (204 keys per locale, 100% parity).
+- **Multilingual UI** — English, Italian, Spanish, French, German (259 keys per locale, 100% parity).
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
 
@@ -69,14 +71,15 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Demo
 
-The animated hero above walks through six beats end-to-end:
+The animated hero above walks through seven beats end-to-end:
 
 1. **Dashboard** with personalized hero, analytics, and the always-on AI Career Coach.
-2. **Settings** — provider keys, scan parameters, language picker.
-3. **Job Search wizard** — analyze your CV, pick roles from AI-suggested chips.
-4. **Chat coach** — natural-language Q&A with clickable role pills.
-5. **Live scan** — animated progress bar, per-job score chips (green/yellow/red), real-time feed.
-6. Settle back on the dashboard with results.
+2. **Settings** — six AI Provider cards with per-provider state, ⭐-recommended model dropdowns.
+3. **Profile tab** — chip-list view of what the AI extracted from your CV + multi-CV history.
+4. **Job Search wizard** — analyze your CV, pick roles from AI-suggested chips.
+5. **Chat coach** — natural-language Q&A with clickable role pills.
+6. **Live scan** — animated progress bar, per-job score chips (green/yellow/red), real-time feed.
+7. Settle back on the dashboard with results.
 
 A static look at the 3-step wizard, for readers who can't render the GIF:
 
@@ -154,7 +157,7 @@ The chat service is split into single-responsibility modules:
 | AI / LLM | 6-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — exponential-backoff retry |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 99 tests), Playwright (E2E) |
+| Testing | pytest (unit, 122 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — auto-update over GitHub Releases |
@@ -186,12 +189,12 @@ app/
 web/
 ├── app.js                   Bootstrap + per-feature wiring (ES module entry)
 ├── index.html               Single-page shell, mounts /web/* assets
-├── modules/                 Feature modules (helpers, theme, shortlist, i18n)
+├── modules/                 Feature modules (helpers, theme, shortlist, i18n, profile)
 ├── styles/                  Per-feature CSS (chat.css extracted)
 ├── styles.css               Core stylesheet (glassmorphism + tokens)
-└── i18n/                    Per-locale JSON (en, it, es, fr, de — 204 keys each)
+└── i18n/                    Per-locale JSON (en, it, es, fr, de — 259 keys each)
 tests/
-├── unit/                    pytest suite (99 tests, FakeProviderManager fixture)
+├── unit/                    pytest suite (122 tests, FakeProviderManager fixture)
 └── e2e/                     Playwright specs (smoke, README screenshots, demo GIF)
 scripts/
 ├── check_i18n.py            i18n coverage audit (fails CI on missing keys)
@@ -286,14 +289,20 @@ The `ProviderManager` picks the first available provider from your configured or
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health + provider/key status |
+| GET | `/api/providers/keys/status` | Per-provider configuration status |
+| POST | `/api/providers/keys` | Save one or more provider keys + primary/preferred model |
+| GET | `/api/providers/{name}/models` | Live list of models for one provider (`?force_refresh=1` bypasses 5-min cache) |
 | POST | `/api/upload-cv` | Upload CV (size + MIME validated) |
 | GET | `/api/profile` | Active candidate profile |
+| PATCH | `/api/profile` | Update active profile's `preferred_roles` / `skills` / `languages` |
+| GET | `/api/profiles` | List all uploaded CVs (multi-CV history) |
+| POST | `/api/profiles/{id}/activate` | Switch the active candidate profile |
 | GET | `/api/scan/stream` | SSE-streamed job scan |
 | GET | `/api/jobs` | List jobs with filters |
 | GET | `/api/jobs/{id}` | Job detail + AI analysis |
 | POST | `/api/jobs/{id}/cover-letter` | Generate cover letter |
 | POST | `/api/jobs/{id}/action` | Set status (apply/skip/archive) |
-| POST | `/api/chat` | Chat with AI Career Coach |
+| POST | `/api/chat` | Chat with AI Career Coach (accepts optional `provider` + `model` overrides) |
 | GET | `/api/analytics` | Dashboard stats |
 | GET | `/api/recommendations` | Top AI-recommended jobs |
 

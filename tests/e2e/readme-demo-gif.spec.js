@@ -182,7 +182,7 @@ test("record README demo GIF", async ({ page }) => {
   await page.waitForTimeout(400);
   idx = await captureFor(page, 1600, idx);
 
-  // Beat 2 — Settings (provider keys form, scan parameters)
+  // Beat 2 — Settings (AI Provider cards, scan parameters)
   await page.locator(".topnav .nav-link[data-view='settings']").click();
   await page.evaluate(() => {
     // Defensive: blank any pre-filled API key inputs so the GIF never leaks them.
@@ -191,8 +191,14 @@ test("record README demo GIF", async ({ page }) => {
     });
     window.scrollTo(0, 0);
   });
-  await page.waitForTimeout(400);
-  idx = await captureFor(page, 1500, idx);
+  await page.waitForTimeout(500);
+  idx = await captureFor(page, 1600, idx);
+
+  // Beat 2b — Profile tab (AI-summarized CV, chip lists, multi-CV history)
+  await page.locator(".topnav .nav-link[data-view='profile']").click();
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  idx = await captureFor(page, 1800, idx);
 
   // Beat 3 — Job Search wizard, step 1 with role chips populated
   await page.locator(".topnav .nav-link[data-view='job-search']").click();
