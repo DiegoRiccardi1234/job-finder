@@ -58,6 +58,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
     provider: str | None = None
+    model: str | None = None
 
 
 class ChatResponse(BaseModel):

@@ -238,6 +238,11 @@
     "modalTitle": "Mise à jour en cours..."
   },
   "chat": {
+    "modelOverride": "Remplacer le modèle",
+    "providerOverride": "Remplacer le fournisseur",
+    "modelAuto": "Modèle auto",
+    "saveAsDefault": "Utiliser par défaut ?",
+    "saveAsDefaultBody": "Enregistrer {provider} / {model} dans Paramètres",
     "suggestions": {
       "label": "Demande au coach de te trouver des rôles :",
       "roles": "Quels rôles correspondent le mieux à mon CV ?",
@@ -247,7 +252,9 @@
     }
   },
   "common": {
-    "close": "Fermer"
+    "close": "Fermer",
+    "yes": "Oui",
+    "no": "Non"
   },
   "onboarding": {
     "title": "Bienvenue sur Job Finder",

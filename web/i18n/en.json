@@ -238,6 +238,11 @@
     "modalTitle": "Updating Job Finder..."
   },
   "chat": {
+    "modelOverride": "Override model",
+    "providerOverride": "Override provider",
+    "modelAuto": "Auto model",
+    "saveAsDefault": "Use as default?",
+    "saveAsDefaultBody": "Save {provider} / {model} to Settings",
     "suggestions": {
       "label": "Try asking the coach to find roles for you:",
       "roles": "Which roles best fit my CV?",
@@ -247,7 +252,9 @@
     }
   },
   "common": {
-    "close": "Close"
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No"
   },
   "onboarding": {
     "title": "Welcome to Job Finder",

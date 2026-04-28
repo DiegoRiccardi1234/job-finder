@@ -73,6 +73,7 @@ def handle_chat_message(
     message: str,
     session_id: str,
     provider: str | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Handle one chat turn.
 
@@ -121,7 +122,9 @@ def handle_chat_message(
 
     suggested_roles: list[dict[str, Any]] = []
     try:
-        raw_answer = provider_manager.chat(prompt_messages, max_tokens=900, provider_name=provider)
+        raw_answer = provider_manager.chat(
+            prompt_messages, max_tokens=900, provider_name=provider, model_name=model
+        )
         answer, action_payload, suggested_roles = _parse_llm_response(raw_answer)
     except Exception as exc:
         log.error("Provider chat call failed, using fallback: %s", exc, exc_info=True)

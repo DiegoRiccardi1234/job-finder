@@ -1385,3 +1385,34 @@ pre {
   }
 }
 
+/* Chat override toast */
+.chat-override-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: var(--space-3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 320px;
+  animation: slideUp 0.25s ease-out;
+}
+.chat-override-toast-body strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.chat-override-toast-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+

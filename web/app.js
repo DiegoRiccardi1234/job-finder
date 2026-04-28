@@ -35,6 +35,98 @@ const PROVIDER_CATALOG = [
 const _providerCardModelCache = {};
 const _providerCardFetchTimes = {};
 
+let _chatOverrideToastShown = false;
+let _lastChatOverrideProvider = null;
+let _lastChatOverrideModel = null;
+
+function _maybeOfferPersistChatOverride(providerVal, modelVal) {
+  if (_chatOverrideToastShown) return;
+  if (!providerVal) return;
+  _chatOverrideToastShown = true;
+
+  const body = (t("chat.saveAsDefaultBody") || "Save {provider} / {model} to Settings")
+    .replace("{provider}", providerVal)
+    .replace("{model}", modelVal || t("chat.modelAuto") || "auto");
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-override-toast";
+  wrapper.innerHTML = `
+    <div class="chat-override-toast-body">
+      <strong>${t("chat.saveAsDefault") || "Use as default?"}</strong>
+      <div class="micro">${body}</div>
+    </div>
+    <div class="chat-override-toast-actions">
+      <button type="button" class="secondary" data-action="yes">${t("common.yes") || "Yes"}</button>
+      <button type="button" class="ghost-btn" data-action="no">${t("common.no") || "No"}</button>
+    </div>
+  `;
+  document.body.appendChild(wrapper);
+
+  wrapper.querySelector('[data-action="yes"]').addEventListener("click", async () => {
+    try {
+      await api("/api/providers/keys", {
+        method: "POST",
+        body: JSON.stringify({
+          primary_provider: providerVal,
+          preferred_model: modelVal || "",
+        }),
+      });
+      await loadKeysStatus();
+      showToast(t("toast.providerSaved"), "info");
+    } catch (err) {
+      showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
+    } finally {
+      wrapper.remove();
+    }
+  });
+  wrapper.querySelector('[data-action="no"]').addEventListener("click", () => wrapper.remove());
+
+  setTimeout(() => { if (wrapper.isConnected) wrapper.remove(); }, 12000);
+}
+
+async function _populateChatModelSelector(providerName) {
+  const sel = document.getElementById("chatModelSelectorModel");
+  if (!sel) return;
+  const autoLabel = t("chat.modelAuto") || "Auto model";
+  if (!providerName) {
+    sel.innerHTML = `<option value="">${autoLabel}</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.innerHTML = `<option value="">${autoLabel}</option>`;
+  sel.disabled = true;
+  try {
+    const data = _providerCardModelCache[providerName] || (await fetchProviderModels(providerName, false));
+    const models = Array.isArray(data.models) ? data.models : [];
+    const recommended = data.recommended || null;
+    for (const m of models) {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m === recommended ? `⭐ ${m}` : m;
+      sel.appendChild(opt);
+    }
+    sel.disabled = models.length === 0;
+  } catch (err) {
+    sel.disabled = true;
+  }
+}
+
+function _refreshChatProviderSelectorOptions() {
+  const sel = document.getElementById("chatModelSelector");
+  if (!sel) return;
+  const meta = _providersMetadataCache || {};
+  const previous = sel.value;
+  Array.from(sel.options).forEach((opt) => {
+    if (!opt.value) return;
+    const available = meta[opt.value]?.available !== false && meta[opt.value]?.available !== undefined;
+    opt.disabled = !available;
+    opt.textContent = opt.value.charAt(0).toUpperCase() + opt.value.slice(1) + (available ? "" : " (no key)");
+  });
+  if (previous && sel.querySelector(`option[value="${previous}"]`)?.disabled) {
+    sel.value = "";
+  }
+}
+
 function _providerCardEl(name) {
   return document.querySelector(`#providerCards .provider-card[data-provider="${name}"]`);
 }
@@ -287,6 +379,7 @@ function updateProvidersMetadata(metadata, desiredModel) {
   }
   const provider = document.getElementById("primaryProvider")?.value || "";
   populateModelOptions(provider, desiredModel);
+  _refreshChatProviderSelectorOptions();
 }
 
 function activateView(viewName) {
@@ -770,12 +863,20 @@ async function sendChatMessage(message) {
 
   try {
     const providerSelector = document.getElementById("chatModelSelector");
+    const modelSelector = document.getElementById("chatModelSelectorModel");
     const providerVal = providerSelector && providerSelector.value ? providerSelector.value : null;
+    const modelVal = modelSelector && modelSelector.value ? modelSelector.value : null;
 
     const result = await api("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message: text, session_id: "default", provider: providerVal }),
+      body: JSON.stringify({ message: text, session_id: "default", provider: providerVal, model: modelVal }),
     });
+
+    if (providerVal && (providerVal !== _lastChatOverrideProvider || modelVal !== _lastChatOverrideModel)) {
+      _maybeOfferPersistChatOverride(providerVal, modelVal);
+      _lastChatOverrideProvider = providerVal;
+      _lastChatOverrideModel = modelVal;
+    }
     if (pendingEl && pendingEl.parentNode) pendingEl.parentNode.removeChild(pendingEl);
     appendChat("assistant", result.answer || "No response available.", { suggested_roles: result.suggested_roles });
 
@@ -1233,6 +1334,13 @@ const _primaryProviderEl = document.getElementById("primaryProvider");
 if (_primaryProviderEl) {
   _primaryProviderEl.addEventListener("change", () => {
     populateModelOptions(_primaryProviderEl.value, "");
+  });
+}
+
+const _chatProviderEl = document.getElementById("chatModelSelector");
+if (_chatProviderEl) {
+  _chatProviderEl.addEventListener("change", () => {
+    _populateChatModelSelector(_chatProviderEl.value);
   });
 }
 

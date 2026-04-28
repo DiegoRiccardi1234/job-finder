@@ -363,7 +363,7 @@
       <div class="coach-panel rail-chat" id="coachPanel">
         <div class="coach-head">
           <h3><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="coach.aiCareerCoach">AI Career Coach</span></h3>
-          <select id="chatModelSelector" class="mini-select" title="Select Chat API">
+          <select id="chatModelSelector" class="mini-select" title="Override provider">
             <option value="" data-i18n="coach.autoApi">Auto API</option>
             <option value="groq">Groq</option>
             <option value="openai">OpenAI</option>
@@ -371,6 +371,9 @@
             <option value="google">Google</option>
             <option value="cerebras">Cerebras</option>
             <option value="openrouter">OpenRouter</option>
+          </select>
+          <select id="chatModelSelectorModel" class="mini-select" title="Override model" disabled>
+            <option value="" data-i18n="chat.modelAuto">Auto model</option>
           </select>
         </div>
         <div id="chatBox" class="chat-box"></div>

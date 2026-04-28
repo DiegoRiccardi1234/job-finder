@@ -435,6 +435,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
             message=payload.message,
             session_id=payload.session_id,
             provider=payload.provider,
+            model=payload.model,
         )
         return ChatResponse(**result)
 
