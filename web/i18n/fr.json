@@ -126,7 +126,28 @@
     "locationName": "Lieu",
     "url": "URL",
     "description": "Description",
-    "addAnalyze": "Ajouter + Analyser"
+    "addAnalyze": "Ajouter + Analyser",
+    "providers": {
+      "title": "Fournisseurs IA",
+      "subtitle": "Ajoutez une clé API pour chaque fournisseur que vous voulez utiliser, puis choisissez-en un comme principal.",
+      "addKey": "Ajouter une clé API pour activer",
+      "setPrimary": "Définir comme principal",
+      "apiKey": "Clé API",
+      "model": "Modèle",
+      "modelAuto": "Auto (par défaut du fournisseur)",
+      "saveAndFetch": "Enregistrer et charger les modèles",
+      "saving": "Enregistrement...",
+      "saveFailed": "Échec de l'enregistrement",
+      "fetching": "Chargement des modèles...",
+      "modelsLoaded": "{count} modèles chargés",
+      "empty": "Aucun modèle disponible",
+      "lastFetched": "Dernier chargement {when}",
+      "refresh": "Actualiser la liste des modèles",
+      "recommended": "Recommandé",
+      "fetchFailed": "Impossible de charger les modèles. Vérifiez la clé.",
+      "active": "Fournisseur actif",
+      "justNow": "à l'instant"
+    }
   },
   "coach": {
     "title": "Career Coach",

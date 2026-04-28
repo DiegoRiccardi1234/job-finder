@@ -126,7 +126,28 @@
     "locationName": "Standort",
     "url": "URL",
     "description": "Beschreibung",
-    "addAnalyze": "Hinzufügen + Analysieren"
+    "addAnalyze": "Hinzufügen + Analysieren",
+    "providers": {
+      "title": "KI-Anbieter",
+      "subtitle": "Füge einen API-Schlüssel für jeden Anbieter hinzu, den du nutzen willst, und wähle einen als primär.",
+      "addKey": "API-Schlüssel hinzufügen, um zu aktivieren",
+      "setPrimary": "Als primär festlegen",
+      "apiKey": "API-Schlüssel",
+      "model": "Modell",
+      "modelAuto": "Auto (Anbieter-Standard)",
+      "saveAndFetch": "Speichern & Modelle laden",
+      "saving": "Speichern...",
+      "saveFailed": "Speichern fehlgeschlagen",
+      "fetching": "Modelle werden geladen...",
+      "modelsLoaded": "{count} Modelle geladen",
+      "empty": "Keine Modelle verfügbar",
+      "lastFetched": "Zuletzt geladen {when}",
+      "refresh": "Modellliste aktualisieren",
+      "recommended": "Empfohlen",
+      "fetchFailed": "Modelle konnten nicht geladen werden. Schlüssel prüfen.",
+      "active": "Aktiver Anbieter",
+      "justNow": "gerade eben"
+    }
   },
   "coach": {
     "title": "Career Coach",

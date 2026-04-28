@@ -315,38 +315,23 @@
           <pre id="linkedinStatus" class="output hidden"></pre>
         </article>
 
-        <article class="card-block">
-          <h3><span class="material-symbols-outlined">key</span> <span data-i18n="settings.llmKeys">LLM Provider Keys</span></h3>
-          <div id="keysCollapsedRow" class="row hidden">
-            <p id="keysStatus" class="micro"></p>
-            <button id="showKeysFormBtn" type="button" class="ghost-btn" data-i18n="settings.editKeys">Edit Keys</button>
-          </div>
-          <form id="keysForm" class="column">
-            <label class="field-label"><span data-i18n="settings.primaryProvider">Primary Provider</span>
-              <select id="primaryProvider">
-                <option value="" data-i18n="settings.autoFallback">Auto (fallback chain)</option>
-                <option value="cerebras">Cerebras</option>
-                <option value="groq">Groq</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="google">Google</option>
-                <option value="openrouter">OpenRouter</option>
-              </select>
-            </label>
-            <label class="field-label"><span data-i18n="settings.preferredModel">Preferred Model</span>
-              <select id="preferredModel">
-                <option value="" data-i18n="settings.modelAuto">Auto (provider default)</option>
-              </select>
-              <small class="micro" data-i18n="settings.modelHint">Models listed depend on the selected provider. Leave Auto to use the provider default.</small>
-            </label>
-            <label class="field-label">Cerebras <input id="cerebrasKey" type="password" placeholder="sk-..." /></label>
-            <label class="field-label">Groq <input id="groqKey" type="password" placeholder="gsk_..." /></label>
-            <label class="field-label">OpenAI <input id="openaiKey" type="password" placeholder="sk-..." /></label>
-            <label class="field-label">Anthropic <input id="anthropicKey" type="password" placeholder="sk-ant-..." /></label>
-            <label class="field-label">Google <input id="googleKey" type="password" placeholder="AI..." /></label>
-            <label class="field-label">OpenRouter <input id="openrouterKey" type="password" placeholder="sk-or-v1-..." /></label>
-            <button type="submit" class="secondary" data-i18n="settings.saveKeys">Save Keys</button>
-          </form>
+        <article class="card-block card-block--wide">
+          <h3><span class="material-symbols-outlined">key</span> <span data-i18n="settings.providers.title">AI Providers</span></h3>
+          <p class="micro" data-i18n="settings.providers.subtitle">Add an API key for each provider you want to use, then pick one as primary.</p>
+          <div id="providerCards" class="provider-grid"></div>
+          <select id="primaryProvider" class="hidden" aria-hidden="true">
+            <option value=""></option>
+            <option value="cerebras">Cerebras</option>
+            <option value="groq">Groq</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="google">Google</option>
+            <option value="openrouter">OpenRouter</option>
+          </select>
+          <select id="preferredModel" class="hidden" aria-hidden="true">
+            <option value=""></option>
+          </select>
+          <pre id="keysStatus" class="output hidden"></pre>
         </article>
 
         <article class="card-block">

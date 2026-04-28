@@ -126,7 +126,28 @@
     "locationName": "Location",
     "url": "URL",
     "description": "Description",
-    "addAnalyze": "Add + Analyze"
+    "addAnalyze": "Add + Analyze",
+    "providers": {
+      "title": "AI Providers",
+      "subtitle": "Add an API key for each provider you want to use, then pick one as primary.",
+      "addKey": "Add API key to enable",
+      "setPrimary": "Set as primary",
+      "apiKey": "API Key",
+      "model": "Model",
+      "modelAuto": "Auto (provider default)",
+      "saveAndFetch": "Save & fetch models",
+      "saving": "Saving...",
+      "saveFailed": "Save failed",
+      "fetching": "Fetching models...",
+      "modelsLoaded": "{count} models loaded",
+      "empty": "No models returned",
+      "lastFetched": "Last fetched {when}",
+      "refresh": "Refresh model list",
+      "recommended": "Recommended",
+      "fetchFailed": "Could not fetch models. Check the key.",
+      "active": "Active provider",
+      "justNow": "just now"
+    }
   },
   "coach": {
     "title": "Career Coach",

@@ -23,6 +23,210 @@ if (langSelect) {
 let selectedJobId = null;
 const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey", "openrouterKey"];
 
+const PROVIDER_CATALOG = [
+  { name: "cerebras", label: "Cerebras", icon: "bolt", placeholder: "sk-..." },
+  { name: "groq", label: "Groq", icon: "memory", placeholder: "gsk_..." },
+  { name: "openai", label: "OpenAI", icon: "neurology", placeholder: "sk-..." },
+  { name: "anthropic", label: "Anthropic", icon: "auto_awesome", placeholder: "sk-ant-..." },
+  { name: "google", label: "Google", icon: "language", placeholder: "AI..." },
+  { name: "openrouter", label: "OpenRouter", icon: "hub", placeholder: "sk-or-v1-..." },
+];
+
+const _providerCardModelCache = {};
+const _providerCardFetchTimes = {};
+
+function _providerCardEl(name) {
+  return document.querySelector(`#providerCards .provider-card[data-provider="${name}"]`);
+}
+
+function _formatRelative(epoch) {
+  if (!epoch) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() / 1000) - Number(epoch)));
+  if (seconds < 60) return t("settings.providers.justNow") || "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+function renderProviderCards(keys, providerMeta) {
+  const container = document.getElementById("providerCards");
+  if (!container) return;
+  const configuredKey = (n) => Boolean(keys?.[`${n}_configured`]);
+  const primary = String(keys?.primary_provider || providerMeta?.active_provider || "").toLowerCase();
+  const activeAvailable = providerMeta?.available !== false;
+
+  container.innerHTML = PROVIDER_CATALOG.map((p) => {
+    const configured = configuredKey(p.name);
+    const isPrimary = primary === p.name && activeAvailable;
+    const state = configured ? (isPrimary ? "active" : "configured") : "empty";
+    return `
+      <article class="provider-card" data-provider="${p.name}" data-state="${state}">
+        <header class="provider-card-head">
+          <span class="material-symbols-outlined provider-card-icon">${p.icon}</span>
+          <h4 class="provider-card-title">${p.label}</h4>
+          <label class="provider-primary-radio" title="${t("settings.providers.setPrimary")}">
+            <input type="radio" name="primaryProviderRadio" value="${p.name}" ${isPrimary ? "checked" : ""} ${configured ? "" : "disabled"} />
+            <span class="micro" data-i18n="settings.providers.setPrimary">Set as primary</span>
+          </label>
+        </header>
+        <div class="provider-card-body">
+          <label class="field-label provider-key-row">
+            <span class="micro" data-i18n="settings.providers.apiKey">API Key</span>
+            <div class="key-input-row">
+              <input type="password" class="provider-key-input" placeholder="${p.placeholder}" autocomplete="off" />
+              <button type="button" class="ghost-btn provider-toggle-visibility" title="Show/Hide">
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+            </div>
+          </label>
+          <button type="button" class="secondary provider-save-btn" data-i18n="settings.providers.saveAndFetch">Save &amp; fetch models</button>
+          <label class="field-label provider-model-row">
+            <span class="micro" data-i18n="settings.providers.model">Model</span>
+            <select class="provider-model-select" ${configured ? "" : "disabled"}>
+              <option value="" data-i18n="settings.providers.modelAuto">Auto (provider default)</option>
+            </select>
+          </label>
+          <div class="provider-status">
+            <span class="provider-status-text micro"></span>
+            <button type="button" class="ghost-btn provider-refresh-btn" title="${t("settings.providers.refresh")}" ${configured ? "" : "disabled"}>
+              <span class="material-symbols-outlined">refresh</span>
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  for (const p of PROVIDER_CATALOG) {
+    if (configuredKey(p.name)) {
+      void fetchAndRenderProviderModels(p.name, false);
+    } else {
+      _setProviderStatusText(p.name, t("settings.providers.addKey"));
+    }
+  }
+}
+
+function _setProviderStatusText(name, text, kind = "info") {
+  const card = _providerCardEl(name);
+  if (!card) return;
+  const el = card.querySelector(".provider-status-text");
+  if (el) {
+    el.textContent = text || "";
+    el.dataset.kind = kind;
+  }
+}
+
+function _setProviderCardState(name, state) {
+  const card = _providerCardEl(name);
+  if (card) card.dataset.state = state;
+}
+
+async function fetchProviderModels(name, force = false) {
+  const url = `/api/providers/${encodeURIComponent(name)}/models${force ? "?force_refresh=1" : ""}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    let detail = "fetch_failed";
+    try {
+      const body = await res.json();
+      detail = body.detail || detail;
+    } catch (_) { /* noop */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+async function fetchAndRenderProviderModels(name, force) {
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.fetching"));
+  try {
+    const data = await fetchProviderModels(name, force);
+    const models = Array.isArray(data.models) ? data.models : [];
+    const recommended = data.recommended || null;
+    _providerCardModelCache[name] = { models, recommended };
+    _providerCardFetchTimes[name] = data.fetched_at || (Date.now() / 1000);
+
+    const card = _providerCardEl(name);
+    if (!card) return;
+    const select = card.querySelector(".provider-model-select");
+    if (select) {
+      const autoLabel = t("settings.providers.modelAuto");
+      const opts = [`<option value="">${autoLabel}</option>`];
+      for (const m of models) {
+        const isRec = m === recommended;
+        const star = isRec ? "⭐ " : "";
+        opts.push(`<option value="${m}">${star}${m}</option>`);
+      }
+      select.innerHTML = opts.join("");
+      select.disabled = false;
+      // Pre-select if this provider is the primary and a preferred_model is known
+      const primarySelect = document.getElementById("primaryProvider");
+      const preferredSelect = document.getElementById("preferredModel");
+      if (primarySelect && primarySelect.value === name && preferredSelect && preferredSelect.value) {
+        const exists = models.includes(preferredSelect.value);
+        if (exists) select.value = preferredSelect.value;
+      }
+    }
+    const statusMsg = models.length
+      ? t("settings.providers.modelsLoaded").replace("{count}", String(models.length))
+      : t("settings.providers.empty");
+    _setProviderStatusText(name, `${statusMsg} · ${_formatRelative(_providerCardFetchTimes[name])}`);
+    if (_providerCardEl(name).dataset.state !== "active") {
+      _setProviderCardState(name, "configured");
+    }
+
+    // Sync legacy hidden selects so chat/populateModelOptions still works
+    if (!_providersMetadataCache[name]) _providersMetadataCache[name] = {};
+    _providersMetadataCache[name].models = models;
+    _providersMetadataCache[name].available = true;
+  } catch (err) {
+    _setProviderCardState(name, "error");
+    _setProviderStatusText(name, t("settings.providers.fetchFailed"), "error");
+  }
+}
+
+async function onSaveProviderKey(name, keyValue) {
+  const card = _providerCardEl(name);
+  if (!card) return;
+  const saveBtn = card.querySelector(".provider-save-btn");
+  if (saveBtn) saveBtn.disabled = true;
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.saving"));
+  try {
+    const payload = {};
+    payload[`${name}_api_key`] = keyValue;
+    await api("/api/providers/keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const input = card.querySelector(".provider-key-input");
+    if (input) input.value = "";
+    await loadKeysStatus();
+    await fetchAndRenderProviderModels(name, true);
+    showToast(t("toast.providerSaved"), "info");
+  } catch (err) {
+    _setProviderCardState(name, "error");
+    _setProviderStatusText(name, `${t("settings.providers.saveFailed")}: ${err.message}`, "error");
+    showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function onSetPrimaryProvider(name, modelOverride) {
+  try {
+    const payload = { primary_provider: name };
+    if (modelOverride !== undefined) payload.preferred_model = modelOverride;
+    await api("/api/providers/keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    await loadKeysStatus();
+    showToast(t("toast.providerSaved"), "info");
+  } catch (err) {
+    showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
+  }
+}
+
 function hasAnyProviderConfigured(keys) {
   return Boolean(
     keys.cerebras_configured
@@ -213,7 +417,7 @@ function ensureNoKeyBanner(show, message) {
   banner.querySelector("#noApiKeyBannerLink").addEventListener("click", (e) => {
     e.preventDefault();
     activateView("settings");
-    const keys = document.getElementById("keysForm");
+    const keys = document.getElementById("providerCards");
     if (keys && keys.scrollIntoView) keys.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 }
@@ -234,89 +438,30 @@ async function loadHealth() {
   }
 
   const keys = health.keys || {};
-  const configured = hasAnyProviderConfigured(keys);
-  setKeysSectionMode(configured);
   const status = normalizeKeyStatus(keys, health.provider || {});
   setPrimaryProviderValue(status.primary_provider);
   updateProvidersMetadata(health.provider || {}, keys.preferred_model || "");
+  renderProviderCards(keys, health.provider || {});
   setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
-function setKeysSectionMode(configured, forceExpanded = false) {
-  const form = document.getElementById("keysForm");
-  const collapsedRow = document.getElementById("keysCollapsedRow");
-  const status = document.getElementById("keysStatus");
-
-  if (configured && !forceExpanded) {
-    form.classList.add("hidden");
-    collapsedRow.classList.remove("hidden");
-    status.classList.add("hidden");
-  } else {
-    form.classList.remove("hidden");
-    collapsedRow.classList.add("hidden");
-    status.classList.remove("hidden");
-  }
+function setKeysSectionMode(_configured, _forceExpanded = false) {
+  /* no-op: provider cards manage their own state */
 }
 
 async function loadKeysStatus() {
   const payload = await api("/api/providers/keys/status");
   const keys = payload.keys || {};
   const provider = payload.provider || {};
-  const configured = hasAnyProviderConfigured(keys);
-  setKeysSectionMode(configured);
   const status = normalizeKeyStatus(keys, provider);
   setPrimaryProviderValue(status.primary_provider);
   updateProvidersMetadata(provider, keys.preferred_model || "");
+  renderProviderCards(keys, provider);
   setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
 async function saveKeys() {
-  const cerebras = document.getElementById("cerebrasKey").value.trim();
-  const groq = document.getElementById("groqKey").value.trim();
-  const openai = document.getElementById("openaiKey").value.trim();
-  const anthropic = document.getElementById("anthropicKey").value.trim();
-  const google = document.getElementById("googleKey").value.trim();
-  const openrouter = document.getElementById("openrouterKey").value.trim();
-  const primaryProvider = document.getElementById("primaryProvider").value.trim();
-  const preferredModel = document.getElementById("preferredModel")?.value.trim() || "";
-
-  const payload = {};
-  if (cerebras) payload.cerebras_api_key = cerebras;
-  if (groq) payload.groq_api_key = groq;
-  if (openai) payload.openai_api_key = openai;
-  if (anthropic) payload.anthropic_api_key = anthropic;
-  if (google) payload.google_api_key = google;
-  if (openrouter) payload.openrouter_api_key = openrouter;
-  payload.primary_provider = primaryProvider;
-  payload.preferred_model = preferredModel;
-
-  if (
-    !payload.cerebras_api_key
-    && !payload.groq_api_key
-    && !payload.openai_api_key
-    && !payload.anthropic_api_key
-    && !payload.google_api_key
-    && !payload.openrouter_api_key
-    && !payload.primary_provider
-    && !payload.preferred_model
-  ) {
-    showToast(t("toast.enterKeyOrProvider"), "info");
-    return;
-  }
-
-  await api("/api/providers/keys", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-
-  for (const inputId of PROVIDER_KEY_IDS) {
-    const input = document.getElementById(inputId);
-    if (input) input.value = "";
-  }
-  await loadHealth();
-  await loadKeysStatus();
-  setKeysSectionMode(true);
-  showToast(t("toast.providerSaved"), "info");
+  /* legacy entry point — replaced by per-card onSaveProviderKey */
 }
 
 async function loadProfiles() {
@@ -858,18 +1003,67 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   await loadRecommendations();
 });
 
-document.getElementById("keysForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await saveKeys();
-  } catch (error) {
-    setText("keysStatus", `${t("toast.keySaveError")}: ${error.message}`);
-  }
-});
+{
+  const providerCardsEl = document.getElementById("providerCards");
+  if (providerCardsEl) {
+    providerCardsEl.addEventListener("click", async (event) => {
+      const target = event.target.closest("button");
+      if (!target) return;
+      const card = target.closest(".provider-card");
+      if (!card) return;
+      const name = card.dataset.provider;
 
-document.getElementById("showKeysFormBtn").addEventListener("click", () => {
-  setKeysSectionMode(false, true);
-});
+      if (target.classList.contains("provider-toggle-visibility")) {
+        const input = card.querySelector(".provider-key-input");
+        if (input) input.type = input.type === "password" ? "text" : "password";
+        return;
+      }
+      if (target.classList.contains("provider-save-btn")) {
+        const input = card.querySelector(".provider-key-input");
+        const value = input ? input.value.trim() : "";
+        if (!value) {
+          showToast(t("toast.enterKeyOrProvider"), "info");
+          return;
+        }
+        await onSaveProviderKey(name, value);
+        return;
+      }
+      if (target.classList.contains("provider-refresh-btn")) {
+        await fetchAndRenderProviderModels(name, true);
+        return;
+      }
+    });
+
+    providerCardsEl.addEventListener("change", async (event) => {
+      const card = event.target.closest(".provider-card");
+      if (!card) return;
+      const name = card.dataset.provider;
+      if (event.target.matches('input[name="primaryProviderRadio"]')) {
+        if (event.target.checked) {
+          const select = card.querySelector(".provider-model-select");
+          const modelOverride = select ? select.value : "";
+          await onSetPrimaryProvider(name, modelOverride);
+        }
+        return;
+      }
+      if (event.target.classList.contains("provider-model-select")) {
+        const radio = card.querySelector('input[name="primaryProviderRadio"]');
+        if (radio && radio.checked) {
+          await onSetPrimaryProvider(name, event.target.value);
+        }
+      }
+    });
+
+    providerCardsEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      if (!event.target.classList.contains("provider-key-input")) return;
+      event.preventDefault();
+      const card = event.target.closest(".provider-card");
+      const saveBtn = card?.querySelector(".provider-save-btn");
+      if (saveBtn) saveBtn.click();
+    });
+  }
+}
 
 document.getElementById("scanForm").addEventListener("submit", async (event) => {
   event.preventDefault();
