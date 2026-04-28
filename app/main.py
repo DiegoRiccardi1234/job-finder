@@ -277,6 +277,14 @@ def create_app(workspace_dir: Path) -> FastAPI:
         container.db.set_active_profile(profile_id)
         return {"ok": True, "active_profile_id": profile_id}
 
+    @fastapi_app.delete("/api/profiles/{profile_id}")
+    def delete_profile(profile_id: int) -> dict[str, Any]:
+        deleted = container.db.delete_candidate_profile(profile_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        active_raw = container.db.get_preference("active_profile_id", "")
+        return {"ok": True, "deleted_id": profile_id, "active_profile_id": active_raw}
+
     @fastapi_app.get("/api/scan/stream")
     def scan_stream(
         search_terms: str = Query(default=""),

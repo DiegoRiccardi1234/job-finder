@@ -373,6 +373,22 @@ class Database:
         )
         self.conn.commit()
 
+    def delete_candidate_profile(self, profile_id: int) -> bool:
+        cur = self.conn.execute(
+            "DELETE FROM candidate_profiles WHERE id = ?", (profile_id,)
+        )
+        self.conn.commit()
+        deleted = cur.rowcount > 0
+        if deleted:
+            active_raw = self.get_preference("active_profile_id", "")
+            if active_raw.isdigit() and int(active_raw) == profile_id:
+                latest = self.get_latest_candidate_profile()
+                if latest:
+                    self.set_preference("active_profile_id", str(int(latest["id"])))
+                else:
+                    self.set_preference("active_profile_id", "")
+        return deleted
+
     def get_active_candidate_profile(self) -> dict[str, Any] | None:
         active_raw = self.get_preference("active_profile_id", "")
         if active_raw.isdigit():

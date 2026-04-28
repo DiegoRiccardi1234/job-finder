@@ -33,7 +33,11 @@
     "years": "años",
     "strengths": "Puntos fuertes",
     "industries": "Sectores",
-    "education": "Educación"
+    "education": "Educación",
+    "delete": "Eliminar",
+    "confirmDelete": "¿Eliminar este CV del historial? No se puede deshacer.",
+    "deleted": "Perfil eliminado",
+    "deleteFailed": "Error al eliminar"
   },
   "jobSearch": {
     "title": "Buscar",

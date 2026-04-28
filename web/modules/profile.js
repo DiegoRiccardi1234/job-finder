@@ -186,11 +186,16 @@ async function _renderHistory() {
               <strong>${escapeHtml(p.source_name || "CV")}</strong>
               <span class="micro">${escapeHtml(p.created_at || "")}</span>
             </div>
-            ${
-              isActive
-                ? `<span class="badge">${t("profile.active") || "Active"}</span>`
-                : `<button type="button" class="ghost-btn profile-activate-btn" data-id="${p.id}" data-i18n="profile.setActive">Set active</button>`
-            }
+            <div class="profile-history-actions">
+              ${
+                isActive
+                  ? `<span class="badge">${t("profile.active") || "Active"}</span>`
+                  : `<button type="button" class="ghost-btn profile-activate-btn" data-id="${p.id}">${t("profile.setActive") || "Set active"}</button>`
+              }
+              <button type="button" class="ghost-btn profile-delete-btn" data-id="${p.id}" title="${t("profile.delete") || "Delete"}">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
           </div>
         `;
       })
@@ -251,6 +256,20 @@ async function _activateProfile(id) {
     showToast(t("profile.activated") || "Profile activated", "info");
   } catch (err) {
     showToast(`${t("toast.keySaveError") || "Error"}: ${err.message}`, "error");
+  }
+}
+
+async function _deleteProfile(id) {
+  if (!window.confirm(t("profile.confirmDelete") || "Delete this CV from the history?")) return;
+  try {
+    await api(`/api/profiles/${id}`, { method: "DELETE" });
+    if (_state.profile && Number(_state.profile.id) === Number(id)) {
+      _state.profile = null;
+    }
+    await loadProfile();
+    showToast(t("profile.deleted") || "Profile deleted", "info");
+  } catch (err) {
+    showToast(`${t("profile.deleteFailed") || "Delete failed"}: ${err.message}`, "error");
   }
 }
 
@@ -326,6 +345,11 @@ export function bindProfileEvents() {
     if (target.classList.contains("profile-activate-btn")) {
       const id = target.dataset.id;
       if (id) await _activateProfile(parseInt(id, 10));
+      return;
+    }
+    if (target.classList.contains("profile-delete-btn")) {
+      const id = target.dataset.id;
+      if (id) await _deleteProfile(parseInt(id, 10));
     }
   });
 

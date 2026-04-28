@@ -33,7 +33,11 @@
     "years": "anni",
     "strengths": "Punti di forza",
     "industries": "Settori",
-    "education": "Istruzione"
+    "education": "Istruzione",
+    "delete": "Elimina",
+    "confirmDelete": "Eliminare questo CV dalla cronologia? Operazione non annullabile.",
+    "deleted": "Profilo eliminato",
+    "deleteFailed": "Eliminazione fallita"
   },
   "jobSearch": {
     "title": "Cerca",

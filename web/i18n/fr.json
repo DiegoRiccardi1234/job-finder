@@ -33,7 +33,11 @@
     "years": "ans",
     "strengths": "Points forts",
     "industries": "Secteurs",
-    "education": "Formation"
+    "education": "Formation",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer ce CV de l'historique ? Action irréversible.",
+    "deleted": "Profil supprimé",
+    "deleteFailed": "Échec de la suppression"
   },
   "jobSearch": {
     "title": "Recherche",

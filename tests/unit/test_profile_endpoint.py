@@ -127,3 +127,33 @@ def test_activate_profile_changes_active(client: TestClient, tmp_path: Path) -> 
 def test_activate_unknown_profile_returns_404(client: TestClient) -> None:
     res = client.post("/api/profiles/9999/activate")
     assert res.status_code == 404
+
+
+def test_delete_profile_removes_row(client: TestClient, tmp_path: Path) -> None:
+    pid = _seed_profile(tmp_path, {"preferred_roles": ["X"]})
+    res = client.delete(f"/api/profiles/{pid}")
+    assert res.status_code == 200
+    assert res.json()["deleted_id"] == pid
+    listed = client.get("/api/profiles").json()["profiles"]
+    assert all(p["id"] != pid for p in listed)
+
+
+def test_delete_unknown_profile_returns_404(client: TestClient) -> None:
+    res = client.delete("/api/profiles/9999")
+    assert res.status_code == 404
+
+
+def test_delete_active_profile_promotes_latest_remaining(
+    client: TestClient, tmp_path: Path
+) -> None:
+    pid1 = _seed_profile(tmp_path, {"preferred_roles": ["A"]})
+    from app.db import Database
+
+    db = Database(tmp_path / "data" / "searcher.db")
+    pid2 = db.save_candidate_profile(source_name="cv2.pdf", markdown="# v2", summary={})
+    db.set_active_profile(pid2)
+    db.close()
+
+    res = client.delete(f"/api/profiles/{pid2}")
+    assert res.status_code == 200
+    assert res.json()["active_profile_id"] == str(pid1)

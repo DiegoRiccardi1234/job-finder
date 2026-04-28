@@ -33,7 +33,11 @@
     "years": "Jahre",
     "strengths": "Stärken",
     "industries": "Branchen",
-    "education": "Ausbildung"
+    "education": "Ausbildung",
+    "delete": "Löschen",
+    "confirmDelete": "Diesen Lebenslauf aus dem Verlauf löschen? Aktion nicht rückgängig.",
+    "deleted": "Profil gelöscht",
+    "deleteFailed": "Löschen fehlgeschlagen"
   },
   "jobSearch": {
     "title": "Job",

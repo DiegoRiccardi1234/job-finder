@@ -1349,24 +1349,7 @@ function _refreshChipState() {
 }
 
 function updateWizardReview() {
-  const review = document.getElementById("wizardReview");
-  if (!review) return;
-  const kw = (typeof getKeywords !== "undefined" ? getKeywords.getTags() : []) || [];
-  const loc = (typeof getLocations !== "undefined" ? getLocations.getTags() : []) || [];
-  const sites = Array.from(document.querySelectorAll('input[name="scanSites"]:checked')).map((cb) => cb.value);
-  const remote = document.getElementById("remoteToggle")?.checked || false;
   _refreshChipState();
-  if (!kw.length && !loc.length) {
-    review.classList.add("hidden");
-    review.innerHTML = "";
-    return;
-  }
-  review.classList.remove("hidden");
-  review.innerHTML = `
-    <div><strong>${t("settings.keywords")}</strong> ${kw.length ? kw.join(", ") : "—"}</div>
-    <div><strong>${t("settings.locations")}</strong> ${loc.length ? loc.join(", ") : "—"}</div>
-    <div><strong>${t("jobSearch.sources") || "Sources"}</strong> ${sites.join(", ") || "—"}${remote ? ` · ${t("settings.remoteOnly") || "remote only"}` : ""}</div>
-  `;
 }
 
 async function loadWizardProfile() {

@@ -33,7 +33,11 @@
     "years": "years",
     "strengths": "Strengths",
     "industries": "Industries",
-    "education": "Education"
+    "education": "Education",
+    "delete": "Delete",
+    "confirmDelete": "Delete this CV from the history? This cannot be undone.",
+    "deleted": "Profile deleted",
+    "deleteFailed": "Delete failed"
   },
   "jobSearch": {
     "title": "Job",
