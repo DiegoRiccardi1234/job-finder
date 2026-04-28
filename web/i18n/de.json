@@ -29,7 +29,8 @@
     "activated": "Profil aktiviert",
     "saved": "Profil gespeichert",
     "saveFailed": "Speichern fehlgeschlagen",
-    "loadFailed": "Profil-Laden fehlgeschlagen"
+    "loadFailed": "Profil-Laden fehlgeschlagen",
+    "years": "Jahre"
   },
   "jobSearch": {
     "title": "Job",

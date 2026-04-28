@@ -1,8 +1,8 @@
-import { api, escapeHtml, setText, truncate, showToast } from "./modules/helpers.js";
+import { api, escapeHtml, setText, truncate, showToast, renderCoachMarkdown } from "./modules/helpers.js";
 import { initTheme } from "./modules/theme.js";
 import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistApi } from "./modules/shortlist.js";
 import { initI18n, t, loadLanguage, getCurrentLang, onLanguageChange } from "./modules/i18n.js";
-import { loadProfile as loadProfileView, bindProfileEvents } from "./modules/profile.js";
+import { loadProfile as loadProfileView, bindProfileEvents, addRolesToProfile } from "./modules/profile.js";
 
 initTheme();
 
@@ -414,35 +414,6 @@ async function addRolesToShortlist(keywords, label) {
   showToast(`${msg}${label ? ": " + label : ""}`, "info");
 }
 
-function renderCoachMarkdown(raw) {
-  // Input is already HTML-escaped. Apply minimal markdown: **bold**, *italic*,
-  // `code`, and `-` bullet lists. Preserves safety (no unescaped passthrough).
-  const escaped = escapeHtml(raw || "");
-  const lines = escaped.split(/\r?\n/);
-  const html = [];
-  let inList = false;
-  for (const line of lines) {
-    const bulletMatch = line.match(/^\s*-\s+(.*)$/);
-    if (bulletMatch) {
-      if (!inList) { html.push("<ul>"); inList = true; }
-      html.push(`<li>${bulletMatch[1]}</li>`);
-    } else {
-      if (inList) { html.push("</ul>"); inList = false; }
-      html.push(line);
-    }
-  }
-  if (inList) html.push("</ul>");
-  let joined = html.join("\n");
-  joined = joined.replace(/\*\*([^*\n]+)\*\*/g, '<strong class="role-name">$1</strong>');
-  joined = joined.replace(/(^|[\s(>])\*([^*\n]+)\*(?=[\s<.,;:!?)]|$)/g, '$1<em class="coach-hint">$2</em>');
-  joined = joined.replace(/(^|[\s(>])_([^_\n]+)_(?=[\s<.,;:!?)]|$)/g, '$1<em class="coach-hint">$2</em>');
-  joined = joined.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-  // Replace newlines outside lists with <br>. Existing <ul>/<li> already block.
-  joined = joined.replace(/\n(?!<)/g, "<br>");
-  joined = joined.replace(/\n/g, "");
-  return joined;
-}
-
 function appendChat(role, content, extras) {
   const box = document.getElementById("chatBox");
   if (!box) return;
@@ -476,7 +447,10 @@ function appendChat(role, content, extras) {
       pill.className = "role-pill";
       pill.textContent = r.label;
       const kws = Array.isArray(r.keywords) && r.keywords.length ? r.keywords : [r.label];
-      pill.addEventListener("click", () => { addRolesToShortlist(kws, r.label); });
+      pill.addEventListener("click", async () => {
+        const ok = await addRolesToProfile([r.label]);
+        if (ok) showToast(t("coach.savedToShortlist") || "Role added to your profile", "info");
+      });
       pillRow.appendChild(pill);
     }
     if (pillRow.childElementCount) item.appendChild(pillRow);
@@ -1102,6 +1076,7 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   const payload = await response.json();
   setText("cvSummary", JSON.stringify(payload, null, 2));
   await loadProfiles();
+  await loadProfileView();
   await loadRecommendations();
 });
 

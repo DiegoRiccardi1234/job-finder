@@ -296,8 +296,29 @@
         <p class="micro" data-i18n="profile.subtitle">What the AI understood from your CV. Edit any field, switch between uploaded CVs.</p>
       </header>
 
+      <div class="profile-actions">
+        <article class="profile-action-card">
+          <h3><span class="material-symbols-outlined">description</span> <span data-i18n="settings.cvUpload">CV Upload</span></h3>
+          <form id="cvForm" class="column">
+            <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
+            <button type="submit" class="secondary" data-i18n="settings.uploadCv">Upload CV</button>
+          </form>
+          <pre id="cvSummary" class="output hidden"></pre>
+        </article>
+
+        <article class="profile-action-card">
+          <h3><span class="material-symbols-outlined">link</span> <span data-i18n="settings.linkedinProfile">LinkedIn Profile</span></h3>
+          <p class="micro" data-i18n="settings.linkedinSub">Enhances AI context for better matching</p>
+          <form id="linkedinForm" class="column">
+            <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." required />
+            <button type="submit" class="secondary" data-i18n="settings.saveUrl">Save URL</button>
+          </form>
+          <pre id="linkedinStatus" class="output hidden"></pre>
+        </article>
+      </div>
+
       <div id="profileEmpty" class="profile-empty hidden">
-        <p data-i18n="profile.empty">No CV uploaded yet. Go to Settings → CV Upload.</p>
+        <p data-i18n="profile.empty">Upload your CV in the box above to populate your profile.</p>
       </div>
 
       <div id="profileContent" class="profile-grid hidden">
@@ -310,7 +331,6 @@
           <div class="profile-edit-row hidden" data-field="preferred_roles">
             <input type="text" class="profile-add-input" data-i18n-placeholder="profile.addRole" placeholder="Add role" />
             <button type="button" class="secondary profile-add-btn" data-field="preferred_roles" data-i18n="profile.add">Add</button>
-            <button type="button" class="profile-save-btn" data-field="preferred_roles" data-i18n="profile.saveChanges">Save</button>
           </div>
         </article>
 
@@ -323,7 +343,6 @@
           <div class="profile-edit-row hidden" data-field="skills">
             <input type="text" class="profile-add-input" data-i18n-placeholder="profile.addSkill" placeholder="Add skill" />
             <button type="button" class="secondary profile-add-btn" data-field="skills" data-i18n="profile.add">Add</button>
-            <button type="button" class="profile-save-btn" data-field="skills" data-i18n="profile.saveChanges">Save</button>
           </div>
         </article>
 
@@ -336,7 +355,6 @@
           <div class="profile-edit-row hidden" data-field="languages">
             <input type="text" class="profile-add-input" data-i18n-placeholder="profile.addLanguage" placeholder="Add language" />
             <button type="button" class="secondary profile-add-btn" data-field="languages" data-i18n="profile.add">Add</button>
-            <button type="button" class="profile-save-btn" data-field="languages" data-i18n="profile.saveChanges">Save</button>
           </div>
         </article>
 
@@ -372,25 +390,6 @@
       </header>
 
       <div class="settings-grid">
-        <article class="card-block">
-          <h3><span class="material-symbols-outlined">description</span> <span data-i18n="settings.cvUpload">CV Upload</span></h3>
-          <form id="cvForm" class="column">
-            <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
-            <button type="submit" class="secondary" data-i18n="settings.uploadCv">Upload CV</button>
-          </form>
-          <pre id="cvSummary" class="output hidden"></pre>
-        </article>
-
-        <article class="card-block">
-          <h3><span class="material-symbols-outlined">link</span> <span data-i18n="settings.linkedinProfile">LinkedIn Profile</span></h3>
-          <p class="micro" data-i18n="settings.linkedinSub">Enhances AI context for better matching</p>
-          <form id="linkedinForm" class="column">
-            <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." required />
-            <button type="submit" class="secondary" data-i18n="settings.saveUrl">Save URL</button>
-          </form>
-          <pre id="linkedinStatus" class="output hidden"></pre>
-        </article>
-
         <article class="card-block card-block--wide">
           <h3><span class="material-symbols-outlined">key</span> <span data-i18n="settings.providers.title">AI Providers</span></h3>
           <p class="micro" data-i18n="settings.providers.subtitle">Add an API key for each provider you want to use, then pick one as primary.</p>

@@ -31,6 +31,34 @@ export function truncate(value, max = 120) {
   return s.length > max ? `${s.slice(0, max)}...` : s;
 }
 
+export function renderCoachMarkdown(raw) {
+  // Input is HTML-escaped first. Apply minimal markdown: **bold**, *italic*,
+  // `code`, and `-` bullet lists. Safe for untrusted content.
+  const escaped = escapeHtml(raw || "");
+  const lines = escaped.split(/\r?\n/);
+  const html = [];
+  let inList = false;
+  for (const line of lines) {
+    const bulletMatch = line.match(/^\s*-\s+(.*)$/);
+    if (bulletMatch) {
+      if (!inList) { html.push("<ul>"); inList = true; }
+      html.push(`<li>${bulletMatch[1]}</li>`);
+    } else {
+      if (inList) { html.push("</ul>"); inList = false; }
+      html.push(line);
+    }
+  }
+  if (inList) html.push("</ul>");
+  let joined = html.join("\n");
+  joined = joined.replace(/\*\*([^*\n]+)\*\*/g, '<strong class="role-name">$1</strong>');
+  joined = joined.replace(/(^|[\s(>])\*([^*\n]+)\*(?=[\s<.,;:!?)]|$)/g, '$1<em class="coach-hint">$2</em>');
+  joined = joined.replace(/(^|[\s(>])_([^_\n]+)_(?=[\s<.,;:!?)]|$)/g, '$1<em class="coach-hint">$2</em>');
+  joined = joined.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  joined = joined.replace(/\n(?!<)/g, "<br>");
+  joined = joined.replace(/\n/g, "");
+  return joined;
+}
+
 export function showToast(message, type = "info") {
   const container = document.getElementById("toastContainer");
   if (!container) return;

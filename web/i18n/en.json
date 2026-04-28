@@ -29,7 +29,8 @@
     "activated": "Profile activated",
     "saved": "Profile saved",
     "saveFailed": "Save failed",
-    "loadFailed": "Profile load failed"
+    "loadFailed": "Profile load failed",
+    "years": "years"
   },
   "jobSearch": {
     "title": "Job",

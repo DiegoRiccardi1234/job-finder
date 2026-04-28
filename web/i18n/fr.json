@@ -29,7 +29,8 @@
     "activated": "Profil activé",
     "saved": "Profil enregistré",
     "saveFailed": "Échec de l'enregistrement",
-    "loadFailed": "Échec du chargement du profil"
+    "loadFailed": "Échec du chargement du profil",
+    "years": "ans"
   },
   "jobSearch": {
     "title": "Recherche",

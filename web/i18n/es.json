@@ -29,7 +29,8 @@
     "activated": "Perfil activado",
     "saved": "Perfil guardado",
     "saveFailed": "Error al guardar",
-    "loadFailed": "Error al cargar el perfil"
+    "loadFailed": "Error al cargar el perfil",
+    "years": "años"
   },
   "jobSearch": {
     "title": "Buscar",

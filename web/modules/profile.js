@@ -1,12 +1,18 @@
-import { api, escapeHtml, showToast } from "./helpers.js";
+import { api, escapeHtml, showToast, renderCoachMarkdown } from "./helpers.js";
 import { t } from "./i18n.js";
 
 const FIELDS = ["preferred_roles", "skills", "languages"];
 
 const _state = {
   profile: null,
-  pending: { preferred_roles: null, skills: null, languages: null },
 };
+
+function _chipContainerId(field) {
+  return field === "preferred_roles" ? "profileRoles"
+    : field === "skills" ? "profileSkills"
+    : field === "languages" ? "profileLanguages"
+    : "";
+}
 
 function _renderChips(containerId, items, field) {
   const el = document.getElementById(containerId);
@@ -28,46 +34,42 @@ function _renderChips(containerId, items, field) {
 }
 
 function _activeList(field) {
-  if (_state.pending[field] !== null) return _state.pending[field];
   const summary = _state.profile?.summary_json || {};
   return Array.isArray(summary[field]) ? [...summary[field]] : [];
-}
-
-function _commitPending(field, list) {
-  _state.pending[field] = list;
-  _renderChips(_chipContainerId(field), list, field);
-}
-
-function _chipContainerId(field) {
-  return field === "preferred_roles" ? "profileRoles"
-    : field === "skills" ? "profileSkills"
-    : field === "languages" ? "profileLanguages"
-    : "";
 }
 
 function _renderExperience(summary) {
   const el = document.getElementById("profileExperience");
   if (!el) return;
-  const exp = summary?.experience;
-  if (!exp) {
-    el.innerHTML = `<p class="micro">${t("profile.emptyField") || "—"}</p>`;
+  const narrative = summary?.experience;
+  const level = summary?.experience_level;
+  const years = summary?.years_experience;
+  if (narrative) {
+    if (Array.isArray(narrative)) {
+      el.innerHTML = narrative.map((item) => `<p>${escapeHtml(String(item))}</p>`).join("");
+    } else {
+      el.innerHTML = `<p>${escapeHtml(String(narrative))}</p>`;
+    }
     return;
   }
-  if (Array.isArray(exp)) {
-    el.innerHTML = exp.map((item) => `<p>${escapeHtml(String(item))}</p>`).join("");
-  } else {
-    el.innerHTML = `<p>${escapeHtml(String(exp))}</p>`;
+  if (level || years) {
+    const parts = [];
+    if (level) parts.push(escapeHtml(String(level)));
+    if (years) parts.push(`${escapeHtml(String(years))} ${t("profile.years") || "years"}`);
+    el.innerHTML = `<p>${parts.join(" · ")}</p>`;
+    return;
   }
+  el.innerHTML = `<p class="micro">${t("profile.emptyField") || "—"}</p>`;
 }
 
 function _renderMarkdown(markdown) {
   const el = document.getElementById("profileMarkdown");
   if (!el) return;
   if (!markdown) {
-    el.textContent = "";
+    el.innerHTML = "";
     return;
   }
-  el.textContent = markdown;
+  el.innerHTML = renderCoachMarkdown(markdown);
 }
 
 function _renderMeta(profile) {
@@ -114,7 +116,6 @@ async function _renderHistory() {
 }
 
 export async function loadProfile() {
-  for (const f of FIELDS) _state.pending[f] = null;
   try {
     const payload = await api("/api/profile");
     _state.profile = payload.profile;
@@ -140,6 +141,24 @@ export async function loadProfile() {
   }
 }
 
+async function _persistField(field, list) {
+  try {
+    const body = {};
+    body[field] = list;
+    const res = await api("/api/profile", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    _state.profile = res.profile;
+    const summary = _state.profile?.summary_json || {};
+    _renderChips(_chipContainerId(field), summary[field] || [], field);
+    return true;
+  } catch (err) {
+    showToast(`${t("profile.saveFailed") || "Save failed"}: ${err.message}`, "error");
+    return false;
+  }
+}
+
 async function _activateProfile(id) {
   try {
     await api(`/api/profiles/${id}/activate`, { method: "POST" });
@@ -150,28 +169,48 @@ async function _activateProfile(id) {
   }
 }
 
-async function _saveField(field) {
-  const list = _activeList(field);
-  try {
-    const body = {};
-    body[field] = list;
-    const res = await api("/api/profile", {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    });
-    _state.profile = res.profile;
-    _state.pending[field] = null;
-    showToast(t("profile.saved") || "Profile saved", "info");
-    await loadProfile();
-  } catch (err) {
-    showToast(`${t("profile.saveFailed") || "Save failed"}: ${err.message}`, "error");
-  }
-}
-
 function _toggleEdit(field) {
   const row = document.querySelector(`.profile-edit-row[data-field="${field}"]`);
   if (!row) return;
   row.classList.toggle("hidden");
+}
+
+/**
+ * Public helper: append `roles` to the active profile's preferred_roles list,
+ * de-duplicating case-insensitively. Used by the chat coach to push AI-suggested
+ * roles directly into the user's profile (the Job Search wizard reads them).
+ */
+export async function addRolesToProfile(roles) {
+  const incoming = (Array.isArray(roles) ? roles : [roles])
+    .map((r) => String(r || "").trim())
+    .filter(Boolean);
+  if (!incoming.length) return false;
+
+  if (!_state.profile) {
+    try {
+      const payload = await api("/api/profile");
+      _state.profile = payload.profile;
+    } catch (err) {
+      showToast(`${t("profile.loadFailed") || "Profile load failed"}: ${err.message}`, "error");
+      return false;
+    }
+    if (!_state.profile) {
+      showToast(t("profile.empty") || "Upload a CV first", "info");
+      return false;
+    }
+  }
+
+  const current = _activeList("preferred_roles");
+  const lower = new Set(current.map((r) => r.toLowerCase()));
+  const merged = [...current];
+  for (const role of incoming) {
+    if (!lower.has(role.toLowerCase())) {
+      merged.push(role);
+      lower.add(role.toLowerCase());
+    }
+  }
+  if (merged.length === current.length) return false;
+  return _persistField("preferred_roles", merged);
 }
 
 export function bindProfileEvents() {
@@ -190,8 +229,9 @@ export function bindProfileEvents() {
       const field = target.dataset.field;
       const idx = parseInt(target.dataset.idx || "-1", 10);
       const list = _activeList(field);
+      if (idx < 0 || idx >= list.length) return;
       list.splice(idx, 1);
-      _commitPending(field, list);
+      await _persistField(field, list);
       return;
     }
     if (target.classList.contains("profile-add-btn")) {
@@ -201,14 +241,11 @@ export function bindProfileEvents() {
       const value = (input?.value || "").trim();
       if (!value) return;
       const list = _activeList(field);
-      if (!list.includes(value)) list.push(value);
-      _commitPending(field, list);
+      if (!list.some((existing) => existing.toLowerCase() === value.toLowerCase())) {
+        list.push(value);
+        await _persistField(field, list);
+      }
       if (input) input.value = "";
-      return;
-    }
-    if (target.classList.contains("profile-save-btn")) {
-      const field = target.dataset.field;
-      await _saveField(field);
       return;
     }
     if (target.classList.contains("profile-activate-btn")) {

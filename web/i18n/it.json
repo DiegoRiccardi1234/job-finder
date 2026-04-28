@@ -29,7 +29,8 @@
     "activated": "Profilo attivato",
     "saved": "Profilo salvato",
     "saveFailed": "Salvataggio fallito",
-    "loadFailed": "Caricamento profilo fallito"
+    "loadFailed": "Caricamento profilo fallito",
+    "years": "anni"
   },
   "jobSearch": {
     "title": "Cerca",
