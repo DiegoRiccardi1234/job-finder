@@ -1385,6 +1385,110 @@ pre {
   }
 }
 
+/* === Job Search (flat layout) === */
+.search-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.search-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.search-section + .search-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+.search-section-head h3 {
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.05rem;
+}
+.search-section-head .micro {
+  margin: 0;
+}
+.search-profile-summary {
+  background: var(--surface-soft, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+}
+.search-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.search-summary-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+}
+.search-summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.search-tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+.search-role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.search-role-chips .chip-suggestion.is-added {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  cursor: default;
+}
+.search-role-chips .chip-suggestion.is-added::before {
+  content: "✓ ";
+  font-weight: 700;
+}
+.search-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+.search-form .scan-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: 4px;
+}
+.search-review {
+  background: var(--surface-soft, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.search-review strong {
+  margin-right: 6px;
+  color: var(--text);
+}
+.search-launch {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  font-size: 1rem;
+}
+
 /* === Profile view === */
 .profile-hero {
   margin-bottom: var(--space-3);
@@ -1430,6 +1534,46 @@ pre {
 .profile-experience p {
   margin: 0 0 6px 0;
   color: var(--text-soft);
+}
+.profile-experience .exp-headline {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.profile-experience .exp-level {
+  text-transform: capitalize;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.profile-experience .exp-years {
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.profile-experience .exp-summary {
+  margin: 4px 0 8px 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+.profile-experience .exp-meta {
+  margin: 4px 0;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+.profile-experience .exp-meta strong {
+  color: var(--text);
+  font-weight: 600;
+  margin-right: 4px;
 }
 .markdown-render {
   font-family: Georgia, "Times New Roman", serif;

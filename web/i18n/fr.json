@@ -30,7 +30,10 @@
     "saved": "Profil enregistré",
     "saveFailed": "Échec de l'enregistrement",
     "loadFailed": "Échec du chargement du profil",
-    "years": "ans"
+    "years": "ans",
+    "strengths": "Points forts",
+    "industries": "Secteurs",
+    "education": "Formation"
   },
   "jobSearch": {
     "title": "Recherche",
@@ -46,6 +49,12 @@
     "step3Title": "Étape 3 — Vérifie et lance",
     "step3Hint": "À la fin du scan, va sur Tableau de bord → Offres ouvertes pour voir les résultats.",
     "analyzeBtn": "Analyser le profil",
+    "profileBased": "D'après ton profil",
+    "profileHint": "Clique sur un rôle suggéré pour l'ajouter comme mot-clé.",
+    "searchParams": "Paramètres de recherche",
+    "searchHint": "Tape et appuie sur Entrée pour ajouter des tags. Choisis sites + remote au besoin.",
+    "sources": "Sources",
+    "noRoles": "Ajoute des rôles à ton Profil pour voir des suggestions ici.",
     "noProfile": "Charge un CV depuis l'onglet Paramètres pour voir les suggestions.",
     "detectedSkills": "Compétences détectées",
     "preferredRoles": "Rôles préférés",

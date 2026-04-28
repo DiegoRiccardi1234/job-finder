@@ -30,7 +30,10 @@
     "saved": "Perfil guardado",
     "saveFailed": "Error al guardar",
     "loadFailed": "Error al cargar el perfil",
-    "years": "años"
+    "years": "años",
+    "strengths": "Puntos fuertes",
+    "industries": "Sectores",
+    "education": "Educación"
   },
   "jobSearch": {
     "title": "Buscar",
@@ -46,6 +49,12 @@
     "step3Title": "Paso 3 — Revisa y lanza",
     "step3Hint": "Al terminar el escaneo, ve a Panel → Empleos abiertos para ver los resultados.",
     "analyzeBtn": "Analizar perfil",
+    "profileBased": "Según tu perfil",
+    "profileHint": "Haz clic en un rol sugerido para añadirlo como palabra clave.",
+    "searchParams": "Parámetros de búsqueda",
+    "searchHint": "Escribe y pulsa Enter para añadir tags. Elige sitios y solo-remoto a tu gusto.",
+    "sources": "Fuentes",
+    "noRoles": "Añade roles a tu Perfil para ver sugerencias aquí.",
     "noProfile": "Sube un CV desde Ajustes para ver las sugerencias.",
     "detectedSkills": "Habilidades detectadas",
     "preferredRoles": "Roles preferidos",

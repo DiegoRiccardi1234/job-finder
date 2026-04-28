@@ -139,11 +139,64 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
     if years:
         graduation_year = years[-1]
 
+    years_experience = _estimate_years_experience(markdown_text)
+    experience_level = _estimate_experience_level(years_experience)
+
     return {
         "skills": found_skills,
         "preferred_roles": preferred_roles,
         "graduation_year": graduation_year,
+        "years_experience": years_experience,
+        "experience_level": experience_level,
     }
+
+
+# Match date ranges with hyphen, en dash, or em dash separators.
+_DATE_RANGE_RE = re.compile(
+    r"(?:(?P<start_m>\d{1,2})[/.\-])?(?P<start_y>(?:19|20)\d{2})\s*[-–—]\s*"  # noqa: RUF001
+    r"(?:(?:(?P<end_m>\d{1,2})[/.\-])?(?P<end_y>(?:19|20)\d{2})"
+    r"|presente|present|current|in\s+corso|today|attuale|oggi|now)",
+    re.IGNORECASE,
+)
+
+
+def _estimate_years_experience(text: str) -> int:
+    from datetime import datetime as _dt
+
+    now = _dt.now()
+    months_total = 0
+    seen: set[tuple[int, int, int, int]] = set()
+    for match in _DATE_RANGE_RE.finditer(text):
+        start_y = int(match.group("start_y"))
+        start_m = int(match.group("start_m") or 1)
+        end_y_raw = match.group("end_y")
+        end_m_raw = match.group("end_m")
+        if end_y_raw:
+            end_y = int(end_y_raw)
+            end_m = int(end_m_raw or 12)
+        else:
+            end_y = now.year
+            end_m = now.month
+        if start_y < 1970 or end_y < start_y or end_y > now.year + 1:
+            continue
+        key = (start_y, start_m, end_y, end_m)
+        if key in seen:
+            continue
+        seen.add(key)
+        span = (end_y - start_y) * 12 + (end_m - start_m)
+        if span > 0:
+            months_total += span
+    return max(0, round(months_total / 12))
+
+
+def _estimate_experience_level(years: int) -> str:
+    if years >= 8:
+        return "senior"
+    if years >= 4:
+        return "mid"
+    if years >= 1:
+        return "junior"
+    return "entry"
 
 
 def summarize_profile_with_llm(markdown_text: str, provider_manager: "Any") -> dict[str, Any]:

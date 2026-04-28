@@ -1307,12 +1307,14 @@ if (_chatProviderEl) {
   });
 }
 
-// ─── Job Search wizard ──────────────────────────────────────────
-function setWizardStep(step) {
-  document.querySelectorAll(".wizard-step").forEach((el) => {
-    const n = parseInt(el.dataset.step || "0", 10);
-    el.classList.toggle("is-active", n === step);
-    el.classList.toggle("is-done", n < step);
+// ─── Job Search ──────────────────────────────────────────
+function _refreshChipState() {
+  const chipsEl = document.getElementById("wizardRoleSuggestions");
+  if (!chipsEl) return;
+  const tags = (typeof getKeywords !== "undefined" ? getKeywords.getTags() : []).map((t) => t.toLowerCase());
+  chipsEl.querySelectorAll(".chip-suggestion").forEach((chip) => {
+    const role = (chip.textContent || "").toLowerCase();
+    chip.classList.toggle("is-added", tags.includes(role));
   });
 }
 
@@ -1323,17 +1325,18 @@ function updateWizardReview() {
   const loc = (typeof getLocations !== "undefined" ? getLocations.getTags() : []) || [];
   const sites = Array.from(document.querySelectorAll('input[name="scanSites"]:checked')).map((cb) => cb.value);
   const remote = document.getElementById("remoteToggle")?.checked || false;
+  _refreshChipState();
   if (!kw.length && !loc.length) {
-    review.innerHTML = `<em>${t("jobSearch.reviewEmpty")}</em>`;
-    setWizardStep(1);
+    review.classList.add("hidden");
+    review.innerHTML = "";
     return;
   }
+  review.classList.remove("hidden");
   review.innerHTML = `
     <div><strong>${t("settings.keywords")}</strong> ${kw.length ? kw.join(", ") : "—"}</div>
     <div><strong>${t("settings.locations")}</strong> ${loc.length ? loc.join(", ") : "—"}</div>
-    <div><strong>Sources</strong> ${sites.join(", ") || "—"}${remote ? " · remote only" : ""}</div>
+    <div><strong>${t("jobSearch.sources") || "Sources"}</strong> ${sites.join(", ") || "—"}${remote ? ` · ${t("settings.remoteOnly") || "remote only"}` : ""}</div>
   `;
-  setWizardStep(kw.length ? 3 : 2);
 }
 
 async function loadWizardProfile() {
@@ -1351,10 +1354,16 @@ async function loadWizardProfile() {
     const summary = profile.summary_json || {};
     const skills = Array.isArray(summary.skills) ? summary.skills.slice(0, 12) : [];
     const roles = Array.isArray(summary.preferred_roles) ? summary.preferred_roles : [];
+    const skillList = skills.length ? skills.map((s) => `<span class="search-tag">${escapeHtml(s)}</span>`).join("") : `<em>—</em>`;
     summaryEl.innerHTML = `
-      <div><strong>${t("jobSearch.detectedSkills")}:</strong> ${skills.join(", ") || "—"}</div>
-      <div style="margin-top:6px"><strong>${t("jobSearch.preferredRoles")}:</strong> ${roles.join(", ") || "—"}</div>
+      <div class="search-summary-row">
+        <span class="search-summary-label">${t("jobSearch.detectedSkills")}</span>
+        <div class="search-summary-tags">${skillList}</div>
+      </div>
     `;
+    if (!roles.length) {
+      chipsEl.innerHTML = `<em class="micro">${t("jobSearch.noRoles") || "Add roles to your Profile to get suggestions here."}</em>`;
+    }
     for (const role of roles) {
       const chip = document.createElement("button");
       chip.type = "button";
@@ -1368,14 +1377,11 @@ async function loadWizardProfile() {
       });
       chipsEl.appendChild(chip);
     }
-    setWizardStep(roles.length ? 2 : 1);
+    _refreshChipState();
   } catch (err) {
     summaryEl.innerHTML = `<em>${t("jobSearch.noProfile")}</em>`;
   }
 }
-
-const _wizardAnalyzeBtn = document.getElementById("wizardAnalyzeBtn");
-if (_wizardAnalyzeBtn) _wizardAnalyzeBtn.addEventListener("click", loadWizardProfile);
 
 document.querySelectorAll('[data-view="job-search"]').forEach((btn) => {
   btn.addEventListener("click", () => {

@@ -41,25 +41,45 @@ function _activeList(field) {
 function _renderExperience(summary) {
   const el = document.getElementById("profileExperience");
   if (!el) return;
-  const narrative = summary?.experience;
   const level = summary?.experience_level;
   const years = summary?.years_experience;
+  const narrative = summary?.summary || summary?.experience;
+  const strengths = Array.isArray(summary?.strengths) ? summary.strengths : [];
+  const industries = Array.isArray(summary?.industries) ? summary.industries : [];
+  const education = summary?.education || summary?.graduation_year;
+
+  const parts = [];
+  const headline = [];
+  if (level) headline.push(`<span class="exp-level">${escapeHtml(String(level))}</span>`);
+  if (years !== undefined && years !== null && years !== "") {
+    headline.push(`<span class="exp-years">${escapeHtml(String(years))} ${t("profile.years") || "years"}</span>`);
+  }
+  if (headline.length) {
+    parts.push(`<p class="exp-headline">${headline.join(" · ")}</p>`);
+  }
   if (narrative) {
     if (Array.isArray(narrative)) {
-      el.innerHTML = narrative.map((item) => `<p>${escapeHtml(String(item))}</p>`).join("");
+      parts.push(narrative.map((item) => `<p>${escapeHtml(String(item))}</p>`).join(""));
     } else {
-      el.innerHTML = `<p>${escapeHtml(String(narrative))}</p>`;
+      parts.push(`<p class="exp-summary">${escapeHtml(String(narrative))}</p>`);
     }
-    return;
   }
-  if (level || years) {
-    const parts = [];
-    if (level) parts.push(escapeHtml(String(level)));
-    if (years) parts.push(`${escapeHtml(String(years))} ${t("profile.years") || "years"}`);
-    el.innerHTML = `<p>${parts.join(" · ")}</p>`;
-    return;
+  if (strengths.length) {
+    parts.push(
+      `<div class="exp-meta"><strong>${t("profile.strengths") || "Strengths"}:</strong> ${strengths.map(escapeHtml).join(", ")}</div>`,
+    );
   }
-  el.innerHTML = `<p class="micro">${t("profile.emptyField") || "—"}</p>`;
+  if (industries.length) {
+    parts.push(
+      `<div class="exp-meta"><strong>${t("profile.industries") || "Industries"}:</strong> ${industries.map(escapeHtml).join(", ")}</div>`,
+    );
+  }
+  if (education) {
+    parts.push(
+      `<div class="exp-meta"><strong>${t("profile.education") || "Education"}:</strong> ${escapeHtml(String(education))}</div>`,
+    );
+  }
+  el.innerHTML = parts.length ? parts.join("\n") : `<p class="micro">${t("profile.emptyField") || "—"}</p>`;
 }
 
 function _renderMarkdown(markdown) {

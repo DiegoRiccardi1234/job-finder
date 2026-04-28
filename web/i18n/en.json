@@ -30,7 +30,10 @@
     "saved": "Profile saved",
     "saveFailed": "Save failed",
     "loadFailed": "Profile load failed",
-    "years": "years"
+    "years": "years",
+    "strengths": "Strengths",
+    "industries": "Industries",
+    "education": "Education"
   },
   "jobSearch": {
     "title": "Job",
@@ -46,8 +49,14 @@
     "step3Title": "Step 3 — Review & launch",
     "step3Hint": "When the scan finishes, head to Dashboard → Open Jobs to see results.",
     "analyzeBtn": "Analyze profile",
-    "noProfile": "Upload a CV from the Settings tab to see suggestions.",
+    "noProfile": "Upload a CV from the Profile tab to see suggestions.",
     "detectedSkills": "Detected skills",
+    "profileBased": "Based on your profile",
+    "profileHint": "Click a suggested role to add it as a search keyword.",
+    "searchParams": "Search parameters",
+    "searchHint": "Type and press Enter to add tags. Pick sites + remote-only as needed.",
+    "sources": "Sources",
+    "noRoles": "Add roles to your Profile to get suggestions here.",
     "preferredRoles": "Preferred roles",
     "reviewEmpty": "Your scan parameters will appear here as you fill Step 2."
   },

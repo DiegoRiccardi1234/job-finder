@@ -30,7 +30,10 @@
     "saved": "Profilo salvato",
     "saveFailed": "Salvataggio fallito",
     "loadFailed": "Caricamento profilo fallito",
-    "years": "anni"
+    "years": "anni",
+    "strengths": "Punti di forza",
+    "industries": "Settori",
+    "education": "Istruzione"
   },
   "jobSearch": {
     "title": "Cerca",
@@ -46,6 +49,12 @@
     "step3Title": "Step 3 — Rivedi e avvia",
     "step3Hint": "A fine scansione, vai su Dashboard → Offerte aperte per vedere i risultati.",
     "analyzeBtn": "Analizza profilo",
+    "profileBased": "In base al tuo profilo",
+    "profileHint": "Clicca un ruolo suggerito per aggiungerlo come parola chiave.",
+    "searchParams": "Parametri di ricerca",
+    "searchHint": "Digita e premi Invio per aggiungere tag. Scegli i siti e remote-only come preferisci.",
+    "sources": "Fonti",
+    "noRoles": "Aggiungi ruoli nel Profilo per vedere suggerimenti qui.",
     "noProfile": "Carica un CV dal tab Impostazioni per vedere i suggerimenti.",
     "detectedSkills": "Competenze rilevate",
     "preferredRoles": "Ruoli preferiti",

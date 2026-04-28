@@ -233,59 +233,48 @@
         <p data-i18n="jobSearch.subtitle">Guided scan — analyze your CV, pick target roles, launch the search.</p>
       </header>
 
-      <ol class="wizard-steps">
-        <li class="wizard-step is-active" data-step="1"><span class="wizard-num">1</span> <span data-i18n="jobSearch.step1">Analyze CV</span></li>
-        <li class="wizard-step" data-step="2"><span class="wizard-num">2</span> <span data-i18n="jobSearch.step2">Target roles &amp; filters</span></li>
-        <li class="wizard-step" data-step="3"><span class="wizard-num">3</span> <span data-i18n="jobSearch.step3">Launch scan</span></li>
-      </ol>
+      <article class="card-block search-card">
+        <section class="search-section">
+          <header class="search-section-head">
+            <h3><span class="material-symbols-outlined">person_search</span> <span data-i18n="jobSearch.profileBased">Based on your profile</span></h3>
+            <p class="micro" data-i18n="jobSearch.profileHint">Click a suggested role to add it as a search keyword.</p>
+          </header>
+          <div id="wizardProfileSummary" class="search-profile-summary">
+            <em data-i18n="jobSearch.noProfile">Upload a CV from the Profile tab to see suggestions.</em>
+          </div>
+          <div id="wizardRoleSuggestions" class="chip-row search-role-chips"></div>
+        </section>
 
-      <article class="card-block wizard-card" data-step="1">
-        <h3><span class="material-symbols-outlined">person_search</span> <span data-i18n="jobSearch.step1Title">Step 1 — Analyze your CV</span></h3>
-        <p class="micro" data-i18n="jobSearch.step1Hint">We read the active profile and suggest roles that match your skills.</p>
-        <div id="wizardProfileSummary" class="wizard-summary">
-          <em data-i18n="jobSearch.noProfile">Upload a CV from the Settings tab to see suggestions.</em>
-        </div>
-        <button id="wizardAnalyzeBtn" type="button" class="apply-btn">
-          <span class="material-symbols-outlined">auto_awesome</span>
-          <span data-i18n="jobSearch.analyzeBtn">Analyze profile</span>
-        </button>
-      </article>
+        <form id="scanForm" class="search-section search-form">
+          <header class="search-section-head">
+            <h3><span class="material-symbols-outlined">tune</span> <span data-i18n="jobSearch.searchParams">Search parameters</span></h3>
+            <p class="micro" data-i18n="jobSearch.searchHint">Type and press Enter to add tags. Pick sites + remote-only as needed.</p>
+          </header>
 
-      <article class="card-block wizard-card" data-step="2">
-        <h3><span class="material-symbols-outlined">tune</span> <span data-i18n="jobSearch.step2Title">Step 2 — Keywords, locations, filters</span></h3>
-        <p class="micro" data-i18n="jobSearch.step2Hint">Click a suggested role to add it, or type freely. Press Enter to add a tag.</p>
-        <div id="wizardRoleSuggestions" class="chip-row"></div>
-        <form id="scanForm" class="column">
-          <div class="form-group row">
+          <div class="search-fields">
             <div class="tag-input-container field-label" id="keywordsContainer">
               <span data-i18n="settings.keywords">Keywords:</span>
               <input type="text" id="keywordsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
             </div>
-          </div>
-          <div class="form-group row">
             <div class="tag-input-container field-label" id="locationsContainer">
               <span data-i18n="settings.locations">Locations:</span>
               <input type="text" id="locationsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
             </div>
           </div>
+
           <div class="scan-options-row">
             <label class="check-label"><input type="checkbox" name="scanSites" value="linkedin" checked /> LinkedIn</label>
             <label class="check-label"><input type="checkbox" name="scanSites" value="indeed" checked /> Indeed</label>
             <label class="check-label"><input type="checkbox" id="remoteToggle" /> <span data-i18n="settings.remoteOnly">Remote only</span></label>
           </div>
-          <button type="submit" class="action-main" style="border:0">
+
+          <div id="wizardReview" class="search-review hidden"></div>
+
+          <button type="submit" class="action-main search-launch">
             <span class="material-symbols-outlined">rocket_launch</span>
             <strong data-i18n="settings.startScan">Start Scan</strong>
           </button>
         </form>
-      </article>
-
-      <article class="card-block wizard-card" data-step="3">
-        <h3><span class="material-symbols-outlined">radar</span> <span data-i18n="jobSearch.step3Title">Step 3 — Review &amp; launch</span></h3>
-        <p class="micro" data-i18n="jobSearch.step3Hint">When the scan finishes, head to Dashboard → Open Jobs to see results.</p>
-        <div id="wizardReview" class="wizard-summary">
-          <em data-i18n="jobSearch.reviewEmpty">Your scan parameters will appear here as you fill Step 2.</em>
-        </div>
       </article>
     </section>
 

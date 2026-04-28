@@ -30,7 +30,10 @@
     "saved": "Profil gespeichert",
     "saveFailed": "Speichern fehlgeschlagen",
     "loadFailed": "Profil-Laden fehlgeschlagen",
-    "years": "Jahre"
+    "years": "Jahre",
+    "strengths": "Stärken",
+    "industries": "Branchen",
+    "education": "Ausbildung"
   },
   "jobSearch": {
     "title": "Job",
@@ -46,6 +49,12 @@
     "step3Title": "Schritt 3 — Überprüfen & starten",
     "step3Hint": "Nach dem Scan gehe zu Dashboard → Offene Jobs, um Ergebnisse zu sehen.",
     "analyzeBtn": "Profil analysieren",
+    "profileBased": "Basierend auf deinem Profil",
+    "profileHint": "Klicke auf einen vorgeschlagenen Rolle, um ihn als Suchbegriff hinzuzufügen.",
+    "searchParams": "Suchparameter",
+    "searchHint": "Tippe und Enter, um Tags hinzuzufügen. Wähle Seiten + Remote-Only nach Bedarf.",
+    "sources": "Quellen",
+    "noRoles": "Füge Rollen in deinem Profil hinzu, um hier Vorschläge zu sehen.",
     "noProfile": "Lade einen Lebenslauf in den Einstellungen hoch, um Vorschläge zu sehen.",
     "detectedSkills": "Erkannte Skills",
     "preferredRoles": "Bevorzugte Rollen",
