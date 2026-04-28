@@ -1,8 +1,14 @@
 // Theme toggle (light/dark) with localStorage persistence.
 
+function setIcon(theme) {
+  const span = document.querySelector("#themeToggle .material-symbols-outlined");
+  if (span) span.textContent = theme === "dark" ? "light_mode" : "dark_mode";
+}
+
 export function initTheme() {
   const saved = localStorage.getItem("theme") || "light";
   document.documentElement.setAttribute("data-theme", saved);
+  setIcon(saved);
 
   const toggle = document.getElementById("themeToggle");
   if (!toggle) return;
@@ -11,5 +17,6 @@ export function initTheme() {
     const next = current === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("theme", next);
+    setIcon(next);
   });
 }

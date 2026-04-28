@@ -916,6 +916,7 @@ async function loadJobs() {
           <button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>
           <button data-action="reopened" data-id="${job.id}" class="secondary icon-btn" title="${t("jobs.reopen")}" aria-label="${t("jobs.reopen")}"><span class="material-symbols-outlined">restart_alt</span></button>
           <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary icon-btn${job.is_favorite ? " is-active" : ""}" title="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}" aria-label="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}"><span class="material-symbols-outlined">${job.is_favorite ? "favorite" : "favorite_border"}</span></button>
+          <button data-delete-id="${job.id}" class="danger icon-btn" title="${t("jobs.delete")}" aria-label="${t("jobs.delete")}"><span class="material-symbols-outlined">delete</span></button>
         </div>
       </td>
     `;
@@ -953,6 +954,20 @@ async function loadJobs() {
         await showJobDetail(id);
       } catch (error) {
         showToast(`${t("toast.detailError")}: ${error.message}`, "info");
+      }
+    });
+  });
+
+  body.querySelectorAll("button[data-delete-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.deleteId;
+      if (!confirm(t("jobs.deleteConfirm"))) return;
+      try {
+        await api(`/api/jobs/${id}`, { method: "DELETE" });
+        showToast(t("jobs.deleted"), "info");
+        await loadJobs();
+      } catch (error) {
+        showToast(`${t("toast.deleteError")}: ${error.message}`, "info");
       }
     });
   });
@@ -1109,6 +1124,38 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
     }
   }
 });
+
+(() => {
+  const dz = document.getElementById("cvDropzone");
+  const fileInput = document.getElementById("cvFile");
+  if (!dz || !fileInput) return;
+  ["dragenter", "dragover"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dz.classList.add("is-dragover");
+    }),
+  );
+  ["dragleave", "drop"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dz.classList.remove("is-dragover");
+    }),
+  );
+  dz.addEventListener("drop", (e) => {
+    if (e.dataTransfer?.files?.length) {
+      fileInput.files = e.dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
+  fileInput.addEventListener("change", () => {
+    const name = fileInput.files?.[0]?.name;
+    const text = dz.querySelector(".cv-dropzone-text");
+    if (name && text) {
+      text.textContent = name;
+      dz.classList.add("has-file");
+    }
+  });
+})();
 
 {
   const providerCardsEl = document.getElementById("providerCards");
@@ -1466,6 +1513,17 @@ document.getElementById("profileSelect").addEventListener("change", async (event
 document.getElementById("exportCsvBtn").addEventListener("click", async () => {
   const result = await api("/api/export/csv", { method: "POST" });
   showToast(t("toast.csvExported", { file: result.file }), "info");
+});
+
+document.getElementById("deleteAllJobsBtn").addEventListener("click", async () => {
+  if (!confirm(t("jobs.deleteAllConfirm"))) return;
+  try {
+    const res = await api("/api/jobs", { method: "DELETE" });
+    showToast(t("jobs.deletedAll", { count: res.deleted }), "info");
+    await Promise.all([loadJobs(), loadRecommendations()]);
+  } catch (error) {
+    showToast(`${t("toast.deleteError")}: ${error.message}`, "info");
+  }
 });
 
 async function bootstrap() {

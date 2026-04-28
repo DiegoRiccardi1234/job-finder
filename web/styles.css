@@ -1754,6 +1754,27 @@ pre {
   font-size: 1rem;
 }
 .profile-action-card form { display: flex; flex-direction: column; gap: var(--space-2); }
+.cv-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-4);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cv-dropzone:hover,
+.cv-dropzone.is-dragover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.06);
+}
+.cv-dropzone .material-symbols-outlined { font-size: 32px; color: var(--accent); }
+.cv-dropzone-text { font-weight: 500; }
+.cv-dropzone-hint { color: var(--muted); font-size: 0.8rem; }
+.cv-dropzone.has-file .cv-dropzone-text { color: var(--accent); }
 .spinner-inline {
   display: inline-block;
   width: 14px;

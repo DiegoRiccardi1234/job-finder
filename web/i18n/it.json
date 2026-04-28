@@ -8,7 +8,8 @@
   "profile": {
     "title": "Il tuo Profilo",
     "subtitle": "Cosa l'IA ha capito dal tuo CV. Modifica i campi, cambia tra CV caricati.",
-    "empty": "Nessun CV caricato. Vai su Impostazioni → Carica CV.",
+    "empty": "Carica il tuo CV qui sopra per popolare il profilo.",
+    "dropzone": "Trascina il CV qui o clicca per scegliere",
     "preferredRoles": "Ruoli preferiti",
     "skills": "Competenze principali",
     "languages": "Lingue",
@@ -129,7 +130,13 @@
     "newBadge": "Nuovo",
     "linkToOffer": "Link all'offerta",
     "titleUnavailable": "Titolo non disponibile",
-    "companyUnavailable": "Azienda non disponibile"
+    "companyUnavailable": "Azienda non disponibile",
+    "delete": "Elimina",
+    "deleteAll": "Elimina tutti",
+    "deleteConfirm": "Eliminare questo lavoro?",
+    "deleteAllConfirm": "Eliminare TUTTI i lavori? L'azione è irreversibile.",
+    "deleted": "Lavoro eliminato",
+    "deletedAll": "Eliminati {count} lavori"
   },
   "kanbanCols": {
     "open": "Aperto",
@@ -262,6 +269,7 @@
     "noResult": "Nessun risultato ricevuto.",
     "initError": "Errore di inizializzazione",
     "actionError": "Errore azione",
+    "deleteError": "Errore eliminazione",
     "favoriteError": "Errore preferito",
     "detailError": "Errore dettaglio",
     "chatError": "Errore chat",
@@ -304,7 +312,7 @@
   "onboarding": {
     "title": "Benvenuto in Job Finder",
     "intro": "Tre step rapidi per iniziare:",
-    "stepCv": "Carica il CV dalle Impostazioni",
+    "stepCv": "Carica il CV dalla sezione Profilo",
     "stepScan": "Avvia la prima scansione",
     "stepChat": "Chatta col Career Coach",
     "gotoSettings": "Carica CV",

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Job Finder — AI Job Search</title>
+  <link rel="icon" type="image/svg+xml" href="/web/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -185,6 +186,7 @@
           </select>
           <button id="refreshJobsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span></button>
           <button id="exportCsvBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">download</span> <span data-i18n="jobs.csv">CSV</span></button>
+          <button id="deleteAllJobsBtn" type="button" class="ghost-btn danger" title="Delete all jobs"><span class="material-symbols-outlined">delete_sweep</span> <span data-i18n="jobs.deleteAll">Delete all</span></button>
         </div>
 
         <div id="tableView" class="table-wrap is-active">
@@ -287,7 +289,12 @@
         <article class="profile-action-card">
           <h3><span class="material-symbols-outlined">description</span> <span data-i18n="settings.cvUpload">CV Upload</span></h3>
           <form id="cvForm" class="column">
-            <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required />
+            <label id="cvDropzone" class="cv-dropzone" for="cvFile">
+              <span class="material-symbols-outlined">upload_file</span>
+              <span class="cv-dropzone-text" data-i18n="profile.dropzone">Drop CV here or click to browse</span>
+              <small class="cv-dropzone-hint">PDF · DOCX · MD · TXT</small>
+            </label>
+            <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx" required hidden />
             <button type="submit" class="secondary" data-i18n="settings.uploadCv">Upload CV</button>
           </form>
           <pre id="cvSummary" class="output hidden"></pre>

@@ -8,7 +8,8 @@
   "profile": {
     "title": "Your Profile",
     "subtitle": "What the AI understood from your CV. Edit any field, switch between uploaded CVs.",
-    "empty": "No CV uploaded yet. Go to Settings → CV Upload.",
+    "empty": "Upload your CV here to populate your profile.",
+    "dropzone": "Drop CV here or click to browse",
     "preferredRoles": "Preferred roles",
     "skills": "Top skills",
     "languages": "Languages",
@@ -129,7 +130,13 @@
     "newBadge": "New",
     "linkToOffer": "Link to offer",
     "titleUnavailable": "Title unavailable",
-    "companyUnavailable": "Company unavailable"
+    "companyUnavailable": "Company unavailable",
+    "delete": "Delete",
+    "deleteAll": "Delete all",
+    "deleteConfirm": "Delete this job?",
+    "deleteAllConfirm": "Delete ALL jobs? This cannot be undone.",
+    "deleted": "Job deleted",
+    "deletedAll": "Deleted {count} jobs"
   },
   "kanbanCols": {
     "open": "Open",
@@ -263,6 +270,7 @@
     "initError": "Initialization error",
     "actionError": "Action error",
     "favoriteError": "Favorite error",
+    "deleteError": "Delete error",
     "detailError": "Detail error",
     "chatError": "Chat error",
     "linkedinError": "LinkedIn save error",
@@ -304,7 +312,7 @@
   "onboarding": {
     "title": "Welcome to Job Finder",
     "intro": "Three quick steps to get going:",
-    "stepCv": "Upload your CV in Settings",
+    "stepCv": "Upload your CV in Profile",
     "stepScan": "Launch your first job scan",
     "stepChat": "Chat with the Career Coach",
     "gotoSettings": "Upload CV",

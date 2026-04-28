@@ -8,7 +8,8 @@
   "profile": {
     "title": "Votre Profil",
     "subtitle": "Ce que l'IA a compris de votre CV. Modifiez les champs, basculez entre CVs.",
-    "empty": "Aucun CV chargé. Allez dans Paramètres → Charger CV.",
+    "empty": "Téléverse ton CV ci-dessus pour remplir ton profil.",
+    "dropzone": "Dépose ton CV ici ou clique pour parcourir",
     "preferredRoles": "Rôles préférés",
     "skills": "Compétences principales",
     "languages": "Langues",
@@ -129,7 +130,13 @@
     "newBadge": "Nouveau",
     "linkToOffer": "Lien vers l'offre",
     "titleUnavailable": "Titre non disponible",
-    "companyUnavailable": "Entreprise non disponible"
+    "companyUnavailable": "Entreprise non disponible",
+    "delete": "Supprimer",
+    "deleteAll": "Tout supprimer",
+    "deleteConfirm": "Supprimer cette offre ?",
+    "deleteAllConfirm": "Supprimer TOUTES les offres ? Action irréversible.",
+    "deleted": "Offre supprimée",
+    "deletedAll": "{count} offres supprimées"
   },
   "kanbanCols": {
     "open": "Ouvert",
@@ -262,6 +269,7 @@
     "noResult": "Aucun résultat reçu.",
     "initError": "Erreur d'initialisation",
     "actionError": "Erreur d'action",
+    "deleteError": "Erreur de suppression",
     "favoriteError": "Erreur de favori",
     "detailError": "Erreur de détail",
     "chatError": "Erreur de chat",
@@ -304,7 +312,7 @@
   "onboarding": {
     "title": "Bienvenue sur Job Finder",
     "intro": "Trois étapes rapides pour démarrer :",
-    "stepCv": "Charge ton CV dans Paramètres",
+    "stepCv": "Charge ton CV depuis Profil",
     "stepScan": "Lance ta première recherche",
     "stepChat": "Discute avec le Career Coach",
     "gotoSettings": "Charger CV",

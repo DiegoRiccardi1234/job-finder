@@ -8,7 +8,8 @@
   "profile": {
     "title": "Tu Perfil",
     "subtitle": "Lo que la IA entendió de tu CV. Edita cualquier campo, cambia entre CVs subidos.",
-    "empty": "Aún no has subido un CV. Ve a Ajustes → Subir CV.",
+    "empty": "Sube tu CV aquí arriba para completar tu perfil.",
+    "dropzone": "Arrastra tu CV aquí o haz clic para elegir",
     "preferredRoles": "Roles preferidos",
     "skills": "Competencias principales",
     "languages": "Idiomas",
@@ -129,7 +130,13 @@
     "newBadge": "Nuevo",
     "linkToOffer": "Enlace a la oferta",
     "titleUnavailable": "Título no disponible",
-    "companyUnavailable": "Empresa no disponible"
+    "companyUnavailable": "Empresa no disponible",
+    "delete": "Eliminar",
+    "deleteAll": "Eliminar todos",
+    "deleteConfirm": "¿Eliminar este trabajo?",
+    "deleteAllConfirm": "¿Eliminar TODOS los trabajos? Esta acción no se puede deshacer.",
+    "deleted": "Trabajo eliminado",
+    "deletedAll": "{count} trabajos eliminados"
   },
   "kanbanCols": {
     "open": "Abierto",
@@ -262,6 +269,7 @@
     "noResult": "No se recibió resultado.",
     "initError": "Error de inicialización",
     "actionError": "Error de acción",
+    "deleteError": "Error al eliminar",
     "favoriteError": "Error de favorito",
     "detailError": "Error de detalle",
     "chatError": "Error de chat",
@@ -304,7 +312,7 @@
   "onboarding": {
     "title": "Bienvenido a Job Finder",
     "intro": "Tres pasos rápidos para empezar:",
-    "stepCv": "Sube tu CV desde Ajustes",
+    "stepCv": "Sube tu CV desde Perfil",
     "stepScan": "Lanza tu primera búsqueda",
     "stepChat": "Chatea con el Career Coach",
     "gotoSettings": "Subir CV",

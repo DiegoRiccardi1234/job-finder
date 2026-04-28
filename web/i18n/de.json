@@ -8,7 +8,8 @@
   "profile": {
     "title": "Dein Profil",
     "subtitle": "Was die KI aus deinem Lebenslauf verstanden hat. Felder bearbeiten, zwischen CVs wechseln.",
-    "empty": "Noch kein Lebenslauf hochgeladen. Gehe zu Einstellungen → Lebenslauf hochladen.",
+    "empty": "Lade deinen Lebenslauf hier oben hoch, um dein Profil zu füllen.",
+    "dropzone": "Lebenslauf hier ablegen oder klicken zum Auswählen",
     "preferredRoles": "Bevorzugte Rollen",
     "skills": "Top-Skills",
     "languages": "Sprachen",
@@ -129,7 +130,13 @@
     "newBadge": "Neu",
     "linkToOffer": "Link zum Angebot",
     "titleUnavailable": "Titel nicht verfügbar",
-    "companyUnavailable": "Unternehmen nicht verfügbar"
+    "companyUnavailable": "Unternehmen nicht verfügbar",
+    "delete": "Löschen",
+    "deleteAll": "Alle löschen",
+    "deleteConfirm": "Diesen Job löschen?",
+    "deleteAllConfirm": "ALLE Jobs löschen? Diese Aktion ist unwiderruflich.",
+    "deleted": "Job gelöscht",
+    "deletedAll": "{count} Jobs gelöscht"
   },
   "kanbanCols": {
     "open": "Offen",
@@ -262,6 +269,7 @@
     "noResult": "Kein Ergebnis erhalten.",
     "initError": "Initialisierungsfehler",
     "actionError": "Aktionsfehler",
+    "deleteError": "Löschfehler",
     "favoriteError": "Favoritenfehler",
     "detailError": "Detailfehler",
     "chatError": "Chat-Fehler",
@@ -304,7 +312,7 @@
   "onboarding": {
     "title": "Willkommen bei Job Finder",
     "intro": "Drei schnelle Schritte zum Start:",
-    "stepCv": "Lade deinen CV in den Einstellungen hoch",
+    "stepCv": "Lade deinen Lebenslauf im Profil hoch",
     "stepScan": "Starte deine erste Suche",
     "stepChat": "Chatte mit dem Career Coach",
     "gotoSettings": "CV hochladen",

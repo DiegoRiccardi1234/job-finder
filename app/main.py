@@ -112,6 +112,10 @@ def create_app(workspace_dir: Path) -> FastAPI:
     def home() -> FileResponse:
         return FileResponse(web_dir / "index.html")
 
+    @fastapi_app.get("/favicon.ico", include_in_schema=False)
+    def favicon() -> FileResponse:
+        return FileResponse(web_dir / "favicon.svg", media_type="image/svg+xml")
+
     @fastapi_app.get("/api/health")
     def health() -> dict[str, Any]:
         return {
@@ -469,6 +473,18 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
             raise HTTPException(status_code=404, detail="Job not found")
         container.db.set_favorite(job_id=job_id, is_favorite=payload.is_favorite)
         return {"ok": True}
+
+    @fastapi_app.delete("/api/jobs/{job_id}")
+    def delete_job(job_id: int) -> dict[str, Any]:
+        deleted = container.db.delete_job(job_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {"ok": True, "deleted_id": job_id}
+
+    @fastapi_app.delete("/api/jobs")
+    def delete_all_jobs() -> dict[str, Any]:
+        count = container.db.delete_all_jobs()
+        return {"ok": True, "deleted": count}
 
     @fastapi_app.post("/api/chat", response_model=ChatResponse)
     def chat(request: Request, payload: ChatRequest) -> ChatResponse:

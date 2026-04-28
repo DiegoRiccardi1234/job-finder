@@ -207,6 +207,16 @@ class Database:
         )
         self.conn.commit()
 
+    def delete_job(self, job_id: int) -> bool:
+        cur = self.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_all_jobs(self) -> int:
+        cur = self.conn.execute("DELETE FROM jobs")
+        self.conn.commit()
+        return cur.rowcount or 0
+
     def list_jobs(
         self,
         status: str | None = None,
