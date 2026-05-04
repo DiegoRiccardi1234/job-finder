@@ -178,10 +178,16 @@ def main() -> int:
             log(f"restarting {exe}")
             event("restart_spawned", exe=str(exe))
             subprocess.Popen([str(exe)], cwd=str(install_dir))
+            # Best-effort lockfile cleanup so the next update isn't blocked
+            # by a stale lock. The backend TTL covers crash cases.
+            with contextlib.suppress(OSError):
+                (install_dir / "data" / "update.lock").unlink(missing_ok=True)
             return 0
         except Exception as exc:
             log(f"FAILED: {exc!r}")
             event("error", message=repr(exc))
+            with contextlib.suppress(OSError):
+                (install_dir / "data" / "update.lock").unlink(missing_ok=True)
             return 1
 
 

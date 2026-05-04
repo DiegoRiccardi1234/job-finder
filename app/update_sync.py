@@ -14,6 +14,7 @@ binary.
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 
 # Top-level paths in the install dir that the updater must NEVER overwrite
@@ -25,6 +26,31 @@ PRESERVE_TOPLEVEL = ("data", ".env", ".env.local")
 def _is_preserved(rel_path: Path) -> bool:
     parts = rel_path.parts
     return bool(parts) and parts[0] in PRESERVE_TOPLEVEL
+
+
+_COPY_RETRY_DELAYS = (1.0, 2.0, 4.0)
+
+
+def _copy_with_retry(src: Path, dst: Path) -> None:
+    """Copy ``src`` to ``dst`` with retries on PermissionError.
+
+    Windows briefly holds file locks via antivirus scans or just-exited
+    processes whose handles are still draining. Without retries, the
+    updater aborts on the first transient lock and leaves the install
+    dir half-updated. Retry up to 3 times with 1s/2s/4s backoff before
+    giving up.
+    """
+    last_exc: Exception | None = None
+    for delay in _COPY_RETRY_DELAYS:
+        try:
+            shutil.copy2(src, dst)
+            return
+        except PermissionError as exc:
+            last_exc = exc
+            time.sleep(delay)
+    shutil.copy2(src, dst)  # final attempt; raises if still locked
+    if last_exc is not None:  # pragma: no cover - defensive, unreachable
+        raise last_exc
 
 
 def sync_install_dir(*, source: Path, target: Path) -> int:
@@ -48,6 +74,6 @@ def sync_install_dir(*, source: Path, target: Path) -> int:
             continue
         dst = target / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        _copy_with_retry(src, dst)
         written += 1
     return written

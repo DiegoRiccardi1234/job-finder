@@ -1819,7 +1819,21 @@ async function checkForUpdate() {
       localStorage.setItem('updateDismissed', info.latest);
       banner.classList.add('hidden');
     };
-    document.getElementById('updateBannerRun').onclick = () => runUpdate(info);
+    const runBtn = document.getElementById('updateBannerRun');
+    runBtn.onclick = () => {
+      // Guard against double-click: a parallel updater spawn races on
+      // JobFinder.exe file locks and produces PermissionError on copy.
+      if (runBtn.disabled) return;
+      const inProgressFor = localStorage.getItem('updateInProgress');
+      if (inProgressFor === info.latest) return;
+      runBtn.disabled = true;
+      localStorage.setItem('updateInProgress', info.latest);
+      runUpdate(info).catch((err) => {
+        console.warn('Update failed:', err);
+        runBtn.disabled = false;
+        localStorage.removeItem('updateInProgress');
+      });
+    };
   } catch (err) {
     console.warn('Update check failed:', err);
   }
@@ -1855,7 +1869,7 @@ async function runDevUpdate(log) {
   }
 }
 
-function setUpdateStep(stepName, state) {
+function setUpdateStep(stepName, state, percent) {
   const list = document.getElementById('updateStepList');
   if (!list) return;
   const order = ['download', 'verify', 'replace', 'restart'];
@@ -1863,10 +1877,16 @@ function setUpdateStep(stepName, state) {
   list.querySelectorAll('.update-step').forEach((el) => {
     const idx = order.indexOf(el.dataset.step);
     el.classList.remove('pending', 'active', 'done', 'error');
+    const pctEl = el.querySelector('.update-step-percent');
+    if (pctEl) pctEl.textContent = '';
     if (state === 'error' && idx === targetIdx) el.classList.add('error');
     else if (idx < targetIdx) el.classList.add('done');
-    else if (idx === targetIdx) el.classList.add(state === 'done' ? 'done' : 'active');
-    else el.classList.add('pending');
+    else if (idx === targetIdx) {
+      el.classList.add(state === 'done' ? 'done' : 'active');
+      if (pctEl && typeof percent === 'number' && state !== 'done') {
+        pctEl.textContent = ` · ${percent}%`;
+      }
+    } else el.classList.add('pending');
   });
 }
 
@@ -1877,8 +1897,16 @@ async function runBundleUpdate(log) {
     const r = await fetch('/api/update/start', { method: 'POST' });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      log.textContent = `FAILED to start update: ${err.detail || r.status}`;
+      const detail = err.detail;
+      let msg;
+      if (detail && typeof detail === 'object' && detail.code === 'update_already_in_progress') {
+        msg = `Update already in progress (started ${detail.lock_age_s}s ago). Wait or restart Job Finder if it seems stuck.`;
+      } else {
+        msg = typeof detail === 'string' ? detail : JSON.stringify(detail || r.status);
+      }
+      log.textContent = `FAILED to start update: ${msg}`;
       setUpdateStep('download', 'error');
+      localStorage.removeItem('updateInProgress');
       return;
     }
     const data = await r.json();
@@ -1908,37 +1936,49 @@ async function runBundleUpdate(log) {
         log.textContent += `\nUpdater error: ${(p.details && p.details.message) || 'unknown'}`;
         return;
       }
-      if (p.step) setUpdateStep(p.step, 'active');
+      if (p.step) setUpdateStep(p.step, 'active', p.percent);
     } catch {
       break; // parent died, switch to /api/health polling
     }
   }
-  setUpdateStep('restart', 'active');
+  setUpdateStep('restart', 'active', 95);
 
   // Poll /api/health until the new process is up. Expect a window
   // (~5–60 s) where the request fails because the app is being replaced.
-  const deadline = Date.now() + 180_000;
+  // Deadline 10 min covers slow GitHub downloads (175 MB at 1 MB/s = ~3 min)
+  // plus extract + sync + restart on cold Windows machines.
+  const startedAt = Date.now();
+  const deadline = startedAt + 600_000;
   let outageObserved = false;
+  let elapsedLine = '';
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 2000));
+    const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+    if (elapsedLine) {
+      log.textContent = log.textContent.slice(0, -elapsedLine.length);
+    }
+    elapsedLine = `Elapsed: ${elapsedSec}s`;
+    log.textContent += elapsedLine;
     try {
       const h = await fetch('/api/health', { cache: 'no-store' });
       if (!h.ok) throw new Error(String(h.status));
       const json = await h.json();
       const ver = (json.version_info && json.version_info.current) || (json.version || '');
       if (outageObserved) {
-        setUpdateStep('restart', 'done');
-        log.textContent += `\nNew app reachable (v${ver}). Reloading...`;
+        setUpdateStep('restart', 'done', 100);
+        log.textContent = log.textContent.slice(0, -elapsedLine.length);
+        log.textContent += `New app reachable (v${ver}). Reloading...`;
+        localStorage.removeItem('updateInProgress');
         setTimeout(() => window.location.reload(), 1500);
         return;
       }
       // No outage yet — keep waiting; updater hasn't taken JobFinder.exe down.
     } catch {
       outageObserved = true;
-      log.textContent += '.';
     }
   }
   log.textContent += '\nTimed out waiting for the new version. Try refreshing this page in a minute.';
+  localStorage.removeItem('updateInProgress');
 }
 
 // ─── Chat empty state + first-time tutorial ─────────────────────

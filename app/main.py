@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -632,6 +633,28 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
                 status_code=500,
                 detail=f"Updater.exe not found next to JobFinder.exe (looked in {install_dir}).",
             )
+
+        # Lockfile guard: refuse if another updater spawn happened recently.
+        # The double-click race shipped two parallel Updater.exe processes
+        # both racing on JobFinder.exe and producing PermissionError.
+        lock_path = container.workspace_dir / "data" / "update.lock"
+        lock_ttl_seconds = 300
+        if lock_path.exists():
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+            except OSError:
+                age = lock_ttl_seconds + 1  # treat unreadable lock as stale
+            if age < lock_ttl_seconds:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "update_already_in_progress",
+                        "lock_age_s": int(age),
+                        "lock_ttl_s": lock_ttl_seconds,
+                    },
+                )
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(f"{os.getpid()}\n{latest}\n", encoding="utf-8")
 
         creationflags = 0
         if sys.platform == "win32":

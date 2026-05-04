@@ -93,3 +93,53 @@ def test_sync_raises_when_source_missing(tmp_path: Path) -> None:
     bundle = tmp_path / "does-not-exist"
     with pytest.raises(FileNotFoundError):
         sync_install_dir(source=bundle, target=install)
+
+
+def test_sync_retries_on_permission_error(tmp_path: Path, monkeypatch) -> None:
+    """Transient PermissionError on copy should be retried, not fatal.
+
+    Windows briefly holds file locks via antivirus / process exit, so the
+    updater needs to wait and retry rather than abort the whole sync.
+    """
+    bundle = tmp_path / "bundle"
+    install = tmp_path / "install"
+    (bundle).mkdir()
+    (bundle / "JobFinder.exe").write_text("v2")
+
+    import app.update_sync as update_sync
+
+    real_copy = update_sync.shutil.copy2
+    call_count = {"n": 0}
+
+    def flaky_copy2(src, dst, *args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] < 3:
+            raise PermissionError(13, "Permission denied (simulated)")
+        return real_copy(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(update_sync.shutil, "copy2", flaky_copy2)
+    monkeypatch.setattr(update_sync, "_COPY_RETRY_DELAYS", (0.0, 0.0, 0.0))
+
+    written = sync_install_dir(source=bundle, target=install)
+    assert written == 1
+    assert call_count["n"] == 3
+    assert (install / "JobFinder.exe").read_text() == "v2"
+
+
+def test_sync_eventually_raises_after_all_retries(tmp_path: Path, monkeypatch) -> None:
+    """If file stays locked past all retries, we propagate the error."""
+    bundle = tmp_path / "bundle"
+    install = tmp_path / "install"
+    (bundle).mkdir()
+    (bundle / "JobFinder.exe").write_text("v2")
+
+    import app.update_sync as update_sync
+
+    def always_locked(*_args, **_kwargs):
+        raise PermissionError(13, "Permission denied (always)")
+
+    monkeypatch.setattr(update_sync.shutil, "copy2", always_locked)
+    monkeypatch.setattr(update_sync, "_COPY_RETRY_DELAYS", (0.0, 0.0, 0.0))
+
+    with pytest.raises(PermissionError):
+        sync_install_dir(source=bundle, target=install)

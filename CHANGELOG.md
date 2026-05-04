@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-05-04
+
+Update flow reliability and UX polish. Driven by a real-world failure where v1.1.1 → v1.2.0 produced two parallel `Updater.exe` processes both racing on `JobFinder.exe` file locks (`PermissionError(13)`) and a 180 s timeout that wasn't enough for slow GitHub downloads of the 175 MB bundle.
+
+### Added
+- **Percent on the active step** — the v1.2.0 step indicator now shows the live percentage (5/10/15/50/55/70/75/90/95/100) returned by `/api/update/progress` next to the active label, e.g. *"Downloading new version · 35%"*. Step shows nothing once `done`.
+- **Elapsed counter during health-poll wait** — replaced the dot-spam (`....................`) that grew while waiting for the new process to come back, with a single rewritten line `Elapsed: Xs`. No more wall of dots; users can see the wait advancing.
+- **Update lockfile guard** — `POST /api/update/start` now writes `data/update.lock` (PID + target version, mtime as TTL marker) and refuses with HTTP 409 + `{code: "update_already_in_progress"}` if a second start arrives within 5 minutes of an existing one. Updater clears the lockfile on success or on any caught exception. Prevents the double-spawn race.
+- **Frontend double-click guard** — the "Update now" button disables itself on click and writes `localStorage["updateInProgress"]` keyed by target version. A second click on the same version is a no-op until the page reloads or the flag is cleared. The flag is cleared on success, on timeout, and on any thrown error from `runUpdate`.
+- **Retry-on-PermissionError in `sync_install_dir`** — `_copy_with_retry()` wraps `shutil.copy2` with a 3-step backoff (1 s / 2 s / 4 s) so a transient antivirus scan or a still-draining process handle no longer aborts the whole update. After the final retry, the error is propagated as before.
+
+### Changed
+- **Frontend update timeout 180 s → 600 s** — covers slow networks where a 175 MB bundle takes > 3 min to download. Elapsed counter makes the long wait observable.
+
+### Fixed
+- **Double-spawn updater race that produced `PermissionError` on `JobFinder.exe`** — root cause of the v1.1.1 → v1.2.0 update failures Diego observed (two updater PIDs spawned 35 s apart, both failed at the copy step).
+- **Restart step now correctly transitions to "done" with 100%** before the page reload kicks in, instead of staying at the `active` pulsing state.
+
+### Tooling
+- 2 new tests in `tests/unit/test_update_sync.py` covering retry-on-PermissionError success and exhausted-retries propagation. Test count 155 → 157.
+
 ## [1.2.0] — 2026-05-04
 
 UX release focused on visible release notes, a clear update flow, and a saner model picker.
