@@ -690,9 +690,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         if sys.platform == "win32":
             os.startfile(str(log_dir))
             return {"ok": True, "path": str(log_dir)}
-        raise HTTPException(
-            status_code=501, detail="open_logs_unsupported_on_platform"
-        )
+        raise HTTPException(status_code=501, detail="open_logs_unsupported_on_platform")
 
     @fastapi_app.delete("/api/update/lock")
     def clear_update_lock() -> dict[str, Any]:

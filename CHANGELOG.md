@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.2.7] — 2026-05-05
+
+CI hygiene.
+
+### Fixed
+- **`tests` workflow failed on `ruff format --check`** for the v1.2.6 push. The pre-commit local run only covered `ruff check` (the linter), not `ruff format --check` (the formatter). Two files (`app/main.py` and `tests/unit/test_open_logs_endpoint.py`) had stylistically minor reflow needed. Reformatted, no behavior change. The release artifact for v1.2.6 had already shipped (the `release` workflow on tag push is independent of the `tests` workflow on commit push), so this is purely a CI-green hygiene release with no user-visible effect.
+
 ## [1.2.6] — 2026-05-05
 
 Visible app version, manual update check, log access for support.

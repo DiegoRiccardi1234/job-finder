@@ -44,9 +44,7 @@ def test_open_logs_creates_dir_and_calls_startfile_on_win32(
     assert "logs" in calls[0]
 
 
-def test_open_logs_returns_501_on_non_windows(
-    client: TestClient, monkeypatch
-) -> None:
+def test_open_logs_returns_501_on_non_windows(client: TestClient, monkeypatch) -> None:
     """Non-Windows platforms get a 501 Not Implemented."""
     import sys
 
