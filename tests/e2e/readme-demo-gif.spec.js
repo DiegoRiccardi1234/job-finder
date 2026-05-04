@@ -200,12 +200,15 @@ test("record README demo GIF", async ({ page }) => {
   await page.evaluate(() => window.scrollTo(0, 0));
   idx = await captureFor(page, 1800, idx);
 
-  // Beat 3 — Job Search wizard, step 1 with role chips populated
+  // Beat 3 — Job Search (flat layout): profile-derived role chips ready to click.
   await page.locator(".topnav .nav-link[data-view='job-search']").click();
-  await page.waitForTimeout(300);
-  await page.locator("#wizardAnalyzeBtn").click();
   await page.waitForTimeout(800);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  // Surface the role suggestions; they populate from the active profile.
+  await page.evaluate(() => {
+    const el = document.getElementById("wizardRoleSuggestions");
+    if (el) el.scrollIntoView({ behavior: "instant", block: "center" });
+  });
+  await page.waitForTimeout(300);
   idx = await captureFor(page, 1800, idx);
 
   // Beat 4 — Chat coach bubbles with role pills (dashboard right rail)

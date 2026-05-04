@@ -1,3 +1,5 @@
+import contextlib
+import os
 import re
 from io import BytesIO
 from typing import Any
@@ -7,7 +9,109 @@ from app.log import get_logger
 log = get_logger(__name__)
 
 
+# Threshold below which a PDF is considered "no extractable text" and we try
+# OCR. Most well-formed PDFs return thousands of chars; scanned PDFs typically
+# return 0 or a handful of stray glyphs.
+_OCR_FALLBACK_MIN_CHARS = 50
+
+
+def _resolve_tesseract_cmd() -> str | None:
+    """Locate the ``tesseract`` binary, preferring a bundled portable copy.
+
+    Search order:
+    1. ``JOBFINDER_TESSERACT_CMD`` env var (explicit override).
+    2. ``vendor/tesseract/tesseract.exe`` (Windows portable bundled with build).
+    3. PATH-resolved ``tesseract``/``tesseract.exe`` (system install).
+    4. Windows default install dirs (``C:/Program Files/Tesseract-OCR``).
+    Returns None if Tesseract is not available.
+    """
+    override = os.environ.get("JOBFINDER_TESSERACT_CMD")
+    if override and os.path.isfile(override):
+        return override
+    here = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(here)
+    bundled = os.path.join(project_root, "vendor", "tesseract", "tesseract.exe")
+    if os.path.isfile(bundled):
+        return bundled
+    import shutil
+
+    found = shutil.which("tesseract") or shutil.which("tesseract.exe")
+    if found:
+        return found
+    for default in (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+    ):
+        if os.path.isfile(default):
+            return default
+    return None
+
+
+def _ocr_image_bytes(data: bytes, *, lang: str = "ita+eng") -> str:
+    """Run Tesseract OCR on raw image bytes, return extracted text (best-effort)."""
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError(
+            "OCR requires pytesseract + Pillow. Install: pip install pytesseract Pillow"
+        ) from exc
+
+    # AVIF support is opt-in via the pillow-avif-plugin side-effect import.
+    with contextlib.suppress(Exception):  # pragma: no cover - optional import
+        import pillow_avif  # noqa: F401
+
+    cmd = _resolve_tesseract_cmd()
+    if cmd:
+        pytesseract.pytesseract.tesseract_cmd = cmd
+    try:
+        opened = Image.open(BytesIO(data))
+        # Tesseract refuses some PIL modes (e.g. AVIF often opens as ``RGBA``
+        # or palette mode). Re-encode through PNG so the OCR engine always
+        # receives a format it accepts.
+        img: Any = opened.convert("RGB") if opened.mode not in ("RGB", "L") else opened
+        png_buf = BytesIO()
+        img.save(png_buf, format="PNG")
+        png_buf.seek(0)
+        normalized = Image.open(png_buf)
+        return str(pytesseract.image_to_string(normalized, lang=lang)).strip()
+    except pytesseract.TesseractNotFoundError as exc:
+        raise RuntimeError(
+            "Tesseract OCR not found. Install Tesseract (Windows: "
+            "`winget install UB-Mannheim.TesseractOCR`) or set JOBFINDER_TESSERACT_CMD."
+        ) from exc
+    except Exception as exc:
+        log.warning("OCR failed: %s", exc)
+        return ""
+
+
+def _extract_text_image(data: bytes) -> str:
+    """Extract text from a single image (JPG/PNG/AVIF/TIFF/BMP/WEBP) via OCR."""
+    return _ocr_image_bytes(data)
+
+
+def _extract_text_svg(data: bytes) -> str:
+    """Rasterize SVG to PNG then OCR. Falls back to grepping <text> tags."""
+    # Inline-text SVGs (text stored as XML, not paths) are best parsed directly.
+    text_inline = " ".join(
+        re.findall(r"<text[^>]*>([^<]+)</text>", data.decode("utf-8", errors="replace"))
+    )
+    if len(text_inline) >= _OCR_FALLBACK_MIN_CHARS:
+        return text_inline.strip()
+    # Otherwise rasterize and OCR. cairosvg is optional; if missing, return whatever we got.
+    try:  # pragma: no cover - optional dependency
+        import cairosvg
+
+        png_bytes = cairosvg.svg2png(bytestring=data, output_width=1600)
+        return _ocr_image_bytes(png_bytes)
+    except Exception as exc:
+        log.info("SVG rasterize unavailable (%s); returning inline text only", exc)
+        return text_inline.strip()
+
+
 def _extract_text_pdf(data: bytes) -> str:
+    """Extract text from PDF, falling back to OCR per-page if pypdf yields nothing."""
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover
@@ -17,7 +121,41 @@ def _extract_text_pdf(data: bytes) -> str:
     chunks: list[str] = []
     for page in reader.pages:
         chunks.append(page.extract_text() or "")
-    return "\n".join(chunks).strip()
+    text = "\n".join(chunks).strip()
+
+    if len(text) >= _OCR_FALLBACK_MIN_CHARS:
+        return text
+    # Scanned/image-only PDF: try rasterize + OCR.
+    return _extract_text_pdf_via_ocr(data) or text
+
+
+def _extract_text_pdf_via_ocr(data: bytes) -> str:
+    """Render each PDF page to an image and OCR it. Heavy: only used as fallback."""
+    try:
+        from pdf2image import convert_from_bytes
+    except ImportError:  # pragma: no cover
+        log.info("pdf2image not installed; cannot OCR scanned PDF")
+        return ""
+    try:
+        images = convert_from_bytes(data, dpi=200)
+    except Exception as exc:
+        # pdf2image needs poppler; on Windows the bundle ships it under vendor/poppler.
+        log.warning("PDF rasterize failed (poppler missing?): %s", exc)
+        return ""
+    pages_text: list[str] = []
+    try:
+        import pytesseract
+    except ImportError:  # pragma: no cover
+        return ""
+    cmd = _resolve_tesseract_cmd()
+    if cmd:
+        pytesseract.pytesseract.tesseract_cmd = cmd
+    for img in images:
+        try:
+            pages_text.append(str(pytesseract.image_to_string(img, lang="ita+eng")))
+        except Exception as exc:
+            log.warning("OCR page failed: %s", exc)
+    return "\n".join(pages_text).strip()
 
 
 def _extract_text_docx(data: bytes) -> str:
@@ -31,22 +169,38 @@ def _extract_text_docx(data: bytes) -> str:
     return "\n".join(lines).strip()
 
 
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".avif", ".tiff", ".tif", ".bmp")
+
+
 def extract_markdown_from_upload(filename: str, data: bytes) -> str:
     lower = filename.lower()
-    if lower.endswith((".md", ".txt")):
+    if lower.endswith((".md", ".txt", ".markdown")):
         return data.decode("utf-8", errors="replace").strip()
     if lower.endswith(".pdf"):
         return _extract_text_pdf(data)
     if lower.endswith(".docx"):
         return _extract_text_docx(data)
-    raise RuntimeError("Unsupported CV format. Use .md, .txt, .pdf or .docx")
+    if lower.endswith(_IMAGE_EXTS):
+        return _extract_text_image(data)
+    if lower.endswith(".svg"):
+        return _extract_text_svg(data)
+    raise RuntimeError(
+        "Unsupported CV format. Use .md, .txt, .pdf, .docx or an image "
+        "(.jpg, .png, .webp, .avif, .tiff, .bmp, .svg)."
+    )
 
 
 CV_KEYWORDS = (
+    # English
     "experience",
     "skill",
     "education",
     "work",
+    "employment",
+    "career",
+    "profile",
+    "summary",
+    # Italian
     "esperienza",
     "competenze",
     "formazione",
@@ -54,6 +208,20 @@ CV_KEYWORDS = (
     "cv",
     "resume",
     "curriculum",
+    "professionale",
+    "abilitazion",  # abilitazioni / abilitazione (academic CVs)
+    "qualifica",
+    "carriera",
+    "studi",
+    "diploma",
+    "laurea",
+    # Spanish / French / German common terms (OCR-friendly)
+    "experiencia",
+    "expérience",
+    "berufserfahrung",
+    "ausbildung",
+    "compétence",
+    "formación",
 )
 MIN_CV_CHARS = 200
 
@@ -71,6 +239,19 @@ def validate_cv_content(markdown: str) -> None:
         raise InvalidCVContent(
             "File does not appear to be a CV/resume (missing common section keywords)."
         )
+
+
+def _keyword_present(keyword: str, lower_text: str) -> bool:
+    """Word-boundary aware substring match.
+
+    Plain ``in`` matched ``soc`` inside ``associato`` and ``git`` inside
+    ``logistica``, polluting the heuristic with false skills. We require the
+    keyword not to be flanked by alphanumerics so ``soc`` matches only in
+    contexts like ``SOC analyst`` and ``git`` only in ``git, github, ...``.
+    Works for multi-word keys and keys with special chars (``c#``, ``.net``).
+    """
+    pattern = rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])"
+    return re.search(pattern, lower_text) is not None
 
 
 def summarize_profile(markdown_text: str) -> dict[str, Any]:
@@ -112,7 +293,7 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
         "gcp",
         "linux",
     ]
-    found_skills = [kw for kw in skill_keywords if kw in lower]
+    found_skills = [kw for kw in skill_keywords if _keyword_present(kw, lower)]
 
     preferred_roles: list[str] = []
     role_map = [
@@ -122,7 +303,9 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
         ("testing", "Junior QA Tester"),
         ("cybersecurity", "Junior Cybersecurity Analyst"),
         ("soc", "Junior SOC Analyst"),
-        ("data analy", "Junior Data Analyst"),
+        ("data analyst", "Junior Data Analyst"),
+        ("data analysis", "Junior Data Analyst"),
+        ("data analytics", "Junior Data Analyst"),
         ("machine learning", "Junior ML Engineer"),
         ("automation", "Junior Automation Engineer"),
         ("devops", "Junior DevOps Engineer"),
@@ -131,7 +314,7 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
         ("full stack", "Junior Full Stack Developer"),
     ]
     for trigger, role in role_map:
-        if trigger in lower and role not in preferred_roles:
+        if _keyword_present(trigger, lower) and role not in preferred_roles:
             preferred_roles.append(role)
 
     years = re.findall(r"(20\d{2})", markdown_text)
@@ -269,6 +452,33 @@ def _scope_work_section(text: str) -> str:
     return rest
 
 
+_YEARS_PHRASE_RE = re.compile(
+    r"(?:opero|lavoro|esperienza|experience|with|over|più|circa)"
+    r"(?:\s+(?:da|di|of|da circa|da oltre|over|than|pluriennale))*"
+    r"\s+(\d{1,2})\+?\s*(?:anni|years|year|ans|años|jahre)",
+    re.IGNORECASE,
+)
+_YEARS_PHRASE_PREFIX_RE = re.compile(
+    r"(\d{1,2})\+?\s*(?:anni|years|year|ans|años|jahre)\s+"
+    r"(?:di|of|d['e]|en)\s+(?:esperienza|experience|expérience|experiencia|erfahrung)",
+    re.IGNORECASE,
+)
+
+
+def _estimate_years_from_phrases(text: str) -> int:
+    """Catch explicit phrases like 'Opero da 7 anni' or '5+ years of experience'."""
+    candidates: list[int] = []
+    for rx in (_YEARS_PHRASE_RE, _YEARS_PHRASE_PREFIX_RE):
+        for m in rx.finditer(text):
+            try:
+                n = int(m.group(1))
+            except (ValueError, IndexError):
+                continue
+            if 0 < n <= 60:
+                candidates.append(n)
+    return max(candidates) if candidates else 0
+
+
 def _estimate_years_experience(text: str) -> int:
     from datetime import datetime as _dt
 
@@ -297,8 +507,10 @@ def _estimate_years_experience(text: str) -> int:
             continue
         intervals.append((sm, em))
 
+    phrase_years = _estimate_years_from_phrases(text)
+
     if not intervals:
-        return 0
+        return phrase_years
 
     intervals.sort()
     merged: list[list[int]] = [list(intervals[0])]
@@ -310,7 +522,8 @@ def _estimate_years_experience(text: str) -> int:
 
     months_total = sum(end - start for start, end in merged)
     years = round(months_total / 12)
-    return max(0, min(60, years))
+    # Take the larger of computed-from-dates vs explicit phrase, capped at 60.
+    return max(0, min(60, max(years, phrase_years)))
 
 
 def _estimate_experience_level(years: int) -> str:

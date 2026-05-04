@@ -6,6 +6,15 @@ python-multipart
 pypdf
 python-docx
 
+# OCR for scanned PDFs and image CVs (JPG/PNG/AVIF/TIFF/BMP/WEBP).
+# Tesseract binary must be installed separately (winget install UB-Mannheim.TesseractOCR
+# on Windows, or apt-get install tesseract-ocr on Linux). The standalone bundle
+# ships a portable Tesseract under vendor/tesseract/ — see scripts/install_tesseract.py.
+pytesseract>=0.3.10
+pdf2image>=1.17.0
+Pillow>=10.0.0
+pillow-avif-plugin>=1.4.0  # native AVIF decoding for Pillow
+
 # LLM provider SDKs (optional — install the ones you plan to use)
 openai
 groq

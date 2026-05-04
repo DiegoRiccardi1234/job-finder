@@ -55,37 +55,46 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Features
 
-- **Smart CV analysis** — Upload PDF / DOCX / TXT; the LLM extracts skills, seniority, and ideal roles.
-- **Profile tab** — Inspect what the AI understood from your CV, edit `preferred_roles` / `skills` / `languages` inline (chip-list with PATCH), switch between previously uploaded CVs (multi-CV history with **Set active**).
-- **AI Career Coach** — Chat that learns your preferences, suggests search terms, and can autofill the scan form via structured `action` payloads. Override the active provider **and model** per turn; a one-shot toast offers to persist the choice as default.
+- **Smart CV analysis** — Upload PDF / DOCX / TXT or images (JPG / PNG / AVIF / WEBP / TIFF / BMP / SVG). Scanned PDFs and image CVs are read via Tesseract OCR; the LLM extracts skills, seniority, languages, and ideal roles.
+- **Profile tab** — Inspect what the AI understood from your CV, edit `preferred_roles` / `skills` / `languages` inline (chip-list with PATCH), switch between previously uploaded CVs (multi-CV history with **Set active**, delete unwanted CVs).
+- **AI Career Coach** — Chat that learns your preferences, suggests search terms via clickable role pills, and can autofill the scan form via structured `action` payloads. Quick-prompt suggestions derived from your CV. Override the active provider **and model** per turn; a one-shot toast offers to persist the choice as default.
 - **Provider cards** (Settings) — One card per LLM (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter) with its own state (empty → configured → fetching → active), per-provider Save & fetch, ⭐-recommended model dropdown populated live from the provider's `list_models`, and a refresh button (5-min TTL cache).
+- **Job Search** — Flat layout with profile-derived role chips, keyword/location tag inputs, parallel LinkedIn + Indeed scan with one-click delete on jobs you don't want.
 - **Multi-source scan** — LinkedIn + Indeed in parallel, streamed via Server-Sent Events.
 - **Personalized scoring** — Each job gets a 1-10 AI score with pros/cons and an apply/skip recommendation.
 - **Kanban tracking** — Open → Applied → Interviewing → Rejected.
 - **Cover-letter generator** — One-click, tailored to the job and your CV.
 - **Multilingual UI** — English, Italian, Spanish, French, German (259 keys per locale, 100% parity).
-- **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order.
+- **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order, exponential backoff retry.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
 
 ---
 
 ## Demo
 
-The animated hero above walks through seven beats end-to-end:
+The animated hero above walks through six beats end-to-end:
 
 1. **Dashboard** with personalized hero, analytics, and the always-on AI Career Coach.
 2. **Settings** — six AI Provider cards with per-provider state, ⭐-recommended model dropdowns.
-3. **Profile tab** — chip-list view of what the AI extracted from your CV + multi-CV history.
-4. **Job Search wizard** — analyze your CV, pick roles from AI-suggested chips.
-5. **Chat coach** — natural-language Q&A with clickable role pills.
+3. **Profile tab** — chip-list view of what the AI extracted from your CV (skills, languages, preferred roles, experience level) plus multi-CV history with set-active and delete.
+4. **Job Search** — flat layout with profile-derived role chips ready to click into keywords, plus tag-input filters for locations and sites.
+5. **Chat coach** — natural-language Q&A with clickable role pills and CV-derived quick prompts.
 6. **Live scan** — animated progress bar, per-job score chips (green/yellow/red), real-time feed.
-7. Settle back on the dashboard with results.
 
-A static look at the 3-step wizard, for readers who can't render the GIF:
+### Static screenshots
 
-![Job Search wizard](screenshots/readme/job-search-en.png)
+For readers who can't render the GIF, four still frames cover the main flows:
 
-> 🎯 Step 1 reads your active CV and surfaces matching role suggestions.
+| Dashboard + Analytics | Career Coach in action |
+|-----------------------|------------------------|
+| ![Dashboard](screenshots/readme/dashboard-en.png) | ![Chat coach](screenshots/readme/chat-view-en.png) |
+| Active Model + Profile, Application Status pie, AI Score Distribution histogram. | Conversation with role pills (Backend Engineer, Data Engineer, ML Engineer, Platform Engineer) ready to one-click. |
+
+| Job Search (flat layout) | Live scan progress |
+|--------------------------|--------------------|
+| ![Job Search](screenshots/readme/job-search-en.png) | ![Scan progress](screenshots/readme/scan-progress-en.png) |
+| Profile-derived role chips, tag-input keywords/locations, LinkedIn + Indeed + remote toggles, Start Scan. | Progress bar + per-job score chips (green/yellow/red) streamed via SSE. |
+
 > ✨ Dark mode toggle in the top bar.
 
 ---
@@ -103,7 +112,7 @@ flowchart LR
         API[REST + SSE endpoints]
         ChatSvc[chat package<br/>state · context · memory<br/>prompts · intents<br/>fallback · handler]
         ScanSvc[scanner_service<br/>analyze_offer · run_scan]
-        CV[cv_ingest<br/>PDF/DOCX → markdown<br/>+ content validation]
+        CV[cv_ingest<br/>PDF/DOCX/IMG → markdown<br/>OCR fallback · content validation]
         Roles[roles_shortlist<br/>dedup + persistence]
         Mig[migrations<br/>001 init · 002 msg_type<br/>003 cv_hash]
     end
@@ -155,12 +164,13 @@ The chat service is split into single-responsibility modules:
 | Database | SQLite (WAL mode, `threading.Lock` shared connection, numbered migrations) |
 | Frontend | Vanilla JS (ES2020 modules), CSS3 glassmorphism, no framework |
 | AI / LLM | 6-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — exponential-backoff retry |
+| OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF) |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 122 tests), Playwright (E2E) |
+| Testing | pytest (unit, 134 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
-| Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — auto-update over GitHub Releases |
+| Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — Tesseract bundled, auto-update over GitHub Releases |
 | Logging | stdlib `logging` + RotatingFileHandler → `data/logs/app.log` |
 
 ---
@@ -173,7 +183,7 @@ app/
 ├── config.py                AppSettings + local secrets persistence
 ├── db.py                    SQLite Database (WAL + lock)
 ├── log.py                   Centralized logging setup
-├── cv_ingest.py             CV → markdown → LLM summary + content validation
+├── cv_ingest.py             CV → markdown → LLM summary + OCR fallback (Tesseract)
 ├── lifecycle.py             Post-scan retention/archive policy
 ├── models.py                Pydantic request/response models
 ├── rate_limit.py            Token-bucket limiter for /api/chat, /api/scan, /api/upload-cv
@@ -203,8 +213,9 @@ scripts/
 ├── update.py                Source-mode self-update (git pull + pip)
 ├── launch_exe.py            PyInstaller entry — workspace next to .exe, browser auto-open
 ├── updater.py               Bundled as Updater.exe — sync new release, preserve data/
-└── build_exe.py             Local build wrapper: PyInstaller + zip
+└── build_exe.py             Local build wrapper: PyInstaller + zip + Tesseract bundling
 JobFinder.spec               PyInstaller config (multi-EXE: JobFinder + Updater)
+vendor/tesseract/            Bundled Tesseract OCR (created by build_exe.py)
 ```
 
 ---
@@ -214,6 +225,11 @@ JobFinder.spec               PyInstaller config (multi-EXE: JobFinder + Updater)
 ### Prerequisites
 - Python 3.11+
 - At least one LLM API key (any of the 6 supported providers)
+- Tesseract OCR (optional but recommended — required to upload image CVs and scanned PDFs):
+  - **Windows**: `winget install UB-Mannheim.TesseractOCR`
+  - **macOS**: `brew install tesseract tesseract-lang`
+  - **Linux**: `sudo apt install tesseract-ocr tesseract-ocr-ita tesseract-ocr-eng`
+  - The standalone Windows bundle ships a portable Tesseract — no manual install needed.
 - Node.js (optional — only for Playwright E2E)
 
 ### Install & run

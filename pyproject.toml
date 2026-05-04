@@ -1,6 +1,6 @@
 [project]
 name = "job-finder"
-version = "0.3.0"
+version = "1.0.0"
 description = "Localhost-first AI-powered job search assistant"
 requires-python = ">=3.11"
 
@@ -44,6 +44,10 @@ module = [
     "google.*",
     "pandas.*",
     "requests.*",
+    "pytesseract.*",
+    "pdf2image.*",
+    "pillow_avif",
+    "cairosvg",
 ]
 ignore_missing_imports = true
 

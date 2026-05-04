@@ -25,8 +25,9 @@ def test_extract_md_roundtrip() -> None:
 
 
 def test_extract_rejects_unsupported_format() -> None:
+    """Genuinely unknown formats must still raise. .jpg now routes to OCR."""
     with pytest.raises(RuntimeError):
-        extract_markdown_from_upload("cv.jpg", b"not-supported")
+        extract_markdown_from_upload("cv.exe", b"not-supported")
 
 
 def test_extract_is_case_insensitive() -> None:
@@ -91,3 +92,127 @@ def test_validate_cv_content_accepts_realistic_cv_english() -> None:
         "Languages: English (C1), Italian (native)."
     )
     validate_cv_content(cv)
+
+
+def test_summarize_profile_skill_word_boundary_no_false_positives() -> None:
+    """`soc`, `git`, `api` must not match inside unrelated Italian words.
+
+    Regression for the heuristic that previously matched `soc` in
+    `associato`, `git` in `logistica`, `api` in `capi` — producing fake
+    skills on sales/admin CVs without any tech background.
+    """
+    md = (
+        "CV - Curriculum Vitae di Mario Rossi.\n"
+        "Esperienza nella logistica e gestione capi reparto. "
+        "Lavoro associato in un negozio di abbigliamento. "
+        "Competenze: vendita al dettaglio, gestione clienti, social skills."
+    )
+    result = summarize_profile(md)
+    assert "soc" not in result["skills"]
+    assert "git" not in result["skills"]
+    assert "api" not in result["skills"]
+
+
+def test_summarize_profile_no_default_role_for_non_tech_cv() -> None:
+    """Non-tech CV must produce empty preferred_roles, not hardcoded 'Junior SOC Analyst'."""
+    md = (
+        "CV - Anna Bianchi, Store Manager con esperienza nella vendita.\n"
+        "Competenze: gestione personale, customer service, visual merchandising. "
+        "Lingue: italiano madrelingua, inglese avanzato."
+    )
+    result = summarize_profile(md)
+    assert result["preferred_roles"] == []
+
+
+def test_summarize_profile_detects_data_analyst_role() -> None:
+    """`data analyst` and `data analysis` triggers must still map to Data Analyst role."""
+    md = "Esperienza in data analysis con Python e SQL. Lavoro come data analyst."
+    result = summarize_profile(md)
+    assert "Junior Data Analyst" in result["preferred_roles"]
+
+
+def test_estimate_years_from_italian_phrase() -> None:
+    """Catch 'Opero da 7 anni' / 'Lavoro da 5 anni' — Italian explicit phrases."""
+    md = (
+        "CV - Anna Bianchi\nProfilo professionale\n"
+        "Opero da 7 anni come Store Manager con curriculum nel retail. "
+        "Esperienza pluriennale nella gestione del personale."
+    )
+    result = summarize_profile(md)
+    assert result["years_experience"] == 7
+    assert result["experience_level"] == "mid"
+
+
+def test_estimate_years_from_english_phrase() -> None:
+    md = (
+        "John Doe Resume\nWork experience\n"
+        "Over 10 years of experience as a senior backend engineer."
+    )
+    result = summarize_profile(md)
+    assert result["years_experience"] >= 10
+
+
+def test_estimate_years_picks_max_of_phrase_and_dates() -> None:
+    """If CV has both date ranges and an explicit phrase, take the larger value."""
+    md = (
+        "CV\nWork experience: 2020-2022 at Acme. "
+        "Esperienza pluriennale: opero da 8 anni nel settore tecnologico."
+    )
+    result = summarize_profile(md)
+    assert result["years_experience"] == 8
+
+
+def test_extract_image_routes_through_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``.jpg`` upload must go through the OCR path; we mock pytesseract.
+
+    Verifies the routing — not Tesseract output quality. Lets the test suite
+    pass on machines without the Tesseract binary (CI, fresh checkouts).
+    """
+    import io
+
+    from PIL import Image
+
+    from app import cv_ingest
+
+    def _fake_ocr(image, lang="ita+eng"):  # type: ignore[no-untyped-def]
+        return (
+            "Mario Rossi - Curriculum Vitae\n"
+            "Esperienza professionale: 5 anni come addetto alle vendite. "
+            "Competenze: customer service, gestione cassa. "
+            "Formazione: diploma di scuola superiore."
+        )
+
+    class _FakePytesseract:
+        TesseractNotFoundError = RuntimeError
+        image_to_string = staticmethod(_fake_ocr)
+
+        class pytesseract:  # noqa: N801
+            tesseract_cmd: str = ""
+
+    monkeypatch.setitem(__import__("sys").modules, "pytesseract", _FakePytesseract)
+
+    # Build a 1×1 white PNG byte payload so PIL.Image.open succeeds.
+    buf = io.BytesIO()
+    Image.new("RGB", (10, 10), "white").save(buf, format="PNG")
+
+    text = cv_ingest.extract_markdown_from_upload("scan.jpg", buf.getvalue())
+    assert "Mario Rossi" in text
+    assert "Esperienza" in text
+
+
+def test_extract_unsupported_format_message_mentions_images() -> None:
+    """Error message after OCR support must list image formats so users know."""
+    with pytest.raises(RuntimeError, match=r"image|\.jpg|\.png"):
+        extract_markdown_from_upload("cv.exe", b"binary garbage")
+
+
+def test_extract_accepts_image_extensions() -> None:
+    """All image extensions route to the image branch (no 'unsupported' error)."""
+    from unittest import mock
+
+    from app import cv_ingest
+
+    for ext in (".jpg", ".jpeg", ".png", ".webp", ".avif", ".tiff", ".tif", ".bmp"):
+        with mock.patch.object(cv_ingest, "_extract_text_image", return_value="dummy") as mocked:
+            cv_ingest.extract_markdown_from_upload(f"cv{ext}", b"x")
+            mocked.assert_called_once()

@@ -19,6 +19,13 @@ hiddenimports += [
     "uvicorn.protocols.http.auto",
     "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan.on",
+    # OCR pipeline (Tesseract via pytesseract, scanned PDFs via pdf2image,
+    # AVIF decoded via the pillow-avif-plugin side-effect import).
+    "pytesseract",
+    "pdf2image",
+    "PIL",
+    "PIL.Image",
+    "pillow_avif",
 ]
 
 datas: list[tuple[str, str]] = [

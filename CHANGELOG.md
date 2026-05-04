@@ -2,6 +2,49 @@
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-04
+
+First stable public release. Adds OCR for image CVs and scanned PDFs, ships a refreshed Profile/Job Search UX, and consolidates the standalone Windows bundle.
+
+### Added
+- **OCR pipeline for CV ingest** (`app/cv_ingest.py`): images (`.jpg/.jpeg/.png/.webp/.avif/.tiff/.bmp/.svg`) are routed through Tesseract via `pytesseract`. Scanned PDFs fall back to `pdf2image` rasterization + OCR when `pypdf` returns < 50 chars. AVIF supported via `pillow-avif-plugin`. SVG with inline `<text>` tags parsed directly; full-graphic SVG returns empty (documented limit).
+- **Tesseract bundling**: `scripts/build_exe.py:_bundle_tesseract()` copies the system Tesseract install (binary + `tessdata/` ita+eng) into `dist/JobFinder/vendor/tesseract/`. `cv_ingest._resolve_tesseract_cmd()` searches override env, bundle path, system PATH, and Windows default install dirs in that order.
+- **CI Tesseract install**: `.github/workflows/release.yml` now `choco install tesseract` before `python scripts/build_exe.py` so the release zip ships with OCR ready.
+- **Italian/EN/ES/FR/DE years phrase parser** (`_estimate_years_from_phrases`): captures explicit `Opero da N anni`, `Lavoro da N anni`, `Over N years of experience`, `experiencia de N años`, etc. Combined with the date-range parser via `max()` so explicit phrases never lose precedence to short overlap intervals.
+- **Expanded CV keyword dictionary** for content validation: now includes `abilitazion`, `qualifica`, `carriera`, `studi`, `diploma`, `laurea` plus ES/FR/DE keywords, so OCR-noisy CVs (academic, vocational) pass the keyword gate.
+- **Image-format hint in CV upload**: `web/index.html` `cvFile` input `accept=` lists every supported format; `cv-dropzone-hint` reads `PDF · DOCX · MD · TXT · IMG (JPG/PNG/AVIF)`.
+- **Job deletion UI** (`53e286c`): per-row trash button in the jobs list with confirmation. Cascades through `Database.delete_job()`.
+- **CV deletion / Multi-CV history controls** (`0413aaa`, `f3b1c7b`): delete CVs from the Profile tab history.
+- **Language extraction from CV** (`45eed86`): `_extract_languages()` parses the dedicated Languages section (5-locale headers) into chips like `Italiano (Madrelingua)`, deduped case-insensitively. Surfaces in Profile chip-list and the LLM summary.
+- **Role quick prompts in chat** (`d0097de`): CV-derived prompt suggestions appear as clickable pills above the chat input.
+- **Auto-save chips on Profile** (`522e012`, `e2df912`): `preferred_roles` / `skills` / `languages` chip edits PATCH the active profile inline; chat suggestions stay in sync via the same store.
+- **Job Search auto-detect experience** (`36b00d9`): flat layout, no wizard stepper. Profile-derived role chips populate `wizardRoleSuggestions` directly; clicking a chip adds it as a keyword tag.
+- **6 new regression tests** (`tests/unit/test_cv_ingest.py`): word-boundary skill matching, no hardcoded fallback role, Italian years phrase, English `Over N years` phrase, max(date_intervals, phrase_years), data-analyst trigger expansion. Plus 3 OCR routing tests with mocked `pytesseract`. Suite **134/134**.
+
+### Changed
+- **Heuristic skill matching now requires word boundaries** (`_keyword_present()` with `(?<![a-z0-9])kw(?![a-z0-9])`). Previously `soc` matched inside `associato`, `git` inside `logistica`, `api` inside `capi` — non-tech CVs received fake tech skills. Same boundary rule applied to `role_map` triggers, so non-tech CVs no longer default to `Junior SOC Analyst`.
+- **`data analy` trigger** split into 3 explicit triggers (`data analyst`, `data analysis`, `data analytics`) so the new word-boundary rule still maps Data-related CVs to the Data Analyst role.
+- **Job Search wizard removed** in favor of a flat single-card layout (`web/index.html`). Removed selectors: `#wizardAnalyzeBtn`, `.wizard-steps`. Kept selectors: `#wizardProfileSummary`, `#wizardRoleSuggestions` (now populated automatically on view-enter).
+- **README**: Demo section rewritten for the flat layout (6 beats, not 7); Features lists OCR + every new behavior; Tech stack and Project structure updated; Prerequisites mention Tesseract install per OS.
+- **Version aligned** across `app/version.py` (was `0.1.0`) and `pyproject.toml` (was an out-of-sync `0.3.0`) → both now `1.0.0`.
+
+### Fixed
+- **`years_experience` ignored Italian phrases** (`d2c4db4` + this release): `Opero da 7 anni` now returns `7`, not `0`. Date-range scoping to the work section (commit `d2c4db4`) avoids false positives from graduation years; explicit-phrase parser added to fill the remaining gap.
+- **Heuristic CV summary false skills** on non-tech CVs (see "word boundaries" above).
+- **Hardcoded `Junior SOC Analyst` fallback** that surfaced on empty templates and non-tech CVs.
+- **Generic 415 error message** for unsupported uploads now lists image formats so users know they can retry.
+- **Playwright specs** (`tests/e2e/readme-demo-gif.spec.js`, `tests/e2e/readme-demo-screenshots.spec.js`): removed `#wizardAnalyzeBtn` clicks; the flat Job Search now scrolls into view directly.
+
+### Tooling & Quality
+- `requirements.txt`: + `pytesseract>=0.3.10`, `pdf2image>=1.17.0`, `Pillow>=10.0.0`, `pillow-avif-plugin>=1.4.0`.
+- Test count: **122 → 134 passing** (~10% growth, all new tests cover regressions or new OCR routing).
+- LLM retry callback (`d2c4db4`): up to 5 attempts, progressive 3/5/7/9 s waits, optional `on_retry(attempt, wait, exc)` for UI streaming.
+
+### Known limits
+- SVG CVs without inline `<text>` (pure vector artwork) fall through OCR with empty result. Workaround: convert to PNG/JPG before upload. Adding `cairosvg` rasterization is tracked for a later release because of the GTK runtime dependency on Windows.
+- OCR quality on low-DPI scans can lose keyword matches; the expanded keyword dictionary mitigates this but doesn't eliminate it. Best results: 200+ DPI scans, well-lit photos.
+- `pdf2image` requires Poppler. The standalone bundle does not yet ship Poppler, so scanned PDFs (vs. image CVs) will only OCR if the user has Poppler on PATH. Tracked for v1.0.x.
+
 ## [0.1.0] — 2026-04-28
 
 First public release. Standalone Windows bundle, self-update, multi-LLM career-coach chat, scan, kanban, analytics, AI Provider cards, Profile tab.

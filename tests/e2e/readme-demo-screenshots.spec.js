@@ -55,10 +55,8 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
   await page.waitForTimeout(500);
   await shot(page, "dashboard-en.png");
 
-  // 2. Job Search wizard (Step 1 analyzed + chips)
+  // 2. Job Search (flat layout): profile-derived role chips + scan form.
   await page.locator(".topnav .nav-link[data-view='job-search']").click();
-  await page.waitForTimeout(300);
-  await page.locator("#wizardAnalyzeBtn").click();
   await page.waitForTimeout(700);
   await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, "job-search-en.png");

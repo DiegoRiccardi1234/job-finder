@@ -168,7 +168,23 @@ def create_app(workspace_dir: Path) -> FastAPI:
     async def upload_cv(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
         rate_limit.check(request, bucket="upload_cv", limit=10, window_seconds=60)
         MAX_CV_BYTES = 5 * 1024 * 1024  # 5 MB
-        ALLOWED_EXTS = {".pdf", ".docx", ".md", ".markdown", ".txt"}
+        ALLOWED_EXTS = {
+            ".pdf",
+            ".docx",
+            ".md",
+            ".markdown",
+            ".txt",
+            # Image formats handled via OCR (Tesseract).
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".avif",
+            ".tiff",
+            ".tif",
+            ".bmp",
+            ".svg",
+        }
 
         filename = file.filename or "cv"
         ext = Path(filename).suffix.lower()
