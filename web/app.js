@@ -1870,7 +1870,16 @@ async function runUpdate(info) {
   const log = document.getElementById('updateModalLog');
   const closeBtn = document.getElementById('updateModalClose');
   modal.classList.remove('hidden');
-  closeBtn.onclick = () => modal.classList.add('hidden');
+  closeBtn.onclick = () => {
+    modal.classList.add('hidden');
+    // Clear stuck flag so user can retry if they close the modal manually
+    // before the update finishes (e.g. it errored out and they want a redo).
+    localStorage.removeItem('updateInProgress');
+    const runBtn = document.getElementById('updateBannerRun');
+    if (runBtn) runBtn.disabled = false;
+    // Also force-clear backend lockfile so 409 doesn't block the next click.
+    fetch('/api/update/lock', { method: 'DELETE' }).catch(() => { /* best-effort */ });
+  };
 
   if (info && info.frozen) {
     await runBundleUpdate(log);

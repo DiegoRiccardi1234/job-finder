@@ -1028,9 +1028,19 @@ button[type="submit"]:hover, .button:hover {
 .update-banner-notes summary { cursor: pointer; opacity: .9; user-select: none; }
 .update-banner-notes summary:hover { opacity: 1; }
 .update-banner-notes-body { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); background: rgba(0,0,0,.15); border-radius: 6px; max-height: 280px; overflow-y: auto; line-height: 1.5; }
-.update-banner-notes-body h2, .update-banner-notes-body h3 { margin: var(--space-2) 0 var(--space-1); font-size: var(--fs-sm); }
+.update-banner-notes-body h2, .update-banner-notes-body h3 { margin: var(--space-2) 0 var(--space-1); font-size: var(--fs-sm); color: inherit; }
 .update-banner-notes-body ul { margin: var(--space-1) 0; padding-left: var(--space-4); }
-.update-banner-notes-body code { font-family: var(--font-mono); font-size: 0.9em; }
+.update-banner-notes-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.update-banner-notes-body strong { color: inherit; }
+.update-banner-notes-body p { margin: var(--space-1) 0; }
 .update-banner-link {
   color: #fff;
   text-decoration: underline;

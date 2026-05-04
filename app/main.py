@@ -1,3 +1,4 @@
+import contextlib
 import csv
 import hashlib
 import json
@@ -638,7 +639,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         # The double-click race shipped two parallel Updater.exe processes
         # both racing on JobFinder.exe and producing PermissionError.
         lock_path = container.workspace_dir / "data" / "update.lock"
-        lock_ttl_seconds = 300
+        lock_ttl_seconds = 60
         if lock_path.exists():
             try:
                 age = time.time() - lock_path.stat().st_mtime
@@ -675,6 +676,22 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         # can replace our files. Graceful uvicorn shutdown is too slow.
         threading.Timer(0.8, lambda: os._exit(0)).start()
         return {"status": "updating", "next_version": latest, "from_version": current}
+
+    @fastapi_app.delete("/api/update/lock")
+    def clear_update_lock() -> dict[str, Any]:
+        """Force-clear the update lockfile.
+
+        Used by the frontend when the user explicitly closes the update
+        modal before completion, so they can retry without waiting for
+        the TTL to expire. Safe because at this point either the updater
+        completed (lockfile already gone) or it crashed (no live updater
+        will fight us for files).
+        """
+        lock_path = container.workspace_dir / "data" / "update.lock"
+        existed = lock_path.exists()
+        with contextlib.suppress(OSError):
+            lock_path.unlink(missing_ok=True)
+        return {"cleared": existed}
 
     @fastapi_app.get("/api/update/progress")
     def update_progress() -> dict[str, Any]:

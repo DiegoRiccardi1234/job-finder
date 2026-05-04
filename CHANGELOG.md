@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [1.2.3] — 2026-05-05
+
+Update banner readability + recover from stuck retry state.
+
+### Fixed
+- **Inline `<code>` segments inside the in-app release notes are now legible** — the v1.2.0 banner rendered backtick-fenced strings (`── Free ──`, `<option>`, locale keys, etc.) with a `<code>` element whose default background nearly matched the purple banner gradient, so users saw blank patches instead of text. Added explicit `background: rgba(0,0,0,0.35)`, white foreground, and a thin border so code reads on every banner state.
+- **"Update now" button gets stuck after a closed modal or failed update** — when the user closed the update modal mid-run (X button) or the update errored, `localStorage["updateInProgress"]` and the backend lockfile both stayed set, so the next click was a no-op or returned HTTP 409. Modal close now clears both: it removes the localStorage flag, re-enables the button, and fires `DELETE /api/update/lock` to force-clear the backend lockfile.
+
+### Changed
+- **Backend lockfile TTL 300s → 60s** — 5 minutes was overkill for the legitimate "prevent double-spawn" case (parallel updaters fight within seconds, not minutes) and made it impossible to retry a failed update without sitting on your hands. 60s is enough to dampen accidental rapid double-clicks while keeping retry latency low.
+
+### Added
+- **`DELETE /api/update/lock` endpoint** — explicit force-clear of `data/update.lock`, called by the frontend on modal close. Safe at this point: either the updater succeeded (lockfile already gone) or it crashed (no live updater process to fight us for files).
+
 ## [1.2.2] — 2026-05-04
 
 Settings model picker readability.
