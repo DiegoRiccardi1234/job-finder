@@ -214,6 +214,44 @@ function _setProviderCardState(name, state) {
   if (card) card.dataset.state = state;
 }
 
+function _ensureOpenRouterFilter(card, models, recommended, renderOptions) {
+  const row = card.querySelector(".provider-model-row");
+  if (!row) {
+    renderOptions(models);
+    return;
+  }
+  let filterBox = row.querySelector(".or-filter");
+  if (!filterBox) {
+    filterBox = document.createElement("div");
+    filterBox.className = "or-filter";
+    filterBox.innerHTML = `
+      <input type="search" class="or-filter-search" placeholder="${t("settings.providers.searchPlaceholder")}" />
+      <label class="or-filter-toggle">
+        <input type="checkbox" class="or-filter-free" checked />
+        <span>${t("settings.providers.freeOnly")}</span>
+      </label>
+    `;
+    const select = row.querySelector(".provider-model-select");
+    row.insertBefore(filterBox, select);
+  }
+  const searchInput = filterBox.querySelector(".or-filter-search");
+  const freeToggle = filterBox.querySelector(".or-filter-free");
+  const apply = () => {
+    const q = (searchInput.value || "").toLowerCase().trim();
+    const freeOnly = freeToggle.checked;
+    const filtered = models
+      .filter((m) => !freeOnly || m.endsWith(":free"))
+      .filter((m) => !q || m.toLowerCase().includes(q));
+    if (recommended && filtered.includes(recommended)) {
+      filtered.sort((a, b) => (a === recommended ? -1 : b === recommended ? 1 : 0));
+    }
+    renderOptions(filtered);
+  };
+  searchInput.oninput = apply;
+  freeToggle.onchange = apply;
+  apply();
+}
+
 async function fetchProviderModels(name, force = false) {
   const url = `/api/providers/${encodeURIComponent(name)}/models${force ? "?force_refresh=1" : ""}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -243,13 +281,21 @@ async function fetchAndRenderProviderModels(name, force) {
     const select = card.querySelector(".provider-model-select");
     if (select) {
       const autoLabel = t("settings.providers.modelAuto");
-      const opts = [`<option value="">${autoLabel}</option>`];
-      for (const m of models) {
-        const isRec = m === recommended;
-        const star = isRec ? "⭐ " : "";
-        opts.push(`<option value="${m}">${star}${m}</option>`);
+      const renderOptions = (filtered) => {
+        const opts = [`<option value="">${autoLabel}</option>`];
+        for (const m of filtered) {
+          const isRec = m === recommended;
+          const star = isRec ? "⭐ " : "";
+          opts.push(`<option value="${m}">${star}${m}</option>`);
+        }
+        select.innerHTML = opts.join("");
+      };
+      // OpenRouter has 300+ models; add search + free-only filter for usability.
+      if (name === "openrouter" && models.length > 30) {
+        _ensureOpenRouterFilter(card, models, recommended, renderOptions);
+      } else {
+        renderOptions(models);
       }
-      select.innerHTML = opts.join("");
       select.disabled = false;
       // Pre-select if this provider is the primary and a preferred_model is known
       const primarySelect = document.getElementById("primaryProvider");
@@ -1756,6 +1802,17 @@ async function checkForUpdate() {
     } else {
       link.classList.add('hidden');
     }
+    const notesEl = document.getElementById('updateBannerNotes');
+    const notesBody = document.getElementById('updateBannerNotesBody');
+    if (notesEl && notesBody) {
+      const raw = (info.release_notes || '').trim();
+      if (raw) {
+        notesBody.innerHTML = renderCoachMarkdown(raw);
+        notesEl.classList.remove('hidden');
+      } else {
+        notesEl.classList.add('hidden');
+      }
+    }
     banner.classList.remove('hidden');
 
     document.getElementById('updateBannerClose').onclick = () => {
@@ -1798,21 +1855,65 @@ async function runDevUpdate(log) {
   }
 }
 
+function setUpdateStep(stepName, state) {
+  const list = document.getElementById('updateStepList');
+  if (!list) return;
+  const order = ['download', 'verify', 'replace', 'restart'];
+  const targetIdx = order.indexOf(stepName);
+  list.querySelectorAll('.update-step').forEach((el) => {
+    const idx = order.indexOf(el.dataset.step);
+    el.classList.remove('pending', 'active', 'done', 'error');
+    if (state === 'error' && idx === targetIdx) el.classList.add('error');
+    else if (idx < targetIdx) el.classList.add('done');
+    else if (idx === targetIdx) el.classList.add(state === 'done' ? 'done' : 'active');
+    else el.classList.add('pending');
+  });
+}
+
 async function runBundleUpdate(log) {
-  log.textContent = 'Downloading update...\nDo not close this window — the app will restart automatically.\n';
+  setUpdateStep('download', 'active');
+  log.textContent = '';
   try {
     const r = await fetch('/api/update/start', { method: 'POST' });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      log.textContent += `\nFAILED to start update: ${err.detail || r.status}`;
+      log.textContent = `FAILED to start update: ${err.detail || r.status}`;
+      setUpdateStep('download', 'error');
       return;
     }
     const data = await r.json();
-    log.textContent += `\nUpdater spawned: ${data.from_version} → ${data.next_version}\nWaiting for app to restart...\n`;
+    log.textContent = `Updater spawned: ${data.from_version} → ${data.next_version}\n`;
   } catch (err) {
-    log.textContent += `\nFAILED: ${err.message}`;
+    log.textContent = `FAILED: ${err.message}`;
+    setUpdateStep('download', 'error');
     return;
   }
+
+  // Poll /api/update/progress while the parent process is still alive
+  // (~0–1 s window). Once the parent exits, /api/health takes over.
+  const progressDeadline = Date.now() + 30_000;
+  let progressLastEvent = '';
+  while (Date.now() < progressDeadline) {
+    await new Promise((r) => setTimeout(r, 600));
+    try {
+      const pr = await fetch('/api/update/progress', { cache: 'no-store' });
+      if (!pr.ok) break;
+      const p = await pr.json();
+      if (p.event && p.event !== progressLastEvent) {
+        progressLastEvent = p.event;
+        log.textContent += `${p.event}\n`;
+      }
+      if (p.step === 'error') {
+        setUpdateStep('download', 'error');
+        log.textContent += `\nUpdater error: ${(p.details && p.details.message) || 'unknown'}`;
+        return;
+      }
+      if (p.step) setUpdateStep(p.step, 'active');
+    } catch {
+      break; // parent died, switch to /api/health polling
+    }
+  }
+  setUpdateStep('restart', 'active');
 
   // Poll /api/health until the new process is up. Expect a window
   // (~5–60 s) where the request fails because the app is being replaced.
@@ -1826,6 +1927,7 @@ async function runBundleUpdate(log) {
       const json = await h.json();
       const ver = (json.version_info && json.version_info.current) || (json.version || '');
       if (outageObserved) {
+        setUpdateStep('restart', 'done');
         log.textContent += `\nNew app reachable (v${ver}). Reloading...`;
         setTimeout(() => window.location.reload(), 1500);
         return;

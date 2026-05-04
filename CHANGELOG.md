@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-04
+
+UX release focused on visible release notes, a clear update flow, and a saner model picker.
+
+### Added
+- **In-app release notes** — the "Update available" banner now includes a `<details>` element rendering the release notes pulled from `/api/version` (`release_notes` field). Users see *what's new* without leaving the app. Markdown rendered via the existing `renderCoachMarkdown()` helper.
+- **GitHub Release pages now show Added/Changed/Fixed bullets directly** — `release.yml` extracts the matching `[$version]` section from `CHANGELOG.md` via PowerShell regex and passes it as `body_path` to `softprops/action-gh-release@v2`. No more empty release pages with only a "Full Changelog" compare link.
+- **Update progress modal with 4 step indicators** — when the user clicks "Update now", a new dialog (`#updateModal`) shows live progress through Download → Verify → Replace → Restart, driven by the new `GET /api/update/progress` endpoint that parses structured `EVENT {...}` JSON lines from `data/logs/updater.log`. Includes a hint text "The app will restart automatically and this page will reload" so users know what to expect.
+- **OpenRouter search + free-only filter** — for providers exposing more than 30 models (only OpenRouter today, with 371 entries), the Settings card now shows a search input and a "Free only" checkbox above the model dropdown. The filter is applied client-side over the cached model list. Default state is "Free only" enabled, so first-time users immediately see the cheapest options.
+- **Smarter Auto model picker** — `app/providers/model_selector.score_model_name()` now penalizes hard-avoid patterns (`embed`, `whisper`, `tts`, `dall-e`, `moderation`, `audio`) with `-1000`, soft-avoid (`preview`, `deprecated`, `experimental`, `alpha`) with `-50`, and rewards OpenRouter `:free` suffix with `+25`. New helper `pick_default_model()` filters out non-chat models entirely before ranking, so an embedding-only key never resolves to a chat default. 8 new unit tests in `tests/unit/test_model_selector.py`.
+
+### Changed
+- **`app/version.py`**: `release_notes` truncation raised from 500 to 2000 characters so a typical release section fits without being cut mid-sentence.
+- **`scripts/updater.py`**: emits structured `EVENT {...}` JSON lines alongside the existing human-readable log, covering `started`, `parent_exited`, `download_start/done/skipped`, `verify_start/done`, `replace_start/done`, `restart_spawned`, `error`. Backwards-compatible: the human log lines remain unchanged.
+- **`.github/workflows/release.yml`**: removed `generate_release_notes: true` (which only produced a "Full Changelog" auto-link) in favor of `body_path: release-notes.md` produced by the new extraction step.
+
+### Fixed
+- **Release notes invisible on GitHub Releases** — pages for v1.0.0/v1.1.0/v1.1.1 only showed a "Full Changelog: …" compare link with no content. From v1.2.0 onwards, the body is the actual `CHANGELOG.md` section.
+- **Update flow appearing to hang** — previously the modal showed a single text blob ("Downloading update...") for the entire process, leaving users uncertain whether anything was happening. The new step indicator shows live state.
+
+### Tooling
+- 8 new tests covering the model picker (147 → 155 total).
+- Ruff, mypy strict, format clean.
+
 ## [1.1.1] — 2026-05-04
 
 Hotfix release focused on the bundled `Updater.exe` UX.

@@ -14,7 +14,7 @@ from app.log import get_logger
 
 log = get_logger(__name__)
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 GITHUB_REPO = "DiegoRiccardi1234/Linkedin-searcher"
 RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -78,7 +78,7 @@ def get_version_info(force_refresh: bool = False) -> dict[str, Any]:
             "latest": latest_tag or None,
             "update_available": update,
             "release_url": release.get("html_url"),
-            "release_notes": (release.get("body") or "")[:500],
+            "release_notes": (release.get("body") or "")[:2000],
             "checked": True,
             "frozen": frozen,
         }

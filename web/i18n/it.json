@@ -183,6 +183,8 @@
       "apiKey": "API Key",
       "model": "Modello",
       "modelAuto": "Auto (default del provider)",
+      "searchPlaceholder": "Cerca modelli...",
+      "freeOnly": "Solo gratis",
       "saveAndFetch": "Salva e carica modelli",
       "saving": "Salvataggio...",
       "saveFailed": "Salvataggio fallito",
@@ -287,8 +289,16 @@
   "update": {
     "title": "Nuova versione disponibile",
     "releaseNotes": "Note di rilascio",
+    "viewNotes": "Novità",
     "runNow": "Aggiorna ora",
-    "modalTitle": "Aggiornamento in corso..."
+    "modalTitle": "Aggiornamento in corso...",
+    "willAutoReload": "L'app si riavvierà da sola e questa pagina si ricaricherà.",
+    "step": {
+      "download": "Download della nuova versione",
+      "verify": "Verifica del pacchetto",
+      "replace": "Installazione file",
+      "restart": "Riavvio Job Finder"
+    }
   },
   "chat": {
     "modelOverride": "Sostituisci modello",

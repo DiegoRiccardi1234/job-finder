@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import ctypes
+import json
 import os
 import shutil
 import subprocess
@@ -33,6 +34,7 @@ import time
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any
 
 if getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(sys.executable).resolve().parent / "_internal"))
@@ -129,41 +131,57 @@ def main() -> int:
         log_file.write(line + "\n")
         log_file.flush()
 
+    def event(name: str, **fields: Any) -> None:
+        payload = {"event": name, "ts": time.time(), **fields}
+        log_file.write("EVENT " + json.dumps(payload) + "\n")
+        log_file.flush()
+
     with contextlib.closing(log_file):
         try:
+            event("started", parent_pid=args.parent_pid)
             log(f"updater starting; waiting for parent PID {args.parent_pid}")
             _wait_for_pid(args.parent_pid)
             log("parent exited, proceeding")
+            event("parent_exited")
 
             with tempfile.TemporaryDirectory(prefix="jobfinder-update-") as td:
                 tmp = Path(td)
                 if args.zip:
                     zip_path = args.zip.resolve()
                     log(f"using pre-downloaded ZIP: {zip_path}")
+                    event("download_skipped", zip=str(zip_path))
                 else:
                     log("downloading latest release ZIP from GitHub")
+                    event("download_start")
                     zip_path = _download_latest(tmp)
                     log(f"downloaded to {zip_path}")
+                    event("download_done", bytes=zip_path.stat().st_size)
 
                 extract_dir = tmp / "extracted"
                 extract_dir.mkdir()
+                event("verify_start")
                 with zipfile.ZipFile(zip_path) as z:
                     z.extractall(extract_dir)
                 log(f"extracted into {extract_dir}")
+                event("verify_done")
 
                 # The ZIP root is the `JobFinder/` folder produced by PyInstaller.
                 inner_dirs = [p for p in extract_dir.iterdir() if p.is_dir()]
                 source = inner_dirs[0] if len(inner_dirs) == 1 else extract_dir
 
+                event("replace_start")
                 count = sync_install_dir(source=source, target=install_dir)
                 log(f"sync done: {count} files written, data/ preserved")
+                event("replace_done", files=count)
 
             exe = install_dir / "JobFinder.exe"
             log(f"restarting {exe}")
+            event("restart_spawned", exe=str(exe))
             subprocess.Popen([str(exe)], cwd=str(install_dir))
             return 0
         except Exception as exc:
             log(f"FAILED: {exc!r}")
+            event("error", message=repr(exc))
             return 1
 
 

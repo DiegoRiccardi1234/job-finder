@@ -183,6 +183,8 @@
       "apiKey": "Clé API",
       "model": "Modèle",
       "modelAuto": "Auto (par défaut du fournisseur)",
+      "searchPlaceholder": "Rechercher des modèles...",
+      "freeOnly": "Gratuits uniquement",
       "saveAndFetch": "Enregistrer et charger les modèles",
       "saving": "Enregistrement...",
       "saveFailed": "Échec de l'enregistrement",
@@ -287,8 +289,16 @@
   "update": {
     "title": "Nouvelle version disponible",
     "releaseNotes": "Notes de version",
+    "viewNotes": "Nouveautés",
     "runNow": "Mettre à jour",
-    "modalTitle": "Mise à jour en cours..."
+    "modalTitle": "Mise à jour en cours...",
+    "willAutoReload": "L'application redémarrera automatiquement et cette page se rechargera.",
+    "step": {
+      "download": "Téléchargement de la nouvelle version",
+      "verify": "Vérification du paquet",
+      "replace": "Installation des fichiers",
+      "restart": "Redémarrage de Job Finder"
+    }
   },
   "chat": {
     "modelOverride": "Remplacer le modèle",

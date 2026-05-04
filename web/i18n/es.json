@@ -183,6 +183,8 @@
       "apiKey": "Clave API",
       "model": "Modelo",
       "modelAuto": "Auto (predeterminado del proveedor)",
+      "searchPlaceholder": "Buscar modelos...",
+      "freeOnly": "Solo gratis",
       "saveAndFetch": "Guardar y cargar modelos",
       "saving": "Guardando...",
       "saveFailed": "Error al guardar",
@@ -287,8 +289,16 @@
   "update": {
     "title": "Nueva versión disponible",
     "releaseNotes": "Notas de la versión",
+    "viewNotes": "Novedades",
     "runNow": "Actualizar ahora",
-    "modalTitle": "Actualizando Job Finder..."
+    "modalTitle": "Actualizando Job Finder...",
+    "willAutoReload": "La app se reiniciará automáticamente y esta página se recargará.",
+    "step": {
+      "download": "Descargando nueva versión",
+      "verify": "Verificando paquete",
+      "replace": "Instalando archivos",
+      "restart": "Reiniciando Job Finder"
+    }
   },
   "chat": {
     "modelOverride": "Anular modelo",

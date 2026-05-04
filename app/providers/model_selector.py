@@ -69,6 +69,30 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
     if "vision" in name:
         score += _weight(policy, "vision_penalty", -8)
 
+    # Hard-avoid patterns: models that are not general-purpose chat completers.
+    avoid_patterns = (
+        "embed",
+        "embedding",
+        "whisper",
+        "tts",
+        "dall-e",
+        "moderation",
+        "audio",
+        "image-",
+    )
+    if any(p in name for p in avoid_patterns):
+        score += _weight(policy, "non_chat_penalty", -1000)
+
+    # Soft-avoid patterns: experimental/preview/deprecated builds.
+    soft_avoid = ("preview", "deprecated", "experimental", "alpha")
+    if any(p in name for p in soft_avoid):
+        score += _weight(policy, "preview_penalty", -50)
+
+    # OpenRouter free tier suffix: prefer ":free" so users can start without
+    # paying. Free variants share the same underlying weights but win ties.
+    if name.endswith(":free"):
+        score += _weight(policy, "free_bonus", 25)
+
     max_cost_tier = str((policy or {}).get("max_cost_tier", "high")).lower()
     if max_cost_tier in {"low", "medium"} and size_b >= 70:
         score -= 15
@@ -100,3 +124,24 @@ def choose_best_model(
 
     ranked = sorted(models, key=lambda x: score_model_name(x, policy=policy), reverse=True)
     return ranked[0]
+
+
+def pick_default_model(
+    provider_name: str, models: list[str], policy: dict[str, Any] | None = None
+) -> str | None:
+    """Return the best default model for a provider, or None if none viable.
+
+    Used by the factory when the user selects "Auto (provider default)".
+    Filters out models with hard-avoid patterns (embeddings, TTS, etc.) before
+    ranking, so an embedding-only key never matches as a chat default.
+    """
+    if not models:
+        return None
+    viable = [
+        m
+        for m in models
+        if score_model_name(m, policy=policy) > -500  # excludes hard-avoid
+    ]
+    if not viable:
+        return None
+    return choose_best_model(viable, policy=policy)

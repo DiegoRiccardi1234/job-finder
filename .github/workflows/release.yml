@@ -34,12 +34,29 @@ jobs:
       - name: Build Windows bundle
         run: python scripts/build_exe.py
 
+      - name: Extract release notes for tag
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v',''
+          $content = Get-Content CHANGELOG.md -Raw
+          $escaped = [regex]::Escape($version)
+          $pattern = "(?ms)^## \[$escaped\][^\r\n]*\r?\n(.*?)(?=\r?\n## \[|\z)"
+          $match = [regex]::Match($content, $pattern)
+          if ($match.Success) {
+            $section = $match.Groups[1].Value.Trim()
+          } else {
+            $section = "Release $tag"
+          }
+          $section | Out-File -FilePath release-notes.md -Encoding utf8
+
       - name: Upload to release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/JobFinder-windows.zip
-          generate_release_notes: true
+          body_path: release-notes.md
           fail_on_unmatched_files: true
 
       - name: Upload artifact (manual run)

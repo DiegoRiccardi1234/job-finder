@@ -653,6 +653,60 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         threading.Timer(0.8, lambda: os._exit(0)).start()
         return {"status": "updating", "next_version": latest, "from_version": current}
 
+    @fastapi_app.get("/api/update/progress")
+    def update_progress() -> dict[str, Any]:
+        """Return latest updater event so the frontend can render a step indicator.
+
+        Reads the tail of ``data/logs/updater.log``, finds the most recent
+        ``EVENT {...}`` JSON line, and maps the event name to a step + percent.
+        Falls back to ``{"step": "idle"}`` if the log is missing or empty.
+        """
+        log_path = container.workspace_dir / "data" / "logs" / "updater.log"
+        if not log_path.exists():
+            return {"step": "idle", "percent": 0, "event": None}
+        try:
+            with log_path.open("rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - 8192))
+                tail = fh.read().decode("utf-8", errors="replace")
+        except OSError:
+            return {"step": "idle", "percent": 0, "event": None}
+
+        last_event: dict[str, Any] | None = None
+        for line in reversed(tail.splitlines()):
+            if not line.startswith("EVENT "):
+                continue
+            try:
+                last_event = json.loads(line[6:])
+                break
+            except (ValueError, json.JSONDecodeError):
+                continue
+        if last_event is None:
+            return {"step": "idle", "percent": 0, "event": None}
+
+        name = str(last_event.get("event", ""))
+        step_map = {
+            "started": ("download", 5),
+            "parent_exited": ("download", 10),
+            "download_start": ("download", 15),
+            "download_done": ("verify", 50),
+            "download_skipped": ("verify", 50),
+            "verify_start": ("verify", 55),
+            "verify_done": ("replace", 70),
+            "replace_start": ("replace", 75),
+            "replace_done": ("restart", 90),
+            "restart_spawned": ("restart", 95),
+            "error": ("error", 0),
+        }
+        step, percent = step_map.get(name, ("download", 0))
+        return {
+            "step": step,
+            "percent": percent,
+            "event": name,
+            "details": last_event,
+        }
+
     @fastapi_app.post("/api/preferences")
     def update_preference(payload: PreferenceUpdateRequest) -> dict[str, Any]:
         container.db.set_preference(payload.key, payload.value)
