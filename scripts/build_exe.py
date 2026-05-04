@@ -41,7 +41,7 @@ def _locate_tesseract() -> Path | None:
     return None
 
 
-_REQUIRED_LANGS = ("eng", "ita", "osd")
+_REQUIRED_LANGS = ("eng", "ita", "spa", "fra", "deu", "osd")
 _TESSDATA_FAST_BASE = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/"
 
 

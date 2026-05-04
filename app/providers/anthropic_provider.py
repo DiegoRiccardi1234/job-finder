@@ -3,7 +3,7 @@ import re
 from typing import Any, cast
 from urllib import error, request
 
-from app.providers.base import LLMProvider
+from app.providers.base import LLMProvider, extract_usage, is_unauthorized
 from app.providers.model_selector import choose_best_model
 
 
@@ -23,7 +23,7 @@ class AnthropicProvider(LLMProvider):
         self._selected_model: str | None = None
 
     def is_available(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.api_key) and not self.key_invalid
 
     def _headers(self) -> dict[str, str]:
         if not self.api_key:
@@ -35,7 +35,7 @@ class AnthropicProvider(LLMProvider):
         }
 
     def list_models(self) -> list[str]:
-        if not self.api_key:
+        if not self.api_key or self.key_invalid:
             return []
         try:
             req = request.Request(
@@ -49,7 +49,9 @@ class AnthropicProvider(LLMProvider):
             return [
                 str(item.get("id")) for item in data if isinstance(item, dict) and item.get("id")
             ]
-        except Exception:
+        except Exception as exc:
+            if is_unauthorized(exc):
+                self.key_invalid = True
             return []
 
     def select_model(self, preferred_model: str | None = None) -> str:
@@ -103,8 +105,11 @@ class AnthropicProvider(LLMProvider):
                 payload = json.loads(resp.read().decode("utf-8"))
         except error.HTTPError as exc:
             details = exc.read().decode("utf-8", errors="replace")
+            if exc.code == 401:
+                self.key_invalid = True
             raise RuntimeError(f"Anthropic HTTP {exc.code}: {details}") from exc
 
+        self.last_usage = extract_usage(payload)
         content = payload.get("content", []) if isinstance(payload, dict) else []
         chunks = [
             str(item.get("text", ""))

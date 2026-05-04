@@ -20,6 +20,10 @@ _RetryT = TypeVar("_RetryT")
 log = get_logger(__name__)
 
 _MODELS_CACHE_TTL_SECONDS = 300.0
+# Health endpoint hits this every poll; keep responses fast and avoid hammering
+# providers that have invalid keys. Shorter than _MODELS_CACHE because settings
+# changes invalidate this cache anyway.
+_METADATA_CACHE_TTL_SECONDS = 60.0
 
 
 class ProviderManager:
@@ -37,6 +41,10 @@ class ProviderManager:
         self.active_provider_name: str = "none"
         self.active_model: str = "none"
         self._models_cache: dict[str, tuple[float, list[str]]] = {}
+        self._metadata_cache: tuple[float, dict[str, Any]] | None = None
+        # Set by AppContainer after the DB is open; ``_record_call`` uses it
+        # to persist token usage. None = no-op (unit tests, isolated usage).
+        self._db: Any = None
 
     def initialize(self) -> None:
         """Pick first available provider from configured order and select a model."""
@@ -90,7 +98,21 @@ class ProviderManager:
         self.active_model = "none"
         log.warning("No LLM provider available; chat/LLM features will fall back.")
 
-    def metadata(self) -> dict[str, Any]:
+    def metadata(self, force_refresh: bool = False) -> dict[str, Any]:
+        """Aggregate provider availability + model lists. Cached for 60s.
+
+        Skips ``list_models()`` on providers flagged ``key_invalid`` so a stale
+        / revoked key (e.g. expired Cerebras free tier) doesn't trigger an HTTP
+        401 on every health poll.
+        """
+        now = _time.time()
+        if (
+            not force_refresh
+            and self._metadata_cache is not None
+            and now - self._metadata_cache[0] < _METADATA_CACHE_TTL_SECONDS
+        ):
+            return self._metadata_cache[1]
+
         providers_metadata: dict[str, Any] = {}
         for name, provider in self.providers.items():
             try:
@@ -99,25 +121,45 @@ class ProviderManager:
                 log.warning("Provider %s is_available error: %s", name, exc)
                 available = False
 
+            key_invalid = bool(getattr(provider, "key_invalid", False))
             models: list[str] = []
-            if available:
+            # Skip the network call when we already know the key is bad — it
+            # will only produce another 401 in the log.
+            if available and not key_invalid:
                 try:
                     models = provider.list_models()
                 except Exception as exc:
                     log.info("Provider %s list_models error: %s", name, exc)
                     models = []
+                # The provider may have flipped key_invalid during list_models.
+                key_invalid = bool(getattr(provider, "key_invalid", False))
 
             providers_metadata[name] = {
-                "available": available,
+                "available": available and not key_invalid,
                 "models": models,
+                "key_invalid": key_invalid,
             }
 
-        return {
+        result = {
             "active_provider": self.active_provider_name,
             "active_model": self.active_model,
             "available": self.active_provider is not None,
             "providers": providers_metadata,
         }
+        self._metadata_cache = (now, result)
+        return result
+
+    def invalidate_caches(self) -> None:
+        """Clear metadata + models caches and reset key_invalid flags.
+
+        Call after the user saves provider keys so the next ``metadata()`` reflects
+        the new configuration without waiting for the 60s TTL.
+        """
+        self._metadata_cache = None
+        self._models_cache = {}
+        for provider in self.providers.values():
+            if hasattr(provider, "key_invalid"):
+                provider.key_invalid = False
 
     def get_models(self, provider_name: str, force_refresh: bool = False) -> dict[str, Any]:
         """Return models + recommended for a single provider, cached for 5 min."""
@@ -163,6 +205,37 @@ class ProviderManager:
             "fetched_at": fetched_at,
         }
 
+    def _record_call(
+        self,
+        provider: LLMProvider,
+        model: str,
+        endpoint: str,
+        success: bool,
+        error_type: str | None = None,
+    ) -> None:
+        """Persist token usage to ``usage_log`` after a call. Best-effort.
+
+        ``self._db`` is set externally by the AppContainer once the DB is open;
+        when missing (unit tests), recording silently no-ops.
+        """
+        db = getattr(self, "_db", None)
+        if db is None:
+            return
+        try:
+            from app.services.usage_tracker import record_usage
+
+            record_usage(
+                db,
+                provider=provider.name,
+                model=model,
+                endpoint=endpoint,
+                last_usage=getattr(provider, "last_usage", None),
+                success=success,
+                error_type=error_type,
+            )
+        except Exception as exc:
+            log.debug("usage record skipped: %s", exc)
+
     def complete_json(
         self,
         prompt: str,
@@ -174,12 +247,18 @@ class ProviderManager:
         active_model = model_name if model_name else self.active_model
         if not provider:
             raise RuntimeError("No LLM provider available")
-        return _with_retry(
-            lambda: provider.complete_json(
-                prompt=prompt, model=active_model, max_tokens=max_tokens
-            ),
-            provider_label=provider_name or self.active_provider_name or "unknown",
-        )
+        try:
+            result = _with_retry(
+                lambda: provider.complete_json(
+                    prompt=prompt, model=active_model, max_tokens=max_tokens
+                ),
+                provider_label=provider_name or self.active_provider_name or "unknown",
+            )
+        except Exception as exc:
+            self._record_call(provider, active_model, "complete_json", False, type(exc).__name__)
+            raise
+        self._record_call(provider, active_model, "complete_json", True)
+        return result
 
     def chat(
         self,
@@ -192,10 +271,16 @@ class ProviderManager:
         active_model = model_name if model_name else self.active_model
         if not provider:
             raise RuntimeError("No LLM provider available")
-        return _with_retry(
-            lambda: provider.chat(messages=messages, model=active_model, max_tokens=max_tokens),
-            provider_label=provider_name or self.active_provider_name or "unknown",
-        )
+        try:
+            result = _with_retry(
+                lambda: provider.chat(messages=messages, model=active_model, max_tokens=max_tokens),
+                provider_label=provider_name or self.active_provider_name or "unknown",
+            )
+        except Exception as exc:
+            self._record_call(provider, active_model, "chat", False, type(exc).__name__)
+            raise
+        self._record_call(provider, active_model, "chat", True)
+        return result
 
 
 # ─── Retry helper ──────────────────────────────────────────────

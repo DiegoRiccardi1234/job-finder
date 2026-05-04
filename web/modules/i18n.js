@@ -6,9 +6,27 @@
 //   initI18n()                   — load English fallback once + apply current locale at boot
 //   onLanguageChange(callback)   — register a side-effect to run after every loadLanguage()
 
+const SUPPORTED_LOCALES = ["en", "it", "es", "fr", "de"];
+
+function _detectInitialLocale() {
+  // Stored preference always wins (user explicitly picked a locale before).
+  const stored = localStorage.getItem("language");
+  if (stored && SUPPORTED_LOCALES.includes(stored)) return stored;
+  // First-run: honor the browser's preferred language. ``navigator.languages``
+  // is an ordered list; the first entry whose two-letter code we support wins.
+  const candidates = (navigator.languages && navigator.languages.length
+    ? navigator.languages
+    : [navigator.language || ""]
+  ).map((tag) => String(tag || "").slice(0, 2).toLowerCase());
+  for (const code of candidates) {
+    if (SUPPORTED_LOCALES.includes(code)) return code;
+  }
+  return "en";
+}
+
 let _i18nStrings = {};
 let _i18nFallback = {};
-let _currentLang = localStorage.getItem("language") || "en";
+let _currentLang = _detectInitialLocale();
 const _i18nMissingReported = new Set();
 let _onLanguageChange = null;
 

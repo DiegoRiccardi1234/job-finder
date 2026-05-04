@@ -47,9 +47,7 @@ def test_sync_replaces_app_files(tmp_path: Path) -> None:
 
     sync_install_dir(source=bundle, target=install)
 
-    assert (install / "app" / "version.py").read_text(encoding="utf-8") == (
-        '__version__ = "0.4.0"'
-    )
+    assert (install / "app" / "version.py").read_text(encoding="utf-8") == ('__version__ = "0.4.0"')
 
 
 def test_sync_writes_brand_new_files(tmp_path: Path) -> None:

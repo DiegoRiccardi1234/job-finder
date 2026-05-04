@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-04
+
+Quality release focused on log-spam fix, true internationalization, soft onboarding, and a token-usage tracker.
+
+### Added
+- **Token usage tracker** — every `chat` / `complete_text` / `complete_json` call now records `prompt_tokens / completion_tokens / total_tokens` per `(provider, model, endpoint)` into the new `usage_log` table. New endpoint `GET /api/usage/stats?range=today|week|month|all` returns aggregates with per-provider and per-day breakdowns. No pricing/cost — just raw counts (deferred to v1.2.0). Migration `004_usage_log.py`. Unit tests in `tests/unit/test_usage_tracker.py`.
+- **OCR multi-lingua** — `app/cv_ingest._ocr_image_bytes` and `_extract_text_pdf_via_ocr` now read the language list from `JOBFINDER_OCR_LANG` env var (set by `AppContainer` from `settings.ocr_languages`). Default `eng+ita+spa+fra+deu`. Bundle ships 5 traineddata files (`scripts/build_exe.py:_REQUIRED_LANGS` extended).
+- **Browser locale auto-detect** — `web/modules/i18n.js` falls back to `navigator.languages` instead of always defaulting to English. First-run users with a Spanish/French/German/Italian browser see the UI in their language immediately. Stored preference still wins over auto-detect.
+- **Soft onboarding gate** — `GET /api/setup/status` returns `{ready, provider_configured, cv_loaded, first_run}`. Frontend tracks `_setupReady`; `activateView()` redirects non-Settings tabs to Settings while no provider key is configured. Banner is now non-dismissable (close button removed). Tabs get a `tab-locked` CSS class with a 🔒 badge while gated.
+- **Backend 412 guard** — `/api/chat` and `/api/scan` return HTTP 412 with `{code: "no_provider_configured"}` when no provider key is configured, protecting against direct API hits even if the UI gate is bypassed.
+- **Provider invalid-key flag** — new `LLMProvider.key_invalid` attribute (set on HTTP 401, cleared on key reload via `ProviderManager.invalidate_caches()`). Stops the factory from re-attempting list_models on every health poll.
+- **`extract_usage()` helper** in `app/providers/base.py` — best-effort token-usage extraction across heterogeneous SDK shapes (OpenAI/Groq/Cerebras/OpenRouter `usage`, Anthropic `input_tokens`/`output_tokens`, Google).
+- **Expanded CV keyword dictionary** — added 9 Spanish, 9 French, 8 German keywords (`habilidades`, `competénce`, `kenntnisse`, etc.) so the validation gate is balanced across the 5 supported locales (was Italian-heavy in v1.0).
+- **Spanish/French/German CV fixtures** in `tests/unit/test_cv_ingest.py` — `validate_cv_content_accepts_spanish_cv` + French + German tests confirm cross-locale acceptance.
+
+### Changed
+- **`metadata()` is now cached for 60 seconds** (`app/providers/factory.py:_metadata_cache`). Each `/api/health` poll used to call `provider.list_models()` 6× (one per provider with a key). Now a single cached payload is returned until the TTL expires or `invalidate_caches()` is called after a key save.
+- **Bundle Tesseract from 3 to 6 traineddata files** (`scripts/build_exe.py:_REQUIRED_LANGS = ("eng", "ita", "spa", "fra", "deu", "osd")`). +10-12 MB zip size (~200 MB total).
+- **No-API-key banner is now non-dismissable** — close button removed; banner clears itself once `loadHealth()` sees a configured provider.
+- **Version aligned to 1.1.0** across `app/version.py` + `pyproject.toml`.
+
+### Fixed
+- **Cerebras 401 spam in logs** — when a stale Cerebras key was loaded from `data/local_secrets.json`, the app emitted "Cerebras SDK list_models failed (401)" + "Cerebras HTTP list_models failed (401)" on every health poll (≈1× per second). Root cause was triple: (1) `metadata()` lacked TTL caching, (2) `is_available()` returned True regardless of key validity, (3) `list_models()` retried both SDK and HTTP paths without remembering the failure. All three are now mitigated. Single 401 line is logged on first attempt, then the provider is marked `key_invalid` and silenced until the user re-saves keys.
+- **Hardcoded `lang="ita+eng"`** in `cv_ingest._ocr_image_bytes` and `_extract_text_pdf_via_ocr` — the app no longer assumes Italian for OCR.
+
+### Tooling & Quality
+- Test count: **134 → 147 passing** (13 new tests for metadata cache, key_invalid flag, usage tracker, and 4 i18n CV fixtures).
+- `ruff check app/ tests/` ✅, `ruff format` ✅, `mypy --strict` ✅ on 39 source files.
+
+### Known limits
+- Pricing/cost estimation deliberately excluded from v1.1.0. Pricing tables drift fast across providers; v1.2.0 will add an opt-in cost layer.
+- Welcome modal (3-step locale + key + CV picker) not shipped — the soft gate alone covers the gap. May land in v1.1.1.
+- Poppler still not bundled, so scanned PDFs (vs. image CVs) remain a lossy path.
+
 ## [1.0.0] — 2026-05-04
 
 First stable public release. Adds OCR for image CVs and scanned PDFs, ships a refreshed Profile/Job Search UX, and consolidates the standalone Windows bundle.

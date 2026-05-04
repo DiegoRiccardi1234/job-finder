@@ -40,6 +40,9 @@ class AppSettings:
     google_api_key: str | None
     openrouter_api_key: str | None
     model_selection_policy: dict[str, Any]
+    # Tesseract language list passed to ``image_to_string(lang=...)`` (``+`` joined).
+    # Default covers the 5 UI locales; the bundle ships ``eng+ita+spa+fra+deu+osd``.
+    ocr_languages: str = "eng+ita+spa+fra+deu"
 
 
 def _load_optional_json(path: Path) -> dict[str, Any]:

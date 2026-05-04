@@ -3,7 +3,7 @@ import re
 from typing import Any, cast
 
 from app.log import get_logger
-from app.providers.base import LLMProvider
+from app.providers.base import LLMProvider, extract_usage, is_unauthorized
 from app.providers.model_selector import choose_best_model
 
 log = get_logger(__name__)
@@ -30,16 +30,20 @@ class GroqProvider(LLMProvider):
         self._selected_model: str | None = None
 
     def is_available(self) -> bool:
-        return self.client is not None
+        return self.client is not None and not self.key_invalid
 
     def list_models(self) -> list[str]:
-        if not self.client:
+        if not self.client or self.key_invalid:
             return []
         try:
             models = self.client.models.list()
             return [m.id for m in models.data if getattr(m, "id", None)]
         except Exception as exc:
-            log.warning("Groq list_models failed: %s", exc)
+            if is_unauthorized(exc):
+                self.key_invalid = True
+                log.warning("Groq key marked invalid (401); will skip until reload.")
+            else:
+                log.warning("Groq list_models failed: %s", exc)
             return []
 
     def select_model(self, preferred_model: str | None = None) -> str:
@@ -62,6 +66,7 @@ class GroqProvider(LLMProvider):
             temperature=0.1,
             max_completion_tokens=max_tokens,
         )
+        self.last_usage = extract_usage(response)
         return (response.choices[0].message.content or "").strip()
 
     def chat(
@@ -76,6 +81,7 @@ class GroqProvider(LLMProvider):
             temperature=0.2,
             max_completion_tokens=max_tokens,
         )
+        self.last_usage = extract_usage(response)
         return (response.choices[0].message.content or "").strip()
 
     def complete_json(

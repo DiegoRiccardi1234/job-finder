@@ -50,10 +50,15 @@ class AppContainer:
         self.workspace_dir = workspace_dir
         self.settings: AppSettings = load_settings(workspace_dir)
         configure_logging(log_dir=self.settings.data_dir / "logs")
+        # Propagate the OCR language list to ``cv_ingest`` (which reads the env
+        # var lazily) so all extraction paths honor the user's locale config.
+        os.environ.setdefault("JOBFINDER_OCR_LANG", self.settings.ocr_languages)
         self.log = get_logger("app.main")
         self.log.info("AppContainer initializing (workspace=%s)", workspace_dir)
         self.db = Database(self.settings.db_path)
         self.providers = ProviderManager(self.settings)
+        # Give the manager a DB handle so it can persist token usage per call.
+        self.providers._db = self.db
         self.providers.initialize()
 
         cv_path = workspace_dir / "cv.md"
@@ -76,6 +81,7 @@ class AppContainer:
     def reload_providers(self) -> None:
         self.settings = load_settings(self.workspace_dir)
         self.providers = ProviderManager(self.settings)
+        self.providers._db = self.db
         self.providers.initialize()
 
     def keys_status(self) -> dict[str, Any]:
@@ -340,9 +346,61 @@ def create_app(workspace_dir: Path) -> FastAPI:
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+    def _require_provider() -> None:
+        """Reject requests when no LLM key is configured. UI banner gates this too,
+        but a backend 412 protects against direct API hits and the polling
+        race where the user submits before the banner enforces."""
+        if not any(
+            container.keys_status()[k]
+            for k in (
+                "cerebras_configured",
+                "groq_configured",
+                "openai_configured",
+                "anthropic_configured",
+                "google_configured",
+                "openrouter_configured",
+            )
+        ):
+            raise HTTPException(
+                status_code=412,
+                detail={"code": "no_provider_configured", "message_key": "errors.noProvider"},
+            )
+
+    @fastapi_app.get("/api/usage/stats")
+    def usage_stats(range: str = "today") -> dict[str, Any]:
+        """Token-usage aggregates. ``range`` ∈ {today, week, month, all}."""
+        from app.services.usage_tracker import aggregate_stats
+
+        if range not in {"today", "week", "month", "all"}:
+            range = "today"
+        return aggregate_stats(container.db, range_=range)
+
+    @fastapi_app.get("/api/setup/status")
+    def setup_status() -> dict[str, Any]:
+        ks = container.keys_status()
+        provider_configured = any(
+            ks[k]
+            for k in (
+                "cerebras_configured",
+                "groq_configured",
+                "openai_configured",
+                "anthropic_configured",
+                "google_configured",
+                "openrouter_configured",
+            )
+        )
+        cv_loaded = container.db.get_active_candidate_profile() is not None
+        return {
+            "ready": provider_configured,
+            "provider_configured": provider_configured,
+            "cv_loaded": cv_loaded,
+            "first_run": not provider_configured and not cv_loaded,
+        }
+
     @fastapi_app.post("/api/scan")
     def scan(request: Request, payload: ScanRequest) -> dict[str, Any]:
         rate_limit.check(request, bucket="scan", limit=5, window_seconds=60)
+        _require_provider()
         result = {}
         for event in run_scan(
             db=container.db,
@@ -505,6 +563,7 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
     @fastapi_app.post("/api/chat", response_model=ChatResponse)
     def chat(request: Request, payload: ChatRequest) -> ChatResponse:
         rate_limit.check(request, bucket="chat", limit=20, window_seconds=60)
+        _require_provider()
         result = handle_chat_message(
             db=container.db,
             provider_manager=container.providers,

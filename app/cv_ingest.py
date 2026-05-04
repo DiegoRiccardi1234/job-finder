@@ -14,6 +14,17 @@ log = get_logger(__name__)
 # return 0 or a handful of stray glyphs.
 _OCR_FALLBACK_MIN_CHARS = 50
 
+# Default Tesseract language list. Overridable per-call via the ``lang`` kwarg
+# or globally via the ``JOBFINDER_OCR_LANG`` env var (set by ``AppContainer``
+# from ``settings.ocr_languages``). Bundle ships ``eng+ita+spa+fra+deu+osd``.
+_DEFAULT_OCR_LANG = "eng+ita+spa+fra+deu"
+
+
+def _get_ocr_lang(override: str | None = None) -> str:
+    if override:
+        return override
+    return os.environ.get("JOBFINDER_OCR_LANG", _DEFAULT_OCR_LANG)
+
 
 def _resolve_tesseract_cmd() -> str | None:
     """Locate the ``tesseract`` binary, preferring a bundled portable copy.
@@ -48,7 +59,7 @@ def _resolve_tesseract_cmd() -> str | None:
     return None
 
 
-def _ocr_image_bytes(data: bytes, *, lang: str = "ita+eng") -> str:
+def _ocr_image_bytes(data: bytes, *, lang: str | None = None) -> str:
     """Run Tesseract OCR on raw image bytes, return extracted text (best-effort)."""
     try:
         import pytesseract
@@ -75,7 +86,7 @@ def _ocr_image_bytes(data: bytes, *, lang: str = "ita+eng") -> str:
         img.save(png_buf, format="PNG")
         png_buf.seek(0)
         normalized = Image.open(png_buf)
-        return str(pytesseract.image_to_string(normalized, lang=lang)).strip()
+        return str(pytesseract.image_to_string(normalized, lang=_get_ocr_lang(lang))).strip()
     except pytesseract.TesseractNotFoundError as exc:
         raise RuntimeError(
             "Tesseract OCR not found. Install Tesseract (Windows: "
@@ -150,9 +161,10 @@ def _extract_text_pdf_via_ocr(data: bytes) -> str:
     cmd = _resolve_tesseract_cmd()
     if cmd:
         pytesseract.pytesseract.tesseract_cmd = cmd
+    lang = _get_ocr_lang()
     for img in images:
         try:
-            pages_text.append(str(pytesseract.image_to_string(img, lang="ita+eng")))
+            pages_text.append(str(pytesseract.image_to_string(img, lang=lang)))
         except Exception as exc:
             log.warning("OCR page failed: %s", exc)
     return "\n".join(pages_text).strip()
@@ -200,6 +212,8 @@ CV_KEYWORDS = (
     "career",
     "profile",
     "summary",
+    "qualifications",
+    "languages",
     # Italian
     "esperienza",
     "competenze",
@@ -215,13 +229,35 @@ CV_KEYWORDS = (
     "studi",
     "diploma",
     "laurea",
-    # Spanish / French / German common terms (OCR-friendly)
+    # Spanish
     "experiencia",
-    "expérience",
-    "berufserfahrung",
-    "ausbildung",
-    "compétence",
+    "habilidades",
     "formación",
+    "educación",
+    "trabajo",
+    "currículum",
+    "perfil",
+    "idiomas",
+    "titulación",
+    # French
+    "expérience",
+    "compétence",
+    "formation",
+    "éducation",
+    "travail",
+    "profil",
+    "langues",
+    "diplôme",
+    "qualification",
+    # German
+    "berufserfahrung",
+    "kenntnisse",
+    "ausbildung",
+    "bildung",
+    "arbeit",
+    "lebenslauf",
+    "sprachen",
+    "abschluss",
 )
 MIN_CV_CHARS = 200
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -127,9 +126,7 @@ def test_provider_manager_get_models_unknown_provider(tmp_path: Path) -> None:
     assert result == {"models": [], "recommended": None, "cached": False, "fetched_at": 0.0}
 
 
-def test_provider_manager_get_models_handles_list_exception(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_provider_manager_get_models_handles_list_exception(tmp_path: Path, monkeypatch) -> None:
     from app.config import load_settings
     from app.providers.cerebras_provider import CerebrasProvider
     from app.providers.factory import ProviderManager

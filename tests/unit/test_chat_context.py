@@ -26,9 +26,7 @@ def empty_db(tmp_path: Path) -> Database:
 
 
 def _save_cv(db: Database, markdown: str) -> None:
-    profile_id = db.save_candidate_profile(
-        source_name="cv.md", markdown=markdown, summary={}
-    )
+    profile_id = db.save_candidate_profile(source_name="cv.md", markdown=markdown, summary={})
     db.set_active_profile(profile_id)
 
 

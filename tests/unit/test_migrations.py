@@ -15,9 +15,12 @@ def _schema_version(conn: sqlite3.Connection) -> int:
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
-    return conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
-    ).fetchone() is not None
+    return (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()
+        is not None
+    )
 
 
 def test_migrations_discovered_and_ordered() -> None:
@@ -36,7 +39,14 @@ def test_fresh_db_gets_all_migrations_applied(tmp_path: Path) -> None:
         latest = _discover()[-1].version
         assert _schema_version(conn) == latest
         # Core tables present
-        for tbl in ("jobs", "scan_runs", "candidate_profiles", "chat_messages", "preferences", "job_actions"):
+        for tbl in (
+            "jobs",
+            "scan_runs",
+            "candidate_profiles",
+            "chat_messages",
+            "preferences",
+            "job_actions",
+        ):
             assert _table_exists(conn, tbl), f"missing table {tbl}"
     finally:
         db.close()
@@ -80,7 +90,9 @@ def test_migration_003_adds_content_hash_column_and_index(tmp_path: Path) -> Non
     db_path = tmp_path / "hash.db"
     db = Database(db_path)
     try:
-        cols = {row[1] for row in db.conn.execute("PRAGMA table_info(candidate_profiles)").fetchall()}
+        cols = {
+            row[1] for row in db.conn.execute("PRAGMA table_info(candidate_profiles)").fetchall()
+        }
         assert "content_hash" in cols
         idx_rows = db.conn.execute(
             "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='candidate_profiles'"

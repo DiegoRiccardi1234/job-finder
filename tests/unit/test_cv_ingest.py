@@ -186,12 +186,12 @@ def test_extract_image_routes_through_ocr(monkeypatch: pytest.MonkeyPatch) -> No
         TesseractNotFoundError = RuntimeError
         image_to_string = staticmethod(_fake_ocr)
 
-        class pytesseract:  # noqa: N801
+        class pytesseract:
             tesseract_cmd: str = ""
 
     monkeypatch.setitem(__import__("sys").modules, "pytesseract", _FakePytesseract)
 
-    # Build a 1×1 white PNG byte payload so PIL.Image.open succeeds.
+    # Build a 10x10 white PNG byte payload so PIL.Image.open succeeds.
     buf = io.BytesIO()
     Image.new("RGB", (10, 10), "white").save(buf, format="PNG")
 
@@ -216,3 +216,51 @@ def test_extract_accepts_image_extensions() -> None:
         with mock.patch.object(cv_ingest, "_extract_text_image", return_value="dummy") as mocked:
             cv_ingest.extract_markdown_from_upload(f"cv{ext}", b"x")
             mocked.assert_called_once()
+
+
+def test_get_ocr_lang_uses_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_get_ocr_lang`` reads the env var so AppContainer can plumb settings.ocr_languages through."""
+    from app.cv_ingest import _get_ocr_lang
+
+    monkeypatch.delenv("JOBFINDER_OCR_LANG", raising=False)
+    assert "eng" in _get_ocr_lang()
+    assert "ita" in _get_ocr_lang()
+
+    monkeypatch.setenv("JOBFINDER_OCR_LANG", "spa+eng")
+    assert _get_ocr_lang() == "spa+eng"
+
+    # Explicit override beats the env var.
+    assert _get_ocr_lang("fra+deu") == "fra+deu"
+
+
+def test_validate_cv_content_accepts_spanish_cv() -> None:
+    cv = (
+        "Currículum Vítae - María García\n\n"
+        "Experiencia laboral: 5 años como desarrolladora frontend en startups tecnológicas.\n"
+        "Habilidades: React, TypeScript, accesibilidad web, testing automatizado. "
+        "Educación: Grado en Informática (2018) por la Universidad Politécnica. "
+        "Idiomas: Español (nativo), Inglés (C1)."
+    )
+    validate_cv_content(cv)
+
+
+def test_validate_cv_content_accepts_french_cv() -> None:
+    cv = (
+        "Curriculum Vitae - Pierre Dupont\n\n"
+        "Expérience professionnelle: 4 ans comme ingénieur logiciel chez Acme Corp. "
+        "Compétences techniques: Python, FastAPI, PostgreSQL, Docker, tests unitaires. "
+        "Formation: Master en informatique à l'École Polytechnique. "
+        "Langues: Français (natif), Anglais (B2)."
+    )
+    validate_cv_content(cv)
+
+
+def test_validate_cv_content_accepts_german_cv() -> None:
+    cv = (
+        "Lebenslauf - Anna Schmidt\n\n"
+        "Berufserfahrung: 6 Jahre als Backend-Entwicklerin bei verschiedenen Firmen in Berlin. "
+        "Kenntnisse: Java, Spring Boot, AWS, Microservices, agile Methoden. "
+        "Ausbildung: Diplom-Informatikerin von der Technischen Universität München. "
+        "Sprachen: Deutsch (Muttersprache), Englisch (C1)."
+    )
+    validate_cv_content(cv)

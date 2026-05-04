@@ -384,16 +384,28 @@ function updateProvidersMetadata(metadata, desiredModel) {
 }
 
 function activateView(viewName) {
+  // Soft gate: when no provider key is configured, only Settings is reachable.
+  // Direct calls to other views are redirected so the user always lands on the
+  // place where they can finish setup.
+  if (!_setupReady && viewName !== "settings") {
+    viewName = "settings";
+  }
+
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("is-active", section.id === `view-${viewName}`);
   });
 
   document.querySelectorAll(".nav-link").forEach((btn) => {
-    btn.classList.toggle("is-active", btn.dataset.view === viewName);
+    const target = btn.dataset.view;
+    btn.classList.toggle("is-active", target === viewName);
+    // Visual cue + pointer-events block on non-settings tabs while gated.
+    btn.classList.toggle("tab-locked", !_setupReady && target !== "settings");
   });
 
   document.querySelectorAll(".rail-link").forEach((btn) => {
-    btn.classList.toggle("is-active", btn.dataset.view === viewName);
+    const target = btn.dataset.view;
+    btn.classList.toggle("is-active", target === viewName);
+    btn.classList.toggle("tab-locked", !_setupReady && target !== "settings");
   });
 }
 
@@ -472,10 +484,16 @@ function appendChat(role, content, extras) {
   box.scrollTop = box.scrollHeight;
 }
 
+// Tracks whether at least one provider key is saved. Updated by loadHealth().
+// While ``false``, the banner stays visible and non-dashboard tabs are gated.
+let _setupReady = true;
+
 function ensureNoKeyBanner(show, message) {
+  _setupReady = !show;
   let banner = document.getElementById("noApiKeyBanner");
   if (!show) {
     if (banner) banner.remove();
+    document.body.classList.remove("setup-pending");
     return;
   }
   if (!banner) {
@@ -484,6 +502,9 @@ function ensureNoKeyBanner(show, message) {
     banner.className = "no-key-banner";
     document.body.insertBefore(banner, document.body.firstChild);
   }
+  document.body.classList.add("setup-pending");
+  // Non-dismissable: removed the close button. The banner clears itself once
+  // ``loadHealth()`` sees a configured provider on the next render.
   banner.innerHTML = `
     <span class="material-symbols-outlined">warning</span>
     <span class="no-key-banner-text">${escapeHtml(message)}</span>
@@ -491,9 +512,7 @@ function ensureNoKeyBanner(show, message) {
     <a href="https://cloud.cerebras.ai/?utm_source=jobfinder" target="_blank" rel="noopener noreferrer" class="no-key-banner-link no-key-banner-link--primary">${t("banner.signupCerebras")}</a>
     <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" class="no-key-banner-link">${t("banner.signupGroq")}</a>
     <a href="#" id="noApiKeyBannerLink" class="no-key-banner-link">${t("banner.openSettings")}</a>
-    <button type="button" id="noApiKeyBannerClose" class="no-key-banner-close" aria-label="close">×</button>
   `;
-  banner.querySelector("#noApiKeyBannerClose").addEventListener("click", () => banner.remove());
   banner.querySelector("#noApiKeyBannerLink").addEventListener("click", (e) => {
     e.preventDefault();
     activateView("settings");

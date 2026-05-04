@@ -2,8 +2,68 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 
+def extract_usage(response: Any) -> dict[str, int] | None:
+    """Best-effort token usage extraction from heterogeneous SDK responses.
+
+    OpenAI / Groq / Cerebras / OpenRouter expose ``response.usage`` with
+    ``prompt_tokens`` / ``completion_tokens`` / ``total_tokens``. Anthropic
+    uses ``input_tokens`` / ``output_tokens``. Google's OpenAI-compat path
+    matches OpenAI's shape. Returns None when nothing is recognisable.
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None and isinstance(response, dict):
+        usage = response.get("usage")
+    if usage is None:
+        return None
+
+    def _get(key: str) -> Any:
+        if isinstance(usage, dict):
+            return usage.get(key)
+        return getattr(usage, key, None)
+
+    prompt = _get("prompt_tokens") or _get("input_tokens") or 0
+    completion = _get("completion_tokens") or _get("output_tokens") or 0
+    total = _get("total_tokens") or (prompt + completion) or 0
+    if not (prompt or completion or total):
+        return None
+    return {
+        "prompt_tokens": int(prompt or 0),
+        "completion_tokens": int(completion or 0),
+        "total_tokens": int(total or 0),
+    }
+
+
+def is_unauthorized(exc: Exception) -> bool:
+    """Detect HTTP 401 across the heterogeneous provider SDK exception types.
+
+    OpenAI / Anthropic / Groq / Cerebras raise ``AuthenticationError`` with a
+    ``status_code`` attribute. ``requests.HTTPError`` exposes ``response.status_code``.
+    Google's SDK only puts the code in the message string. We accept all of these.
+    """
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        response = getattr(exc, "response", None)
+        if response is not None:
+            status = getattr(response, "status_code", None)
+    if status == 401:
+        return True
+    text = str(exc).lower()
+    return "401" in text and (
+        "unauthor" in text or "wrong api key" in text or "invalid api key" in text
+    )
+
+
 class LLMProvider(ABC):
     name: str
+    # Set to True by ``list_models``/``chat``/``complete_*`` when the provider
+    # responds with HTTP 401 (revoked or wrong key). Stops the factory from
+    # hammering the API on every health poll. Cleared by
+    # ``ProviderManager.invalidate_caches()`` when keys are re-saved.
+    key_invalid: bool = False
+    # Populated by each provider after a successful chat / complete_* call so
+    # the factory can persist token usage to ``usage_log``. Schema:
+    # ``{"prompt_tokens": int, "completion_tokens": int, "total_tokens": int}``.
+    last_usage: dict[str, Any] | None = None
 
     @abstractmethod
     def is_available(self) -> bool:

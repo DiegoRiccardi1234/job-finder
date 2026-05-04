@@ -48,9 +48,7 @@ def test_shortlist_adds_unique_case_insensitive(client: TestClient) -> None:
 
 
 def test_shortlist_strips_and_ignores_empty(client: TestClient) -> None:
-    res = client.post(
-        "/api/roles/shortlist", json={"roles": ["  QA Tester  ", "", "   "]}
-    )
+    res = client.post("/api/roles/shortlist", json={"roles": ["  QA Tester  ", "", "   "]})
     assert res.json()["roles"] == ["QA Tester"]
 
 

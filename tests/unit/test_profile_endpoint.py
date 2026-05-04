@@ -82,9 +82,7 @@ def test_patch_profile_strips_blanks(client: TestClient, tmp_path: Path) -> None
     assert summary["preferred_roles"] == ["QA"]
 
 
-def test_patch_profile_syncs_preferred_roles_preference(
-    client: TestClient, tmp_path: Path
-) -> None:
+def test_patch_profile_syncs_preferred_roles_preference(client: TestClient, tmp_path: Path) -> None:
     _seed_profile(tmp_path, {"preferred_roles": ["Old"]})
     client.patch("/api/profile", json={"preferred_roles": ["NewRole"]})
 
@@ -109,7 +107,7 @@ def test_get_profiles_lists_all(client: TestClient, tmp_path: Path) -> None:
 
 
 def test_activate_profile_changes_active(client: TestClient, tmp_path: Path) -> None:
-    pid1 = _seed_profile(tmp_path, {"preferred_roles": ["A"]})
+    _seed_profile(tmp_path, {"preferred_roles": ["A"]})
     from app.db import Database
 
     db = Database(tmp_path / "data" / "searcher.db")

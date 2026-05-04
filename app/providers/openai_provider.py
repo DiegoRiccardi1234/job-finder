@@ -2,7 +2,7 @@ import json
 import re
 from typing import Any, cast
 
-from app.providers.base import LLMProvider
+from app.providers.base import LLMProvider, extract_usage, is_unauthorized
 from app.providers.model_selector import choose_best_model
 
 try:
@@ -27,10 +27,10 @@ class OpenAIProvider(LLMProvider):
         self._selected_model: str | None = None
 
     def is_available(self) -> bool:
-        return self.client is not None
+        return self.client is not None and not self.key_invalid
 
     def list_models(self) -> list[str]:
-        if not self.client:
+        if not self.client or self.key_invalid:
             return []
         try:
             models = self.client.models.list()
@@ -48,7 +48,9 @@ class OpenAIProvider(LLMProvider):
                     continue
                 output.append(str(model_id))
             return output
-        except Exception:
+        except Exception as exc:
+            if is_unauthorized(exc):
+                self.key_invalid = True
             return []
 
     def select_model(self, preferred_model: str | None = None) -> str:
@@ -71,6 +73,7 @@ class OpenAIProvider(LLMProvider):
             temperature=0.1,
             max_tokens=max_tokens,
         )
+        self.last_usage = extract_usage(response)
         return (response.choices[0].message.content or "").strip()
 
     def chat(
@@ -85,6 +88,7 @@ class OpenAIProvider(LLMProvider):
             temperature=0.2,
             max_tokens=max_tokens,
         )
+        self.last_usage = extract_usage(response)
         return (response.choices[0].message.content or "").strip()
 
     def complete_json(
@@ -102,6 +106,7 @@ class OpenAIProvider(LLMProvider):
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
             )
+            self.last_usage = extract_usage(response)
             content = (response.choices[0].message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
         except Exception:

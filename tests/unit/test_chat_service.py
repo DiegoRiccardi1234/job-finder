@@ -47,9 +47,7 @@ def test_get_chat_state_no_cv(db: Database) -> None:
 
 
 def test_handle_chat_message_uses_provider_json_envelope(tmp_path, fake_provider) -> None:
-    fake_provider.chat_response = json.dumps(
-        {"answer": "hello Diego", "action": None}
-    )
+    fake_provider.chat_response = json.dumps({"answer": "hello Diego", "action": None})
     db = Database(tmp_path / "searcher.db")
     try:
         result = handle_chat_message(

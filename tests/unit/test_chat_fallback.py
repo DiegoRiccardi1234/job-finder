@@ -32,9 +32,7 @@ def test_fallback_with_search_intent_returns_action(empty_db: Database) -> None:
     )
     empty_db.set_active_profile(profile_id)
 
-    answer, action = fallback_answer(
-        db=empty_db, message="cerca lavori Python a Milano"
-    )
+    answer, _action = fallback_answer(db=empty_db, message="cerca lavori Python a Milano")
     assert answer
     # either english or italian fallback body — check at least one keyword recognizable
     assert any(token in answer.lower() for token in ("python", "ricerca", "search", "keyword"))

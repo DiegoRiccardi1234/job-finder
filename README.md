@@ -67,6 +67,9 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Multilingual UI** — English, Italian, Spanish, French, German (259 keys per locale, 100% parity).
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order, exponential backoff retry.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
+- **Token usage tracker** (v1.1.0+) — every LLM call is logged to `usage_log`; `GET /api/usage/stats?range=today|week|month|all` returns aggregates (total / per-provider / per-day) so you always know how many tokens you've burned.
+- **Soft onboarding gate** (v1.1.0+) — fresh installs land on a non-dismissable banner pointing to Settings; non-Settings tabs are visually locked until you save at least one provider key. Backend `/api/chat` and `/api/scan` return HTTP 412 if no provider is configured.
+- **OCR multi-lingua** (v1.1.0+) — Tesseract bundle ships 5 language packs (`eng+ita+spa+fra+deu`); browser locale is auto-detected on first run; CV keywords are balanced across all 5 locales.
 
 ---
 
@@ -164,10 +167,10 @@ The chat service is split into single-responsibility modules:
 | Database | SQLite (WAL mode, `threading.Lock` shared connection, numbered migrations) |
 | Frontend | Vanilla JS (ES2020 modules), CSS3 glassmorphism, no framework |
 | AI / LLM | 6-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — exponential-backoff retry |
-| OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF) |
+| OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF). Bundle ships **5 languages**: EN/IT/ES/FR/DE (~13 MB tessdata) |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 134 tests), Playwright (E2E) |
+| Testing | pytest (unit, 147 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — Tesseract bundled, auto-update over GitHub Releases |
