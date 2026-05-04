@@ -89,7 +89,26 @@ def _open_log(install_dir: Path):
     return log_path.open("a", encoding="utf-8")
 
 
+def _show_misuse_dialog() -> None:
+    """When user double-clicks Updater.exe, show a friendly dialog instead of a
+    silent argparse crash. The updater is an internal helper; it must be
+    spawned by JobFinder so the parent PID and install dir are known and the
+    parent can release its file locks before files get overwritten."""
+    if sys.platform != "win32":
+        return
+    title = "JobFinder Updater"
+    text = (
+        "Updater.exe is launched automatically by JobFinder.\n\n"
+        "Open JobFinder.exe and click 'Update now' from the update banner."
+    )
+    with contextlib.suppress(Exception):
+        ctypes.windll.user32.MessageBoxW(0, text, title, 0x00000040)
+
+
 def main() -> int:
+    if len(sys.argv) <= 1:
+        _show_misuse_dialog()
+        return 0
     parser = argparse.ArgumentParser()
     parser.add_argument("--install-dir", required=True, type=Path)
     parser.add_argument("--parent-pid", required=True, type=int)

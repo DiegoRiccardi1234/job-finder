@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-05-04
+
+Hotfix release focused on the bundled `Updater.exe` UX.
+
+### Fixed
+- **`Updater.exe` no longer flashes a console window** — `JobFinder.spec` now builds the updater with `console=False`. When the updater is invoked correctly by JobFinder (via `POST /api/update/start`), the user sees no transient cmd window.
+- **Friendly dialog when `Updater.exe` is double-clicked** — `scripts/updater.py:main()` now detects the no-args case and shows a Windows MessageBox: *"Updater.exe is launched automatically by JobFinder. Open JobFinder.exe and click 'Update now' from the update banner."* Replaces the previous silent argparse crash that left users wondering why the cmd window vanished.
+
+### Notes
+- Update detection in v1.0.0 / v1.1.0 requires the GitHub repository to be **public** so the unauthenticated `_fetch_latest_release()` call can read `/releases/latest`. Private repos return 404 and `update_available` stays `false`.
+
 ## [1.1.0] — 2026-05-04
 
 Quality release focused on log-spam fix, true internationalization, soft onboarding, and a token-usage tracker.
