@@ -14,6 +14,7 @@ binary.
 from __future__ import annotations
 
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -26,6 +27,19 @@ PRESERVE_TOPLEVEL = ("data", ".env", ".env.local")
 def _is_preserved(rel_path: Path) -> bool:
     parts = rel_path.parts
     return bool(parts) and parts[0] in PRESERVE_TOPLEVEL
+
+
+def _is_current_executable(dst: Path) -> bool:
+    """True when ``dst`` is the EXE running this Python process.
+
+    Defense-in-depth: the launcher already copies Updater.exe to %TEMP%
+    before spawn so the install-dir copy is unlocked, but if that fails
+    silently we still must not try to overwrite our own running binary.
+    """
+    try:
+        return dst.resolve() == Path(sys.executable).resolve()
+    except OSError:
+        return False
 
 
 _COPY_RETRY_DELAYS = (1.0, 2.0, 4.0, 8.0, 16.0)
@@ -80,6 +94,8 @@ def sync_install_dir(*, source: Path, target: Path) -> int:
         if _is_preserved(rel):
             continue
         dst = target / rel
+        if _is_current_executable(dst):
+            continue
         dst.parent.mkdir(parents=True, exist_ok=True)
         _copy_with_retry(src, dst)
         written += 1

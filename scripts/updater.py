@@ -36,11 +36,33 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-if getattr(sys, "frozen", False):
-    sys.path.insert(0, str(Path(sys.executable).resolve().parent / "_internal"))
 
-from app.update_sync import sync_install_dir
-from app.version import _fetch_latest_release
+def _bootstrap_internal_path() -> None:
+    """Make ``app.*`` importable regardless of where Updater.exe runs from.
+
+    PyInstaller onedir places dependencies in ``<exe parent>/_internal``.
+    When Updater.exe is launched from %TEMP% (to avoid self-overwrite during
+    sync), ``_internal`` does not sit next to it. We therefore look up the
+    install dir from argv (``--install-dir``) and fall back to it.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    candidates = [Path(sys.executable).resolve().parent / "_internal"]
+    for i, arg in enumerate(sys.argv):
+        if arg == "--install-dir" and i + 1 < len(sys.argv):
+            candidates.append(Path(sys.argv[i + 1]).resolve() / "_internal")
+        elif arg.startswith("--install-dir="):
+            candidates.append(Path(arg.split("=", 1)[1]).resolve() / "_internal")
+    for cand in candidates:
+        if cand.exists():
+            sys.path.insert(0, str(cand))
+            return
+
+
+_bootstrap_internal_path()
+
+from app.update_sync import sync_install_dir  # noqa: E402
+from app.version import _fetch_latest_release  # noqa: E402
 
 
 def _wait_for_pid(pid: int, timeout: float = 30) -> None:
@@ -119,6 +141,13 @@ def main() -> int:
         type=Path,
         default=None,
         help="Use a pre-downloaded ZIP instead of fetching the latest release.",
+    )
+    parser.add_argument(
+        "--temp-launcher-dir",
+        type=Path,
+        default=None,
+        help="Temp dir holding the Updater.exe copy we are running from. "
+        "Scheduled for cleanup after the spawned JobFinder takes over.",
     )
     args = parser.parse_args()
 
@@ -201,6 +230,23 @@ def main() -> int:
             # by a stale lock. The backend TTL covers crash cases.
             with contextlib.suppress(OSError):
                 (install_dir / "data" / "update.lock").unlink(missing_ok=True)
+            # The Updater.exe we are running was copied into a temp dir to
+            # avoid self-overwrite during sync. We can't rmdir while the
+            # process is alive — spawn a detached cmd that waits, then
+            # removes the dir. If this fails, %TEMP% will still be cleaned
+            # by Windows Storage Sense eventually.
+            if args.temp_launcher_dir and sys.platform == "win32":
+                with contextlib.suppress(OSError):
+                    subprocess.Popen(
+                        [
+                            "cmd",
+                            "/c",
+                            f'timeout /t 5 /nobreak >nul & rmdir /s /q "{args.temp_launcher_dir}"',
+                        ],
+                        close_fds=True,
+                        creationflags=subprocess.DETACHED_PROCESS
+                        | subprocess.CREATE_NEW_PROCESS_GROUP,
+                    )
             return 0
         except Exception as exc:
             log(f"FAILED: {exc!r}")

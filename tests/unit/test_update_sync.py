@@ -126,6 +126,30 @@ def test_sync_retries_on_permission_error(tmp_path: Path, monkeypatch) -> None:
     assert (install / "JobFinder.exe").read_text() == "v2"
 
 
+def test_sync_skips_current_executable(tmp_path: Path, monkeypatch) -> None:
+    """Never try to overwrite the binary running the updater.
+
+    Windows holds an exclusive lock on a running EXE. The launcher copies
+    Updater.exe to %TEMP% to dodge this, but if that ever fails this guard
+    keeps the sync from aborting partway through with PermissionError.
+    """
+    install = tmp_path / "install"
+    bundle = tmp_path / "bundle"
+    _write(bundle / "Updater.exe", "new-updater-bytes")
+    _write(bundle / "JobFinder.exe", "new-jobfinder-bytes")
+    _write(install / "Updater.exe", "old-updater-bytes")
+
+    import app.update_sync as update_sync
+
+    monkeypatch.setattr(update_sync.sys, "executable", str(install / "Updater.exe"))
+
+    written = sync_install_dir(source=bundle, target=install)
+
+    assert written == 1
+    assert (install / "JobFinder.exe").read_text() == "new-jobfinder-bytes"
+    assert (install / "Updater.exe").read_text() == "old-updater-bytes"
+
+
 def test_sync_eventually_raises_after_all_retries(tmp_path: Path, monkeypatch) -> None:
     """If file stays locked past all retries, we propagate the error."""
     bundle = tmp_path / "bundle"

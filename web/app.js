@@ -100,12 +100,60 @@ async function _populateChatModelSelector(providerName) {
     const data = _providerCardModelCache[providerName] || (await fetchProviderModels(providerName, false));
     const models = Array.isArray(data.models) ? data.models : [];
     const recommended = data.recommended || null;
-    for (const m of models) {
+
+    // Mirror Settings card ordering so users see the same list everywhere:
+    // OpenRouter splits Free/Paid groups (alpha within each), other
+    // providers sort alphabetically. Recommended (⭐) is hoisted to the top
+    // of its group regardless.
+    const appendOption = (m) => {
       const opt = document.createElement("option");
       opt.value = m;
       opt.textContent = m === recommended ? `⭐ ${m}` : m;
       sel.appendChild(opt);
+    };
+    const appendSeparator = (label) => {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = label;
+      opt.disabled = true;
+      sel.appendChild(opt);
+    };
+
+    if (providerName === "openrouter" && models.length > 30) {
+      const { free, paid } = _splitFreePaid(models);
+      const hoist = (arr) => {
+        if (!recommended) return arr;
+        const i = arr.indexOf(recommended);
+        if (i <= 0) return arr;
+        const copy = arr.slice();
+        copy.splice(i, 1);
+        copy.unshift(recommended);
+        return copy;
+      };
+      const freeLabel = t("settings.providers.freeGroup") || "── Free ──";
+      const paidLabel = t("settings.providers.paidGroup") || "── Paid ──";
+      const freeSorted = hoist(free);
+      const paidSorted = hoist(paid);
+      if (freeSorted.length) {
+        appendSeparator(freeLabel);
+        for (const m of freeSorted) appendOption(m);
+      }
+      if (paidSorted.length) {
+        appendSeparator(paidLabel);
+        for (const m of paidSorted) appendOption(m);
+      }
+    } else {
+      const sorted = _sortModelsAlpha(models);
+      if (recommended) {
+        const i = sorted.indexOf(recommended);
+        if (i > 0) {
+          sorted.splice(i, 1);
+          sorted.unshift(recommended);
+        }
+      }
+      for (const m of sorted) appendOption(m);
     }
+
     sel.disabled = models.length === 0;
   } catch (err) {
     sel.disabled = true;

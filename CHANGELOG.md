@@ -2,7 +2,17 @@
 
 ## [Unreleased]
 
-## [1.2.7] — 2026-05-05
+## [1.2.8] — 2026-05-05
+
+Critical updater self-overwrite fix + chat model dropdown ordering.
+
+### Fixed
+- **Update from v1.2.6 → v1.2.7 failed with `PermissionError(13) … Updater.exe`** — the updater process tried to overwrite its own running binary. Windows holds an exclusive section-object lock on a running EXE, so `shutil.copy2` is guaranteed to fail no matter how many retries. Worse, `sync_install_dir` had already overwritten most files (including `JobFinder.exe`) before reaching `Updater.exe`, leaving installs in a partially-updated state (new JobFinder + old Updater). Fix: `app/main.py` now copies `Updater.exe` to a per-PID `%TEMP%\jobfinder-updater-…` dir via `shutil.copy2` and spawns from there, so the install-dir copy is unlocked while sync runs. `scripts/updater.py` resolves the PyInstaller `_internal/` path from `--install-dir` instead of `sys.executable.parent` so imports keep working from temp. After restart, the updater spawns a detached `cmd /c timeout 5 & rmdir /s /q <tempdir>` to clean up. Defense-in-depth: `app/update_sync.py` also skips any destination that resolves to the current `sys.executable`.
+- **Chat coach model dropdown was unsorted** — the `chatModelSelectorModel` in the chat panel iterated the raw API order while the Settings provider cards already sorted alphabetically (with OpenRouter Free/Paid grouping). Lifted the same logic into `_populateChatModelSelector` (`web/app.js`) so the chat dropdown matches Settings for every provider, including the recommended (⭐) model hoist.
+
+### Added
+- **`tests/unit/test_update_sync.py::test_sync_skips_current_executable`** — guards the defense-in-depth skip in `_is_current_executable`. 9 unit tests now (8 → 9).
+
 
 CI hygiene.
 

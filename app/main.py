@@ -3,8 +3,10 @@ import csv
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import AsyncIterator, Iterator
@@ -657,16 +659,35 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path.write_text(f"{os.getpid()}\n{latest}\n", encoding="utf-8")
 
+        # Launch Updater.exe from a temp copy so the install-dir copy is
+        # unlocked while the new bundle is staged on top. Without this,
+        # sync_install_dir hits PermissionError when shutil.copy2 reaches
+        # Updater.exe — Windows holds an exclusive section-object lock on
+        # the running EXE and no number of retries will release it.
+        try:
+            launcher_dir = Path(tempfile.mkdtemp(prefix=f"jobfinder-updater-{os.getpid()}-"))
+            launcher_exe = launcher_dir / "Updater.exe"
+            shutil.copy2(updater_exe, launcher_exe)
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                lock_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not stage Updater.exe in temp dir: {exc!r}",
+            ) from exc
+
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         subprocess.Popen(
             [
-                str(updater_exe),
+                str(launcher_exe),
                 "--install-dir",
                 str(install_dir),
                 "--parent-pid",
                 str(os.getpid()),
+                "--temp-launcher-dir",
+                str(launcher_dir),
             ],
             close_fds=True,
             creationflags=creationflags,
