@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover
 try:
     from bs4 import BeautifulSoup
 except Exception:  # pragma: no cover
-    BeautifulSoup = None  # type: ignore[assignment]
+    BeautifulSoup = None  # type: ignore[assignment,misc]
 
 
 _HEADERS = {
@@ -74,11 +74,11 @@ def fetch_recruiter(job_url: str, timeout: float = 3.0) -> dict[str, Any] | None
         link = soup.select_one("a[href*='/in/']")
         if not link:
             return None
-        name = link.get_text(strip=True)
-        if not name or len(name) > 80:
+        fallback_name = link.get_text(strip=True)
+        if not fallback_name or len(fallback_name) > 80:
             return None
         return {
-            "name": name,
+            "name": fallback_name,
             "title": None,
             "headline": None,
             "profile_url": link.get("href"),
