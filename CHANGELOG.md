@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-05-06
+
+Critical updater hotfix.
+
+### Fixed
+- **In-app updater crashed with `Failed to load Python DLL ... _internal/python311.dll`** when staging `Updater.exe` to `%TEMP%`. The v1.2.8 fix copied only `Updater.exe` to a per-PID temp dir but not the adjacent `_internal/` folder. PyInstaller's onedir bootloader loads `python311.dll` from `<exe parent>/_internal` *before* Python starts, so the staged binary crashed at launch and the install dir was left untouched (or partially overwritten by a parallel sync attempt that then hit a `PermissionError` on the locked `Updater.exe`). Fix: also `shutil.copytree` the entire `_internal/` directory next to the staged `Updater.exe`. `app/main.py:start_bundle_update`. **Users on v1.3.0 or earlier must download the v1.3.1 bundle ZIP from GitHub Releases manually** — the in-app updater on those versions still has the bug and cannot self-recover.
+
 ## [1.3.0] — 2026-05-06
 
 Major UX & AI release: multi-chat, internship/role filters, recruiter-targeted cover letters, scan progress with ETA, post-scan summary, info tab, smarter chat output.

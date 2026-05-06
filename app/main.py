@@ -767,6 +767,14 @@ Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "
             launcher_dir = Path(tempfile.mkdtemp(prefix=f"jobfinder-updater-{os.getpid()}-"))
             launcher_exe = launcher_dir / "Updater.exe"
             shutil.copy2(updater_exe, launcher_exe)
+            # PyInstaller onedir bootloader loads python311.dll from
+            # ``<exe parent>/_internal`` *before* Python starts. Copying only
+            # Updater.exe to %TEMP% (as v1.2.8 did) crashes with
+            # "Failed to load Python DLL". Mirror the _internal folder next
+            # to the staged exe so the bootloader can resolve runtime DLLs.
+            internal_src = updater_exe.parent / "_internal"
+            if internal_src.is_dir():
+                shutil.copytree(internal_src, launcher_dir / "_internal")
         except OSError as exc:
             with contextlib.suppress(OSError):
                 lock_path.unlink(missing_ok=True)
