@@ -210,6 +210,13 @@
       "fetchFailed": "No se pudieron cargar los modelos. Verifica la clave.",
       "active": "Proveedor activo",
       "justNow": "ahora"
+    },
+    "features": {
+      "title": "Funciones",
+      "subtitle": "Activa o desactiva funciones opcionales. Las desactivadas se ocultan en la app.",
+      "interviewPrep": "Generador de prep. de entrevista",
+      "resumeTailoring": "Adaptación de CV",
+      "saved": "Guardado"
     }
   },
   "coach": {
@@ -261,7 +268,13 @@
     "skillsMissing": "Faltan",
     "postedBy": "Publicado por",
     "viewProfile": "Ver perfil",
-    "pinToChat": "Fijar al chat"
+    "pinToChat": "Fijar al chat",
+    "generateInterviewPrep": "Prep. entrevista",
+    "generateTailoredResume": "Adaptar CV",
+    "interviewPrep": "Preparación de entrevista",
+    "tailoredResume": "CV a medida",
+    "copy": "Copiar",
+    "copied": "Copiado"
   },
   "scan": {
     "scanning": "Escaneando portales de empleo...",

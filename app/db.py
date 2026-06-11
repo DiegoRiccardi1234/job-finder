@@ -676,20 +676,31 @@ class Database:
         }
 
     @_synchronized
-    def save_cover_letter(self, job_id: int, letter: str) -> None:
+    def save_job_analysis_field(self, job_id: int, field: str, value: Any) -> bool:
+        """Merge a single key into a job's ``analysis_json`` blob.
+
+        Used to persist generated artifacts (cover letter, interview prep,
+        tailored resume) without a dedicated column per artifact. Returns
+        ``False`` if the job has no analysis row yet.
+        """
         cursor = self.conn.cursor()
         row = cursor.execute("SELECT analysis_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
-        if row and row[0]:
-            try:
-                data = json.loads(row[0])
-            except json.JSONDecodeError:
-                data = {}
-            data["cover_letter"] = letter
-            cursor.execute(
-                "UPDATE jobs SET analysis_json = ? WHERE id = ?",
-                (json.dumps(data, ensure_ascii=False), job_id),
-            )
-            self.conn.commit()
+        if not (row and row[0]):
+            return False
+        try:
+            data = json.loads(row[0])
+        except json.JSONDecodeError:
+            data = {}
+        data[field] = value
+        cursor.execute(
+            "UPDATE jobs SET analysis_json = ? WHERE id = ?",
+            (json.dumps(data, ensure_ascii=False), job_id),
+        )
+        self.conn.commit()
+        return True
+
+    def save_cover_letter(self, job_id: int, letter: str) -> None:
+        self.save_job_analysis_field(job_id, "cover_letter", letter)
 
     @_synchronized
     def set_preference(self, key: str, value: str) -> None:

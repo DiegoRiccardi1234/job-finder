@@ -103,6 +103,28 @@ def test_concurrent_writes_do_not_lose_jobs(tmp_path: Path) -> None:
         db.close()
 
 
+def test_save_job_analysis_field_merges_and_guards(tmp_path: Path) -> None:
+    db = Database(tmp_path / "s.db")
+    try:
+        job_id, _, _ = db.upsert_job(
+            {"titolo": "T", "azienda": "A", "link": "https://example.com/j"}
+        )
+        # No analysis row yet -> guarded, returns False.
+        assert db.save_job_analysis_field(job_id, "interview_prep", "x") is False
+
+        db.update_job_analysis(job_id, {"punteggio": 7})
+        assert db.save_job_analysis_field(job_id, "interview_prep", "Q1") is True
+        assert db.save_job_analysis_field(job_id, "tailored_resume", "CV") is True
+
+        job = db.get_job_with_analysis(job_id)
+        assert job is not None
+        assert job["analysis"]["interview_prep"] == "Q1"
+        assert job["analysis"]["tailored_resume"] == "CV"
+        assert job["analysis"]["punteggio"] == 7  # original field preserved
+    finally:
+        db.close()
+
+
 def test_concurrent_upsert_same_hash_is_idempotent(tmp_path: Path) -> None:
     # Racing on the same job hash must collapse to a single row.
     db = Database(tmp_path / "s.db")

@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.models import FavoriteRequest, JobActionRequest, ManualJobCreateRequest
+from app.services.generation import generate_with_profile
 from app.services.scanner_service import analyze_offer
 
 if TYPE_CHECKING:
@@ -91,36 +92,65 @@ def build_router(container: AppContainer) -> APIRouter:
                 "(es. 'Gentile {nome},') e fai un breve riferimento al suo ruolo."
             )
 
-        prompt = f"""Sei un assistente che aiuta un IT professional a trovare lavoro.
-Scrivi una Cover Letter / messaggio InMail (circa 100-150 parole, concisa ma efficace e performante, tono professionale ma non ingessato, focalizzato sui risultati) per questo annuncio.
-Usa le informazioni del CV per evidenziare la corrispondenza con l'annuncio.
-{recruiter_block}
-
-CV candidato:
-{profile_markdown[:3500]}
-
-OFFERTA:
-Titolo: {titolo}
-Azienda: {azienda}
-{("Descrizione: " + descrizione[:1800]) if descrizione else ""}
-
-Non aggiungere testo extra. Devi rispondere SOLO con JSON valido con la chiave "cover_letter":
-{{
-  "cover_letter": "Il testo completo del messaggio..."
-}}
-"""
-
         try:
-            result = container.providers.complete_json(prompt=prompt, max_tokens=600)
-            if isinstance(result, dict) and "cover_letter" in result:
-                cover_letter = result["cover_letter"]
-            else:
-                cover_letter = str(result)
+            cover_letter = generate_with_profile(
+                container.providers,
+                "cover_letter",
+                profile_markdown,
+                {"titolo": titolo, "azienda": azienda, "descrizione": descrizione},
+                extra_block=recruiter_block,
+            )
             container.db.save_cover_letter(job_id, cover_letter)
         except Exception as e:
             cover_letter = f"Error generating cover letter: {e}"
 
         return {"cover_letter": cover_letter}
+
+    def _job_generation_context(job_id: int) -> tuple[dict[str, Any], str]:
+        """Resolve (job_info, profile_markdown) for a generation endpoint.
+
+        Raises 404 if the job is missing. Shared by interview-prep and
+        resume-tailoring.
+        """
+        job = container.db.get_job_with_analysis(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        profile = container.db.get_active_candidate_profile()
+        profile_markdown = profile["markdown"] if profile else "CV non disponibile."
+        job_info = {
+            "titolo": job.get("titolo", "N/A"),
+            "azienda": job.get("azienda", "N/A"),
+            "descrizione": job.get("descrizione", ""),
+        }
+        return job_info, profile_markdown
+
+    @router.post("/api/jobs/{job_id}/interview-prep")
+    def generate_interview_prep(job_id: int) -> dict[str, Any]:
+        container.require_feature("interview_prep")
+        job_info, profile_markdown = _job_generation_context(job_id)
+        try:
+            content = generate_with_profile(
+                container.providers, "interview_prep", profile_markdown, job_info
+            )
+            container.db.save_job_analysis_field(job_id, "interview_prep", content)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502, detail=f"Interview prep generation failed: {e}"
+            ) from e
+        return {"interview_prep": content}
+
+    @router.post("/api/jobs/{job_id}/tailored-resume")
+    def generate_tailored_resume(job_id: int) -> dict[str, Any]:
+        container.require_feature("resume_tailoring")
+        job_info, profile_markdown = _job_generation_context(job_id)
+        try:
+            content = generate_with_profile(
+                container.providers, "resume_tailoring", profile_markdown, job_info
+            )
+            container.db.save_job_analysis_field(job_id, "tailored_resume", content)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Resume tailoring failed: {e}") from e
+        return {"tailored_resume": content}
 
     @router.get("/api/analytics")
     def get_analytics() -> dict[str, Any]:

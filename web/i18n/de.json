@@ -210,6 +210,13 @@
       "fetchFailed": "Modelle konnten nicht geladen werden. Schlüssel prüfen.",
       "active": "Aktiver Anbieter",
       "justNow": "gerade eben"
+    },
+    "features": {
+      "title": "Funktionen",
+      "subtitle": "Optionale Funktionen ein- oder ausschalten. Deaktivierte werden in der App ausgeblendet.",
+      "interviewPrep": "Interview-Prep-Generator",
+      "resumeTailoring": "Lebenslauf-Anpassung",
+      "saved": "Gespeichert"
     }
   },
   "coach": {
@@ -261,7 +268,13 @@
     "skillsMissing": "Fehlen",
     "postedBy": "Veröffentlicht von",
     "viewProfile": "Profil ansehen",
-    "pinToChat": "An Chat anheften"
+    "pinToChat": "An Chat anheften",
+    "generateInterviewPrep": "Interview-Prep",
+    "generateTailoredResume": "Lebenslauf anpassen",
+    "interviewPrep": "Interviewvorbereitung",
+    "tailoredResume": "Maßgeschneiderter Lebenslauf",
+    "copy": "Kopieren",
+    "copied": "Kopiert"
   },
   "scan": {
     "scanning": "Jobportale werden gescannt...",

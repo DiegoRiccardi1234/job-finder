@@ -175,6 +175,8 @@
         <div class="offcanvas-actions" style="margin-bottom:1rem;">
           <button id="detailApplyNowBtn" class="apply-btn" data-i18n="offcanvas.applyNow">Candidati Ora</button>
           <button id="generateCoverLetterBtn" class="secondary" data-i18n="offcanvas.generateCoverLetter">Generate Cover Letter</button>
+          <button id="generateInterviewPrepBtn" class="secondary" data-i18n="offcanvas.generateInterviewPrep">Interview Prep</button>
+          <button id="generateTailoredResumeBtn" class="secondary" data-i18n="offcanvas.generateTailoredResume">Tailor Resume</button>
           <a id="detailLinkBtn" target="_blank" class="button secondary" style="display:none;align-items:center;justify-content:center;gap:4px;">
             <span class="material-symbols-outlined" style="font-size:18px">open_in_new</span> <span data-i18n="offcanvas.viewListing">Vedi Annuncio</span>
           </a>
@@ -187,6 +189,18 @@
             <div style="display:flex;gap:8px;margin-top:8px;">
               <button id="saveCoverLetterBtn" class="secondary" data-i18n="offcanvas.saveDraft">Salva Bozza</button>
               <span id="clSaveStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
+            </div>
+          </div>
+          <div id="interviewPrepBox" class="generated-box" style="display:none;">
+            <h4 data-i18n="offcanvas.interviewPrep">Interview Prep</h4>
+            <pre id="interviewPrepOutput" class="output"></pre>
+          </div>
+          <div id="tailoredResumeBox" class="generated-box" style="display:none;">
+            <h4 data-i18n="offcanvas.tailoredResume">Tailored Resume</h4>
+            <pre id="tailoredResumeOutput" class="output"></pre>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button id="copyTailoredResumeBtn" class="secondary" data-i18n="offcanvas.copy">Copy</button>
+              <span id="trCopyStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
             </div>
           </div>
         </div>
@@ -491,6 +505,15 @@
             <option value=""></option>
           </select>
           <pre id="keysStatus" class="output hidden"></pre>
+        </article>
+
+        <article class="card-block card-block--wide features-card">
+          <h3><span class="material-symbols-outlined">toggle_on</span> <span data-i18n="settings.features.title">Features</span></h3>
+          <p class="micro" data-i18n="settings.features.subtitle">Turn optional features on or off. Disabled features are hidden across the app.</p>
+          <div id="featureToggleList" class="feature-toggle-list">
+            <label class="feature-toggle"><input type="checkbox" data-feature="interview_prep" /> <span data-i18n="settings.features.interviewPrep">Interview prep generator</span></label>
+            <label class="feature-toggle"><input type="checkbox" data-feature="resume_tailoring" /> <span data-i18n="settings.features.resumeTailoring">Resume tailoring</span></label>
+          </div>
         </article>
 
       </div>

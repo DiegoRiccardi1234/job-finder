@@ -651,6 +651,8 @@ function ensureNoKeyBanner(show, message) {
   });
 }
 
+let featureFlags = {};
+
 async function loadHealth() {
   const health = await api("/api/health");
   setText("providerBadge", `Provider: ${health.provider.active_provider}`);
@@ -661,6 +663,8 @@ async function loadHealth() {
   ensureNoKeyBanner(missing, t("banner.noKey"));
 
   const prefs = health.preferences || {};
+  featureFlags = readFeatureFlags(prefs);
+  syncFeatureToggles();
   const linkedinInput = document.getElementById("linkedinUrl");
   if (linkedinInput && prefs.linkedin_url) {
     linkedinInput.value = prefs.linkedin_url;
@@ -807,6 +811,23 @@ async function showJobDetail(jobId) {
     covBox.style.display = "none";
     document.getElementById("coverLetterOutput").textContent = "";
   }
+
+  // Optional generation features: show the button only when enabled, and
+  // re-render any previously generated artifact stored on the job.
+  setupGenerationButton({
+    btnId: "generateInterviewPrepBtn",
+    boxId: "interviewPrepBox",
+    outId: "interviewPrepOutput",
+    enabled: featureFlags.interview_prep !== false,
+    saved: analysis.interview_prep,
+  });
+  setupGenerationButton({
+    btnId: "generateTailoredResumeBtn",
+    boxId: "tailoredResumeBox",
+    outId: "tailoredResumeOutput",
+    enabled: featureFlags.resume_tailoring !== false,
+    saved: analysis.tailored_resume,
+  });
 
   const recruiter = payload.recruiter || null;
 
@@ -1822,6 +1843,118 @@ if (genCovBtn) {
     } finally {
       genCovBtn.disabled = false;
       genCovBtn.innerHTML = originalLabel;
+    }
+  });
+}
+
+// ── Optional generation features (interview prep, resume tailoring) ──────────
+
+function readFeatureFlags(prefs) {
+  const off = (v) => v === "0" || v === "false" || v === "off";
+  return {
+    interview_prep: !off(prefs.feature_interview_prep),
+    resume_tailoring: !off(prefs.feature_resume_tailoring),
+  };
+}
+
+function syncFeatureToggles() {
+  document.querySelectorAll("#featureToggleList input[data-feature]").forEach((cb) => {
+    const key = cb.dataset.feature;
+    if (key in featureFlags) cb.checked = featureFlags[key] !== false;
+  });
+}
+
+function setupGenerationButton({ btnId, boxId, outId, enabled, saved }) {
+  const btn = document.getElementById(btnId);
+  const box = document.getElementById(boxId);
+  const out = document.getElementById(outId);
+  if (!btn || !box || !out) return;
+  btn.style.display = enabled ? "inline-block" : "none";
+  if (saved) {
+    out.textContent = saved;
+    box.style.display = "block";
+  } else {
+    out.textContent = "";
+    box.style.display = "none";
+  }
+}
+
+async function runGeneration({ btn, box, out, endpoint, field }) {
+  if (!selectedJobId) return;
+  box.style.display = "block";
+  out.textContent = t("toast.generating");
+  btn.disabled = true;
+  const originalLabel = btn.innerHTML;
+  btn.innerHTML = `<span class="spinner-inline"></span> ${t("toast.generating")}`;
+  try {
+    const payload = await api(`/api/jobs/${selectedJobId}/${endpoint}`, { method: "POST" });
+    out.textContent = payload[field] || t("toast.noResult");
+  } catch (error) {
+    out.textContent = `${t("toast.genError")}: ${error.message}`;
+    showToast(`${t("toast.genError")}: ${error.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
+}
+
+const ipBtn = document.getElementById("generateInterviewPrepBtn");
+if (ipBtn) {
+  ipBtn.addEventListener("click", () =>
+    runGeneration({
+      btn: ipBtn,
+      box: document.getElementById("interviewPrepBox"),
+      out: document.getElementById("interviewPrepOutput"),
+      endpoint: "interview-prep",
+      field: "interview_prep",
+    }),
+  );
+}
+
+const trBtn = document.getElementById("generateTailoredResumeBtn");
+if (trBtn) {
+  trBtn.addEventListener("click", () =>
+    runGeneration({
+      btn: trBtn,
+      box: document.getElementById("tailoredResumeBox"),
+      out: document.getElementById("tailoredResumeOutput"),
+      endpoint: "tailored-resume",
+      field: "tailored_resume",
+    }),
+  );
+}
+
+const copyTrBtn = document.getElementById("copyTailoredResumeBtn");
+if (copyTrBtn) {
+  copyTrBtn.addEventListener("click", async () => {
+    const text = document.getElementById("tailoredResumeOutput").textContent || "";
+    try {
+      await navigator.clipboard.writeText(text);
+      setText("trCopyStatus", t("offcanvas.copied") || "Copied");
+      setTimeout(() => setText("trCopyStatus", ""), 1500);
+    } catch (error) {
+      showToast(String(error), "error");
+    }
+  });
+}
+
+const featureToggleList = document.getElementById("featureToggleList");
+if (featureToggleList) {
+  featureToggleList.addEventListener("change", async (event) => {
+    const cb = event.target.closest("input[data-feature]");
+    if (!cb) return;
+    const key = cb.dataset.feature;
+    featureFlags[key] = cb.checked;
+    try {
+      await api("/api/preferences", {
+        method: "POST",
+        body: JSON.stringify({ key: `feature_${key}`, value: cb.checked ? "1" : "0" }),
+      });
+      showToast(t("settings.features.saved") || "Saved", "info");
+    } catch (error) {
+      cb.checked = !cb.checked;
+      featureFlags[key] = cb.checked;
+      showToast(`${t("toast.actionError")}: ${error.message}`, "error");
     }
   });
 }

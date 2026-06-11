@@ -86,6 +86,23 @@ class AppContainer:
         status = self.keys_status()
         return any(status[flag] for flag in _PROVIDER_FLAGS)
 
+    def feature_enabled(self, name: str, default: bool = True) -> bool:
+        """Return whether an optional feature is enabled.
+
+        Toggles live in the ``preferences`` table under ``feature_<name>``
+        ("1"/"0"). Missing key falls back to ``default`` so features ship
+        with a sensible on/off state.
+        """
+        raw = self.db.get_preference(f"feature_{name}", "1" if default else "0")
+        return raw not in ("0", "false", "off", "")
+
+    def require_feature(self, name: str, default: bool = True) -> None:
+        if not self.feature_enabled(name, default):
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "feature_disabled", "feature": name},
+            )
+
     def require_provider(self) -> None:
         """Reject requests when no LLM key is configured. UI banner gates this too,
         but a backend 412 protects against direct API hits and the polling

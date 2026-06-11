@@ -210,6 +210,13 @@
       "fetchFailed": "Could not fetch models. Check the key.",
       "active": "Active provider",
       "justNow": "just now"
+    },
+    "features": {
+      "title": "Features",
+      "subtitle": "Turn optional features on or off. Disabled features are hidden across the app.",
+      "interviewPrep": "Interview prep generator",
+      "resumeTailoring": "Resume tailoring",
+      "saved": "Saved"
     }
   },
   "coach": {
@@ -261,7 +268,13 @@
     "skillsMissing": "You miss",
     "postedBy": "Posted by",
     "viewProfile": "View profile",
-    "pinToChat": "Pin to chat"
+    "pinToChat": "Pin to chat",
+    "generateInterviewPrep": "Interview Prep",
+    "generateTailoredResume": "Tailor Resume",
+    "interviewPrep": "Interview Prep",
+    "tailoredResume": "Tailored Resume",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "scan": {
     "scanning": "Scanning job portals...",

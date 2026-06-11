@@ -210,6 +210,13 @@
       "fetchFailed": "Impossible de charger les modèles. Vérifiez la clé.",
       "active": "Fournisseur actif",
       "justNow": "à l'instant"
+    },
+    "features": {
+      "title": "Fonctionnalités",
+      "subtitle": "Activez ou désactivez les fonctionnalités optionnelles. Celles désactivées sont masquées dans l'app.",
+      "interviewPrep": "Générateur de prépa entretien",
+      "resumeTailoring": "Adaptation du CV",
+      "saved": "Enregistré"
     }
   },
   "coach": {
@@ -261,7 +268,13 @@
     "skillsMissing": "Manquent",
     "postedBy": "Publié par",
     "viewProfile": "Voir le profil",
-    "pinToChat": "Épingler au chat"
+    "pinToChat": "Épingler au chat",
+    "generateInterviewPrep": "Prépa entretien",
+    "generateTailoredResume": "Adapter le CV",
+    "interviewPrep": "Préparation à l'entretien",
+    "tailoredResume": "CV sur mesure",
+    "copy": "Copier",
+    "copied": "Copié"
   },
   "scan": {
     "scanning": "Scan des portails d'emploi...",
