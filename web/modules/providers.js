@@ -1,0 +1,522 @@
+// Provider/settings UI: AI provider cards, model selectors, key save + set
+// primary, key-status normalization, and the chat provider/model override
+// (toast + selector). Core refresh callbacks are injected via setProviderDeps
+// to avoid a circular import with app.js (loadHealth / loadKeysStatus run
+// after a key is saved).
+import { api, escapeHtml, setText, showToast, truncate } from "./helpers.js";
+import { t } from "./i18n.js";
+
+let _deps = {
+  loadHealth: async () => {},
+  loadKeysStatus: async () => {},
+  refreshOnboardingPlaceholder: async () => {},
+};
+
+export function setProviderDeps(d) {
+  _deps = { ..._deps, ...d };
+}
+
+const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey", "openrouterKey"];
+
+const PROVIDER_CATALOG = [
+  { name: "cerebras", label: "Cerebras", icon: "bolt", placeholder: "sk-..." },
+  { name: "groq", label: "Groq", icon: "memory", placeholder: "gsk_..." },
+  { name: "openai", label: "OpenAI", icon: "neurology", placeholder: "sk-..." },
+  { name: "anthropic", label: "Anthropic", icon: "auto_awesome", placeholder: "sk-ant-..." },
+  { name: "google", label: "Google", icon: "language", placeholder: "AI..." },
+  { name: "openrouter", label: "OpenRouter", icon: "hub", placeholder: "sk-or-v1-..." },
+];
+
+const _providerCardModelCache = {};
+const _providerCardFetchTimes = {};
+
+let _chatOverrideToastShown = false;
+let _lastChatOverrideProvider = null;
+let _lastChatOverrideModel = null;
+
+function _maybeOfferPersistChatOverride(providerVal, modelVal) {
+  if (!providerVal) return;
+  if (providerVal === _lastChatOverrideProvider && modelVal === _lastChatOverrideModel) return;
+  _lastChatOverrideProvider = providerVal;
+  _lastChatOverrideModel = modelVal;
+  if (_chatOverrideToastShown) return;
+  _chatOverrideToastShown = true;
+
+  const body = (t("chat.saveAsDefaultBody") || "Save {provider} / {model} to Settings")
+    .replace("{provider}", providerVal)
+    .replace("{model}", modelVal || t("chat.modelAuto") || "auto");
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-override-toast";
+  wrapper.innerHTML = `
+    <div class="chat-override-toast-body">
+      <strong>${t("chat.saveAsDefault") || "Use as default?"}</strong>
+      <div class="micro">${body}</div>
+    </div>
+    <div class="chat-override-toast-actions">
+      <button type="button" class="secondary" data-action="yes">${t("common.yes") || "Yes"}</button>
+      <button type="button" class="ghost-btn" data-action="no">${t("common.no") || "No"}</button>
+    </div>
+  `;
+  document.body.appendChild(wrapper);
+
+  wrapper.querySelector('[data-action="yes"]').addEventListener("click", async () => {
+    try {
+      await api("/api/providers/keys", {
+        method: "POST",
+        body: JSON.stringify({
+          primary_provider: providerVal,
+          preferred_model: modelVal || "",
+        }),
+      });
+      await _deps.loadKeysStatus();
+      showToast(t("toast.providerSaved"), "info");
+    } catch (err) {
+      showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
+    } finally {
+      wrapper.remove();
+    }
+  });
+  wrapper.querySelector('[data-action="no"]').addEventListener("click", () => wrapper.remove());
+
+  setTimeout(() => { if (wrapper.isConnected) wrapper.remove(); }, 12000);
+}
+
+async function _populateChatModelSelector(providerName) {
+  const sel = document.getElementById("chatModelSelectorModel");
+  if (!sel) return;
+  const autoLabel = t("chat.modelAuto") || "Auto model";
+  if (!providerName) {
+    sel.innerHTML = `<option value="">${autoLabel}</option>`;
+    sel.disabled = true;
+    return;
+  }
+  const loadingLabel = t("toast.modelsLoading") || "Loading models...";
+  sel.innerHTML = `<option value="">⏳ ${loadingLabel}</option>`;
+  sel.disabled = true;
+  try {
+    const data = _providerCardModelCache[providerName] || (await fetchProviderModels(providerName, false));
+    sel.innerHTML = `<option value="">${autoLabel}</option>`;
+    const models = Array.isArray(data.models) ? data.models : [];
+    const recommended = data.recommended || null;
+
+    // Mirror Settings card ordering so users see the same list everywhere:
+    // OpenRouter splits Free/Paid groups (alpha within each), other
+    // providers sort alphabetically. Recommended (⭐) is hoisted to the top
+    // of its group regardless.
+    const appendOption = (m) => {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m === recommended ? `⭐ ${m}` : m;
+      sel.appendChild(opt);
+    };
+    const appendSeparator = (label) => {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = label;
+      opt.disabled = true;
+      sel.appendChild(opt);
+    };
+
+    if (providerName === "openrouter" && models.length > 30) {
+      const { free, paid } = _splitFreePaid(models);
+      const hoist = (arr) => {
+        if (!recommended) return arr;
+        const i = arr.indexOf(recommended);
+        if (i <= 0) return arr;
+        const copy = arr.slice();
+        copy.splice(i, 1);
+        copy.unshift(recommended);
+        return copy;
+      };
+      const freeLabel = t("settings.providers.freeGroup") || "── Free ──";
+      const paidLabel = t("settings.providers.paidGroup") || "── Paid ──";
+      const freeSorted = hoist(free);
+      const paidSorted = hoist(paid);
+      if (freeSorted.length) {
+        appendSeparator(freeLabel);
+        for (const m of freeSorted) appendOption(m);
+      }
+      if (paidSorted.length) {
+        appendSeparator(paidLabel);
+        for (const m of paidSorted) appendOption(m);
+      }
+    } else {
+      const sorted = _sortModelsAlpha(models);
+      if (recommended) {
+        const i = sorted.indexOf(recommended);
+        if (i > 0) {
+          sorted.splice(i, 1);
+          sorted.unshift(recommended);
+        }
+      }
+      for (const m of sorted) appendOption(m);
+    }
+
+    sel.disabled = models.length === 0;
+  } catch (err) {
+    const failLabel = t("toast.modelsFailed") || "Failed to load models";
+    sel.innerHTML = `<option value="" disabled>${failLabel}</option>`;
+    sel.disabled = true;
+  }
+}
+
+function _refreshChatProviderSelectorOptions() {
+  const sel = document.getElementById("chatModelSelector");
+  if (!sel) return;
+  const meta = _providersMetadataCache || {};
+  const previous = sel.value;
+  Array.from(sel.options).forEach((opt) => {
+    if (!opt.value) return;
+    const available = meta[opt.value]?.available !== false && meta[opt.value]?.available !== undefined;
+    opt.disabled = !available;
+    opt.textContent = opt.value.charAt(0).toUpperCase() + opt.value.slice(1) + (available ? "" : " (no key)");
+  });
+  if (previous && sel.querySelector(`option[value="${previous}"]`)?.disabled) {
+    sel.value = "";
+  }
+}
+
+function _providerCardEl(name) {
+  return document.querySelector(`#providerCards .provider-card[data-provider="${name}"]`);
+}
+
+function _formatRelative(epoch) {
+  if (!epoch) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() / 1000) - Number(epoch)));
+  if (seconds < 60) return t("settings.providers.justNow") || "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+function renderProviderCards(keys, providerMeta) {
+  const container = document.getElementById("providerCards");
+  if (!container) return;
+  const configuredKey = (n) => Boolean(keys?.[`${n}_configured`]);
+  const primary = String(keys?.primary_provider || providerMeta?.active_provider || "").toLowerCase();
+  const activeAvailable = providerMeta?.available !== false;
+
+  container.innerHTML = PROVIDER_CATALOG.map((p) => {
+    const configured = configuredKey(p.name);
+    const isPrimary = primary === p.name && activeAvailable;
+    const state = configured ? (isPrimary ? "active" : "configured") : "empty";
+    return `
+      <article class="provider-card" data-provider="${p.name}" data-state="${state}">
+        <header class="provider-card-head">
+          <span class="material-symbols-outlined provider-card-icon">${p.icon}</span>
+          <h4 class="provider-card-title">${p.label}</h4>
+          <label class="provider-primary-radio" title="${t("settings.providers.setPrimary")}">
+            <input type="radio" name="primaryProviderRadio" value="${p.name}" ${isPrimary ? "checked" : ""} ${configured ? "" : "disabled"} />
+            <span class="micro" data-i18n="settings.providers.setPrimary">Set as primary</span>
+          </label>
+        </header>
+        <div class="provider-card-body">
+          <label class="field-label provider-key-row">
+            <span class="micro" data-i18n="settings.providers.apiKey">API Key</span>
+            <div class="key-input-row">
+              <input type="password" class="provider-key-input" placeholder="${p.placeholder}" autocomplete="off" />
+              <button type="button" class="ghost-btn provider-toggle-visibility" title="Show/Hide">
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+            </div>
+          </label>
+          <button type="button" class="secondary provider-save-btn" data-i18n="settings.providers.saveAndFetch">Save &amp; fetch models</button>
+          <label class="field-label provider-model-row">
+            <span class="micro" data-i18n="settings.providers.model">Model</span>
+            <select class="provider-model-select" ${configured ? "" : "disabled"}>
+              <option value="" data-i18n="settings.providers.modelAuto">Auto (provider default)</option>
+            </select>
+          </label>
+          <div class="provider-status">
+            <span class="provider-status-text micro"></span>
+            <button type="button" class="ghost-btn provider-refresh-btn" title="${t("settings.providers.refresh")}" ${configured ? "" : "disabled"}>
+              <span class="material-symbols-outlined">refresh</span>
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  for (const p of PROVIDER_CATALOG) {
+    if (configuredKey(p.name)) {
+      void fetchAndRenderProviderModels(p.name, false);
+    } else {
+      _setProviderStatusText(p.name, t("settings.providers.addKey"));
+    }
+  }
+}
+
+function _setProviderStatusText(name, text, kind = "info") {
+  const card = _providerCardEl(name);
+  if (!card) return;
+  const el = card.querySelector(".provider-status-text");
+  if (el) {
+    el.textContent = text || "";
+    el.dataset.kind = kind;
+  }
+}
+
+function _setProviderCardState(name, state) {
+  const card = _providerCardEl(name);
+  if (card) card.dataset.state = state;
+}
+
+function _sortModelsAlpha(models) {
+  return [...models].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
+function _splitFreePaid(models) {
+  const free = [];
+  const paid = [];
+  for (const m of models) {
+    if (m.endsWith(":free")) free.push(m);
+    else paid.push(m);
+  }
+  return { free: _sortModelsAlpha(free), paid: _sortModelsAlpha(paid) };
+}
+
+function _ensureOpenRouterFilter(card, models, recommended, renderOptions) {
+  const row = card.querySelector(".provider-model-row");
+  if (!row) {
+    renderOptions(models);
+    return;
+  }
+  let filterBox = row.querySelector(".or-filter");
+  if (!filterBox) {
+    filterBox = document.createElement("div");
+    filterBox.className = "or-filter";
+    filterBox.innerHTML = `
+      <input type="search" class="or-filter-search" placeholder="${t("settings.providers.searchPlaceholder")}" />
+    `;
+    const select = row.querySelector(".provider-model-select");
+    row.insertBefore(filterBox, select);
+  }
+  const searchInput = filterBox.querySelector(".or-filter-search");
+  const apply = () => {
+    const q = (searchInput.value || "").toLowerCase().trim();
+    const matches = (m) => !q || m.toLowerCase().includes(q);
+    const { free, paid } = _splitFreePaid(models.filter(matches));
+    // Render: Free header (disabled separator) + free alpha,
+    // Paid header (disabled separator) + paid alpha. Recommended ⭐ stays
+    // inline within its own group so users see why it was picked.
+    const freeLabel = t("settings.providers.freeGroup") || "── Free ──";
+    const paidLabel = t("settings.providers.paidGroup") || "── Paid ──";
+    const ordered = [];
+    if (free.length) ordered.push({ separator: true, label: freeLabel }, ...free);
+    if (paid.length) ordered.push({ separator: true, label: paidLabel }, ...paid);
+    renderOptions(ordered);
+  };
+  searchInput.oninput = apply;
+  apply();
+}
+
+async function fetchProviderModels(name, force = false) {
+  const url = `/api/providers/${encodeURIComponent(name)}/models${force ? "?force_refresh=1" : ""}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    let detail = "fetch_failed";
+    try {
+      const body = await res.json();
+      detail = body.detail || detail;
+    } catch (_) { /* noop */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+async function fetchAndRenderProviderModels(name, force) {
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.fetching"));
+  try {
+    const data = await fetchProviderModels(name, force);
+    const models = Array.isArray(data.models) ? data.models : [];
+    const recommended = data.recommended || null;
+    _providerCardModelCache[name] = { models, recommended };
+    _providerCardFetchTimes[name] = data.fetched_at || (Date.now() / 1000);
+
+    const card = _providerCardEl(name);
+    if (!card) return;
+    const select = card.querySelector(".provider-model-select");
+    if (select) {
+      const autoLabel = t("settings.providers.modelAuto");
+      const renderOptions = (filtered) => {
+        const opts = [`<option value="">${autoLabel}</option>`];
+        for (const entry of filtered) {
+          if (typeof entry === "object" && entry && entry.separator) {
+            const label = String(entry.label || "──────");
+            opts.push(`<option value="" disabled>${label}</option>`);
+            continue;
+          }
+          const m = String(entry);
+          const isRec = m === recommended;
+          const star = isRec ? "⭐ " : "";
+          opts.push(`<option value="${m}">${star}${m}</option>`);
+        }
+        select.innerHTML = opts.join("");
+      };
+      if (name === "openrouter" && models.length > 30) {
+        // OpenRouter: search + alphabetical free-then-paid grouping.
+        _ensureOpenRouterFilter(card, models, recommended, renderOptions);
+      } else {
+        // All other providers: alphabetical sort, recommended stays at top.
+        const sorted = _sortModelsAlpha(models);
+        if (recommended) {
+          const recIdx = sorted.indexOf(recommended);
+          if (recIdx > 0) {
+            sorted.splice(recIdx, 1);
+            sorted.unshift(recommended);
+          }
+        }
+        renderOptions(sorted);
+      }
+      select.disabled = false;
+      // Pre-select if this provider is the primary and a preferred_model is known
+      const primarySelect = document.getElementById("primaryProvider");
+      const preferredSelect = document.getElementById("preferredModel");
+      if (primarySelect && primarySelect.value === name && preferredSelect && preferredSelect.value) {
+        const exists = models.includes(preferredSelect.value);
+        if (exists) select.value = preferredSelect.value;
+      }
+    }
+    const statusMsg = models.length
+      ? t("settings.providers.modelsLoaded").replace("{count}", String(models.length))
+      : t("settings.providers.empty");
+    _setProviderStatusText(name, `${statusMsg} · ${_formatRelative(_providerCardFetchTimes[name])}`);
+    if (_providerCardEl(name).dataset.state !== "active") {
+      _setProviderCardState(name, "configured");
+    }
+
+    // Sync legacy hidden selects so chat/populateModelOptions still works
+    if (!_providersMetadataCache[name]) _providersMetadataCache[name] = {};
+    _providersMetadataCache[name].models = models;
+    _providersMetadataCache[name].available = true;
+  } catch (err) {
+    _setProviderCardState(name, "error");
+    _setProviderStatusText(name, t("settings.providers.fetchFailed"), "error");
+  }
+}
+
+async function onSaveProviderKey(name, keyValue) {
+  const card = _providerCardEl(name);
+  if (!card) return;
+  const saveBtn = card.querySelector(".provider-save-btn");
+  if (saveBtn) saveBtn.disabled = true;
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.saving"));
+  try {
+    const payload = {};
+    payload[`${name}_api_key`] = keyValue;
+    await api("/api/providers/keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const input = card.querySelector(".provider-key-input");
+    if (input) input.value = "";
+    await _deps.loadKeysStatus();
+    await _deps.loadHealth();
+    await _deps.refreshOnboardingPlaceholder();
+    await fetchAndRenderProviderModels(name, true);
+    showToast(t("toast.providerSaved"), "info");
+  } catch (err) {
+    _setProviderCardState(name, "error");
+    _setProviderStatusText(name, `${t("settings.providers.saveFailed")}: ${err.message}`, "error");
+    showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function onSetPrimaryProvider(name, modelOverride) {
+  try {
+    const payload = { primary_provider: name };
+    if (modelOverride !== undefined) payload.preferred_model = modelOverride;
+    await api("/api/providers/keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    await _deps.loadKeysStatus();
+    await _deps.loadHealth();
+    await _deps.refreshOnboardingPlaceholder();
+    showToast(t("toast.providerSaved"), "info");
+  } catch (err) {
+    showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
+  }
+}
+
+function hasAnyProviderConfigured(keys) {
+  return Boolean(
+    keys.cerebras_configured
+      || keys.groq_configured
+      || keys.openai_configured
+      || keys.anthropic_configured
+      || keys.google_configured
+      || keys.openrouter_configured,
+  );
+}
+
+function normalizeKeyStatus(keys = {}, provider = {}) {
+  return {
+    cerebras_configured: !!keys.cerebras_configured,
+    groq_configured: !!keys.groq_configured,
+    openai_configured: !!keys.openai_configured,
+    anthropic_configured: !!keys.anthropic_configured,
+    google_configured: !!keys.google_configured,
+    openrouter_configured: !!keys.openrouter_configured,
+    primary_provider: keys.primary_provider || "",
+    active_provider: provider.active_provider || "none",
+    active_model: provider.active_model || "none",
+  };
+}
+
+function setPrimaryProviderValue(providerName) {
+  const select = document.getElementById("primaryProvider");
+  if (!select) return;
+  const normalized = String(providerName || "").trim().toLowerCase();
+  const exists = Array.from(select.options).some((opt) => opt.value === normalized);
+  select.value = exists ? normalized : "";
+}
+
+let _providersMetadataCache = {};
+
+function populateModelOptions(providerName, desiredModel) {
+  const select = document.getElementById("preferredModel");
+  if (!select) return;
+  const current = desiredModel !== undefined ? desiredModel : select.value;
+  const provider = (providerName || "").trim().toLowerCase();
+  const autoLabel = t("settings.modelAuto");
+  select.innerHTML = `<option value="">${autoLabel}</option>`;
+  const meta = _providersMetadataCache[provider];
+  const models = meta && Array.isArray(meta.models) ? meta.models : [];
+  for (const m of models) {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    select.appendChild(opt);
+  }
+  const exists = Array.from(select.options).some((opt) => opt.value === current);
+  select.value = exists ? current : "";
+}
+
+function updateProvidersMetadata(metadata, desiredModel) {
+  if (metadata && typeof metadata === "object") {
+    _providersMetadataCache = metadata.providers || {};
+  }
+  const provider = document.getElementById("primaryProvider")?.value || "";
+  populateModelOptions(provider, desiredModel);
+  _refreshChatProviderSelectorOptions();
+}
+
+export {
+  renderProviderCards,
+  normalizeKeyStatus,
+  setPrimaryProviderValue,
+  updateProvidersMetadata,
+  populateModelOptions,
+  onSaveProviderKey,
+  onSetPrimaryProvider,
+  fetchAndRenderProviderModels,
+  _populateChatModelSelector as populateChatModelSelector,
+  _maybeOfferPersistChatOverride as maybeOfferPersistChatOverride,
+};
