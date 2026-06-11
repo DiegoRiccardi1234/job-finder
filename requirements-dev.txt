@@ -1,9 +1,13 @@
 -r requirements.txt
-pytest>=8.0
-pytest-cov>=4.1
+# Lint/test tools are pinned so CI (which installs the latest matching version)
+# can't drift away from local results — a floating mypy/ruff upgrade silently
+# broke CI once (mypy started flagging an optional-import guard).
+pytest==9.0.3
+pytest-cov==7.1.0
 httpx>=0.27
-ruff>=0.5
-mypy>=1.10
+ruff==0.15.17
+mypy==2.1.0
+types-requests
 pre-commit>=3.7
 pydantic
 pyinstaller>=6.0

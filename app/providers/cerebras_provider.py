@@ -11,7 +11,7 @@ log = get_logger(__name__)
 try:
     import requests
 except Exception:  # pragma: no cover
-    requests = None
+    requests = None  # type: ignore[assignment]
 
 try:
     from openai import OpenAI
