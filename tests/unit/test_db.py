@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 from app.db import Database, make_job_hash
@@ -52,5 +53,71 @@ def test_wal_mode_is_enabled(tmp_path: Path) -> None:
     try:
         mode = db.conn.execute("PRAGMA journal_mode").fetchone()[0]
         assert mode.lower() == "wal"
+    finally:
+        db.close()
+
+
+def test_nested_write_does_not_deadlock(tmp_path: Path) -> None:
+    # ``add_manual_job`` acquires the write lock and then calls ``upsert_job``
+    # which acquires it again — only an RLock survives this without hanging.
+    db = Database(tmp_path / "s.db")
+    try:
+        job_id = db.add_manual_job(
+            {"titolo": "Nested", "azienda": "Acme", "link": "https://example.com/n"}
+        )
+        assert job_id > 0
+        assert db.get_job(job_id) is not None
+    finally:
+        db.close()
+
+
+def test_concurrent_writes_do_not_lose_jobs(tmp_path: Path) -> None:
+    # Many threads upserting distinct jobs through the shared connection must
+    # all land without races or "database is locked" errors.
+    db = Database(tmp_path / "s.db")
+    n = 40
+    errors: list[Exception] = []
+
+    def worker(i: int) -> None:
+        try:
+            db.upsert_job(
+                {
+                    "titolo": f"Role {i}",
+                    "azienda": "Acme",
+                    "link": f"https://example.com/job/{i}",
+                }
+            )
+        except Exception as exc:  # pragma: no cover - failure path
+            errors.append(exc)
+
+    try:
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == []
+        assert len(db.list_jobs(limit=1000)) == n
+    finally:
+        db.close()
+
+
+def test_concurrent_upsert_same_hash_is_idempotent(tmp_path: Path) -> None:
+    # Racing on the same job hash must collapse to a single row.
+    db = Database(tmp_path / "s.db")
+    payload = {"titolo": "QA", "azienda": "Acme", "link": "https://example.com/x"}
+
+    def worker() -> None:
+        db.upsert_job(dict(payload))
+
+    try:
+        threads = [threading.Thread(target=worker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(db.list_jobs(limit=1000)) == 1
     finally:
         db.close()

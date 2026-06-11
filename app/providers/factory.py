@@ -1,3 +1,4 @@
+import concurrent.futures as _futures
 import os as _os
 import random as _random
 import time as _time
@@ -309,13 +310,38 @@ def _is_retryable(exc: Exception) -> bool:
     return any(marker in text for marker in _RETRYABLE_MARKERS)
 
 
+# Shared pool so a hung provider call can be abandoned via ``future.result``'s
+# timeout without blocking the caller (signal-based alarms don't work on
+# Windows, and a per-call ``with`` executor would block on shutdown).
+_LLM_EXECUTOR = _futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm")
+
+
+def _call_with_timeout(fn: Callable[[], _RetryT], timeout: float) -> _RetryT:
+    """Run ``fn`` with a wall-clock timeout. ``timeout <= 0`` disables it.
+
+    On timeout, raises ``TimeoutError`` (which ``_is_retryable`` treats as
+    retryable). The underlying worker thread may keep running until the
+    provider call returns, but the caller — and any SSE stream — regains
+    control immediately.
+    """
+    if timeout <= 0:
+        return fn()
+    future = _LLM_EXECUTOR.submit(fn)
+    try:
+        return future.result(timeout=timeout)
+    except _futures.TimeoutError as exc:
+        future.cancel()
+        raise TimeoutError(f"LLM request exceeded timeout of {timeout:.0f}s") from exc
+
+
 def _with_retry(fn: Callable[[], _RetryT], provider_label: str) -> _RetryT:
     max_attempts = max(1, int(_os.environ.get("LLM_MAX_RETRIES", "3")))
     base = float(_os.environ.get("LLM_RETRY_BASE_SECONDS", "1.0"))
+    timeout = float(_os.environ.get("LLM_REQUEST_TIMEOUT_SECONDS", "60"))
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            return fn()
+            return _call_with_timeout(fn, timeout)
         except Exception as exc:
             last_exc = exc
             if attempt >= max_attempts or not _is_retryable(exc):

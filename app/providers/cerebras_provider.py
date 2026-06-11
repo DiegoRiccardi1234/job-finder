@@ -57,8 +57,8 @@ class CerebrasProvider(LLMProvider):
                     model_id = item.get("id")
                 if model_id:
                     ids.append(str(model_id))
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("Cerebras model list not iterable, ignoring: %s", exc)
 
         # Dedup preservando ordine.
         unique: list[str] = []
@@ -102,7 +102,8 @@ class CerebrasProvider(LLMProvider):
                 max_tokens=1,
             )
             return True
-        except Exception:
+        except Exception as exc:
+            log.debug("Cerebras probe of model %s failed: %s", model_name, exc)
             return False
 
     def is_available(self) -> bool:

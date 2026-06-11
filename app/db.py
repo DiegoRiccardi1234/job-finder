@@ -1,10 +1,35 @@
+import functools
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
+
+logger = logging.getLogger(__name__)
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _synchronized(method: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Serialize a write method on the owning :class:`Database`'s lock.
+
+    Reads stay lock-free (WAL allows concurrent readers); only methods that
+    mutate state acquire the reentrant lock, so nested write calls (e.g.
+    ``add_manual_job`` -> ``upsert_job``) do not deadlock.
+    """
+
+    @functools.wraps(method)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        lock = args[0].lock  # type: ignore[attr-defined]
+        with lock:
+            return method(*args, **kwargs)
+
+    return wrapper
 
 
 def now_iso() -> str:
@@ -19,17 +44,18 @@ def make_job_hash(titolo: str, azienda: str, link: str) -> str:
 class Database:
     """SQLite wrapper shared across FastAPI request threads.
 
-    The connection uses ``check_same_thread=False``; a module-level
-    :class:`threading.Lock` serializes writes so concurrent requests do
-    not race on cursors or trigger ``database is locked`` errors. WAL
-    journal mode is enabled to allow concurrent readers.
+    The connection uses ``check_same_thread=False``; a reentrant
+    :class:`threading.RLock` serializes writes (via the ``@_synchronized``
+    decorator) so concurrent requests do not race on cursors or trigger
+    ``database is locked`` errors. WAL journal mode is enabled to allow
+    concurrent readers.
     """
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         try:
             self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.execute("PRAGMA synchronous=NORMAL")
@@ -45,6 +71,7 @@ class Database:
     def _get_connection(self) -> sqlite3.Connection:
         return self.conn
 
+    @_synchronized
     def begin_scan(self, location: str, is_remote: bool, terms: list[str]) -> int:
         cur = self.conn.cursor()
         cur.execute(
@@ -62,6 +89,7 @@ class Database:
         self.conn.commit()
         return run_id
 
+    @_synchronized
     def finish_scan(
         self,
         run_id: int,
@@ -91,6 +119,7 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def upsert_job(self, payload: dict[str, Any]) -> tuple[int, bool, str]:
         hash_value = make_job_hash(
             payload.get("titolo", ""),
@@ -155,6 +184,7 @@ class Database:
         self.conn.commit()
         return job_id, True, "open"
 
+    @_synchronized
     def update_job_analysis(self, job_id: int, analysis: dict[str, Any]) -> None:
         score = int(analysis.get("punteggio", 0) or 0)
         consiglio = str(analysis.get("consiglio", ""))
@@ -175,10 +205,12 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def add_manual_job(self, payload: dict[str, Any]) -> int:
         job_id, _, _ = self.upsert_job(payload)
         return job_id
 
+    @_synchronized
     def set_job_action(self, job_id: int, action: str, notes: str = "") -> None:
         new_status = "open"
         if action == "applied":
@@ -200,6 +232,7 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def set_favorite(self, job_id: int, is_favorite: bool) -> None:
         self.conn.execute(
             "UPDATE jobs SET is_favorite = ?, updated_at = ? WHERE id = ?",
@@ -207,11 +240,13 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def delete_job(self, job_id: int) -> bool:
         cur = self.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         self.conn.commit()
         return cur.rowcount > 0
 
+    @_synchronized
     def delete_all_jobs(self) -> int:
         cur = self.conn.execute("DELETE FROM jobs")
         self.conn.commit()
@@ -309,6 +344,7 @@ class Database:
             data["analysis"] = {}
         return data
 
+    @_synchronized
     def save_candidate_profile(
         self,
         source_name: str,
@@ -335,6 +371,7 @@ class Database:
         self.conn.commit()
         return int(cur.lastrowid or 0)
 
+    @_synchronized
     def update_candidate_profile_name(self, profile_id: int, name: str | None) -> None:
         self.conn.execute(
             "UPDATE candidate_profiles SET name = ? WHERE id = ?",
@@ -382,9 +419,11 @@ class Database:
             data["summary_json"] = {}
         return data
 
+    @_synchronized
     def set_active_profile(self, profile_id: int) -> None:
         self.set_preference("active_profile_id", str(profile_id))
 
+    @_synchronized
     def update_candidate_profile_summary(self, profile_id: int, summary: dict[str, Any]) -> None:
         self.conn.execute(
             "UPDATE candidate_profiles SET summary_json = ? WHERE id = ?",
@@ -392,6 +431,7 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def delete_candidate_profile(self, profile_id: int) -> bool:
         cur = self.conn.execute("DELETE FROM candidate_profiles WHERE id = ?", (profile_id,))
         self.conn.commit()
@@ -425,6 +465,7 @@ class Database:
         )
         return [dict(r) for r in cur.fetchall()]
 
+    @_synchronized
     def create_chat_session(self, session_id: str, title: str = "") -> dict[str, Any]:
         ts = now_iso()
         self.conn.execute(
@@ -435,6 +476,7 @@ class Database:
         self.conn.commit()
         return {"id": session_id, "title": title, "created_at": ts, "updated_at": ts}
 
+    @_synchronized
     def rename_chat_session(self, session_id: str, title: str) -> bool:
         cur = self.conn.execute(
             "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
@@ -443,6 +485,7 @@ class Database:
         self.conn.commit()
         return cur.rowcount > 0
 
+    @_synchronized
     def touch_chat_session(self, session_id: str) -> None:
         self.conn.execute(
             "INSERT OR IGNORE INTO chat_sessions(id, title, created_at, updated_at) "
@@ -455,6 +498,7 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def delete_chat_session(self, session_id: str) -> bool:
         if session_id == "default":
             self.conn.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
@@ -469,6 +513,7 @@ class Database:
 
     # ---- Pinned jobs ----
 
+    @_synchronized
     def pin_job(self, session_id: str, job_id: int) -> None:
         self.conn.execute(
             "INSERT OR IGNORE INTO pinned_jobs(session_id, job_id, pinned_at) VALUES (?, ?, ?)",
@@ -476,6 +521,7 @@ class Database:
         )
         self.conn.commit()
 
+    @_synchronized
     def unpin_job(self, session_id: str, job_id: int) -> bool:
         cur = self.conn.execute(
             "DELETE FROM pinned_jobs WHERE session_id = ? AND job_id = ?",
@@ -494,6 +540,7 @@ class Database:
 
     # ---- Recruiter info per job ----
 
+    @_synchronized
     def upsert_recruiter(self, job_id: int, data: dict[str, Any]) -> None:
         self.conn.execute(
             "INSERT INTO recruiters(job_id, name, title, headline, profile_url, raw_text, fetched_at) "
@@ -519,6 +566,7 @@ class Database:
         row = cur.fetchone()
         return dict(row) if row else None
 
+    @_synchronized
     def save_chat_message(
         self,
         session_id: str,
@@ -566,6 +614,7 @@ class Database:
         row = cur.fetchone()
         return int(row[0] if row else 0)
 
+    @_synchronized
     def delete_chat_messages_by_ids(self, ids: list[int]) -> None:
         if not ids:
             return
@@ -604,7 +653,8 @@ class Database:
         ).fetchall():
             try:
                 score = int(row[0])
-            except Exception:
+            except (TypeError, ValueError):
+                logger.debug("Skipping non-numeric punteggio_ai in analytics: %r", row[0])
                 continue
             if 0 <= score <= 10:
                 score_distribution[str(score)] = int(row[1] or 0)
@@ -625,6 +675,7 @@ class Database:
             "top_companies": top_companies,
         }
 
+    @_synchronized
     def save_cover_letter(self, job_id: int, letter: str) -> None:
         cursor = self.conn.cursor()
         row = cursor.execute("SELECT analysis_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
@@ -640,6 +691,7 @@ class Database:
             )
             self.conn.commit()
 
+    @_synchronized
     def set_preference(self, key: str, value: str) -> None:
         self.conn.execute(
             """
@@ -662,6 +714,7 @@ class Database:
         cur.execute("SELECT key, value FROM preferences")
         return {str(r["key"]): str(r["value"]) for r in cur.fetchall()}
 
+    @_synchronized
     def cleanup_stale_jobs(self, retention_days: int) -> int:
         # Always keep favorites; archive only non-favorite open jobs past retention.
         cur = self.conn.cursor()
