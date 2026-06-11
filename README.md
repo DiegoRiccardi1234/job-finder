@@ -64,6 +64,11 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Personalized scoring** — Each job gets a 1-10 AI score with pros/cons and an apply/skip recommendation.
 - **Kanban tracking** — Open → Applied → Interviewing → Rejected.
 - **Cover-letter generator** — One-click, tailored to the job and your CV.
+- **Interview-prep generator** (v1.4.0+) — Per-job likely technical + behavioural questions with CV-tailored answer hints, from the job detail panel.
+- **Resume tailoring** (v1.4.0+) — Generate a CV variant reordered and keyworded for a specific listing (truthful, ATS-friendly), copy-ready.
+- **Skill-gap analysis** (v1.4.0+) — Dashboard panel aggregating the skills your scored jobs most often flag as missing (excluding ones you already have) — no extra LLM calls.
+- **Scheduled auto-scan** (v1.4.0+) — Optional in-process scheduler re-runs your last search every N hours while the app is open and flags new high-scoring jobs via a dashboard banner.
+- **Per-feature toggles** (v1.4.0+) — Every optional feature above can be enabled/disabled from Settings → Features.
 - **Multilingual UI** — English, Italian, Spanish, French, German (259 keys per locale, 100% parity).
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order, exponential backoff retry.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
@@ -170,7 +175,7 @@ The chat service is split into single-responsibility modules:
 | OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF). Bundle ships **5 languages**: EN/IT/ES/FR/DE (~13 MB tessdata) |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 147 tests), Playwright (E2E) |
+| Testing | pytest (unit, 187 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — Tesseract bundled, auto-update over GitHub Releases |
@@ -207,7 +212,7 @@ web/
 ├── styles.css               Core stylesheet (glassmorphism + tokens)
 └── i18n/                    Per-locale JSON (en, it, es, fr, de — 259 keys each)
 tests/
-├── unit/                    pytest suite (122 tests, FakeProviderManager fixture)
+├── unit/                    pytest suite (187 tests, FakeProviderManager fixture)
 └── e2e/                     Playwright specs (smoke, README screenshots, demo GIF)
 scripts/
 ├── check_i18n.py            i18n coverage audit (fails CI on missing keys)
@@ -320,6 +325,12 @@ The `ProviderManager` picks the first available provider from your configured or
 | GET | `/api/jobs` | List jobs with filters |
 | GET | `/api/jobs/{id}` | Job detail + AI analysis |
 | POST | `/api/jobs/{id}/cover-letter` | Generate cover letter |
+| POST | `/api/jobs/{id}/interview-prep` | Generate likely interview questions (toggleable) |
+| POST | `/api/jobs/{id}/tailored-resume` | Generate a CV tailored to the listing (toggleable) |
+| GET | `/api/skill-gap` | Aggregated missing-skill analysis (toggleable) |
+| GET | `/api/scheduler/status` | Auto-scan status + pending highlights |
+| POST | `/api/scheduler/config` | Configure auto-scan (enable, interval, threshold) |
+| POST | `/api/scheduler/run-now` | Trigger an auto-scan immediately |
 | POST | `/api/jobs/{id}/action` | Set status (apply/skip/archive) |
 | POST | `/api/chat` | Chat with AI Career Coach (accepts optional `provider` + `model` overrides) |
 | GET | `/api/analytics` | Dashboard stats |

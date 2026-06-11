@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-11
+
+New AI features (interview prep, resume tailoring, skill-gap, scheduled auto-scan), all toggleable, plus reliability fixes and a backend refactor.
+
+### Added
+- **Interview-prep generator** — from a job's detail panel, generate the most likely technical + behavioural interview questions for that listing, each with a CV-tailored answer hint. `POST /api/jobs/{id}/interview-prep`. Off-switch in Settings → Features.
+- **Resume tailoring** — generate a version of your CV reordered and keyworded for a specific listing (truthful, ATS-friendly), with copy-to-clipboard. `POST /api/jobs/{id}/tailored-resume`. Toggleable.
+- **Skill-gap analysis** — a Dashboard panel aggregating the skills your scored jobs most often flag as missing (excluding ones already on your CV), so you know what to learn. `GET /api/skill-gap`. Pure aggregation over stored analysis — no extra LLM calls. Toggleable.
+- **Scheduled auto-scan** — an in-process scheduler re-runs your last search every N hours while the app is open and surfaces new jobs scoring ≥ a threshold via a Dashboard highlights banner. Configurable interval + min score, manual "Run now". `GET /api/scheduler/status`, `POST /api/scheduler/config|run-now|dismiss`. Off by default.
+- **Generation infrastructure** — `app/services/generation.py` centralises profile-aware LLM generation behind prompt templates in `app/prompts/generation/`; the cover-letter endpoint now reuses it.
+- **Per-feature toggles** — optional features are enabled/disabled from a new Settings → Features card, persisted in `preferences`. New i18n keys across all 5 locales (450 keys each).
+
+### Fixed
+- **DB write race** — `Database`'s lock was declared but never acquired; writes now serialize through an `@_synchronized` reentrant lock so concurrent scans / multiple tabs can't corrupt or lose updates. Reads stay lock-free (WAL).
+- **Hung LLM calls could stall the SSE scan stream** — each provider attempt now runs under a wall-clock timeout (`LLM_REQUEST_TIMEOUT_SECONDS`, default 60s; Windows-safe via a thread pool), counted as a retryable error.
+- **Silent exception swallowing** — two `except: pass`/`continue` sites (analytics score parsing, Cerebras model-list decode) now log at debug, honoring the project's no-silent-except policy.
+
+### Changed
+- **Backend refactor** — the 983-line `app/main.py` monolith (49 routes) was split into per-domain routers under `app/routers/` (system, providers, profile, scan, jobs, chat, preferences, scheduler) with `AppContainer` extracted to `app/container.py`. API contract unchanged.
+- **E2E smoke modernised** — the Playwright smoke suite, stale since the v1.3 UI redesign, was rewritten around structural assertions (shell loads, every nav tab activates, zero console errors, provider-cards contract).
+
 ## [1.3.2] — 2026-05-06
 
 UX polish + critical migration baseline fix.
