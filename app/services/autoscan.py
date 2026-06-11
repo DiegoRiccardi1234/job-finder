@@ -155,37 +155,43 @@ class AutoScanScheduler:
         if not self._running.acquire(blocking=False):
             return {"status": "already_running"}
         try:
-            if not self._container.has_provider_configured():
-                return {"status": "skipped", "reason": "no_provider"}
-            payload = self._build_payload()
-            for _event in self._run_scan(
-                db=self._container.db,
-                settings=self._container.settings,
-                provider_manager=self._container.providers,
-                payload=payload,
-            ):
-                pass  # drain the generator; persistence happens inside run_scan
+            try:
+                if not self._container.has_provider_configured():
+                    return {"status": "skipped", "reason": "no_provider"}
+                payload = self._build_payload()
+                for _event in self._run_scan(
+                    db=self._container.db,
+                    settings=self._container.settings,
+                    provider_manager=self._container.providers,
+                    payload=payload,
+                ):
+                    pass  # drain the generator; persistence happens inside run_scan
 
-            threshold = self.threshold()
-            highlights = self._db.list_jobs(only_new=True, min_score=threshold, limit=20)
-            pending = {
-                "count": len(highlights),
-                "threshold": threshold,
-                "generated_at": self._clock(),
-                "jobs": [
-                    {
-                        "id": j.get("id"),
-                        "titolo": j.get("titolo"),
-                        "azienda": j.get("azienda"),
-                        "score": j.get("punteggio_ai"),
-                    }
-                    for j in highlights[:8]
-                ],
-            }
-            self._db.set_preference("autoscan_last_run_ts", str(self._clock()))
-            self._db.set_preference("autoscan_pending", json.dumps(pending, ensure_ascii=False))
-            log.info("autoscan completed: %d new jobs >= %d", pending["count"], threshold)
-            return {"status": "complete", **pending}
+                threshold = self.threshold()
+                highlights = self._db.list_jobs(only_new=True, min_score=threshold, limit=20)
+                pending = {
+                    "count": len(highlights),
+                    "threshold": threshold,
+                    "generated_at": self._clock(),
+                    "jobs": [
+                        {
+                            "id": j.get("id"),
+                            "titolo": j.get("titolo"),
+                            "azienda": j.get("azienda"),
+                            "score": j.get("punteggio_ai"),
+                        }
+                        for j in highlights[:8]
+                    ],
+                }
+                self._db.set_preference("autoscan_last_run_ts", str(self._clock()))
+                self._db.set_preference("autoscan_pending", json.dumps(pending, ensure_ascii=False))
+                log.info("autoscan completed: %d new jobs >= %d", pending["count"], threshold)
+                return {"status": "complete", **pending}
+            except Exception as exc:
+                # Never let an exception escape — run_once is invoked from a bare
+                # daemon thread (manual run-now) where it would be lost silently.
+                log.warning("autoscan run failed: %s", exc)
+                return {"status": "error", "error": str(exc)}
         finally:
             self._running.release()
 

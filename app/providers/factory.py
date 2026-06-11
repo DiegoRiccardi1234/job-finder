@@ -1,6 +1,6 @@
-import concurrent.futures as _futures
 import os as _os
 import random as _random
+import threading
 import time as _time
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -310,28 +310,37 @@ def _is_retryable(exc: Exception) -> bool:
     return any(marker in text for marker in _RETRYABLE_MARKERS)
 
 
-# Shared pool so a hung provider call can be abandoned via ``future.result``'s
-# timeout without blocking the caller (signal-based alarms don't work on
-# Windows, and a per-call ``with`` executor would block on shutdown).
-_LLM_EXECUTOR = _futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm")
-
-
 def _call_with_timeout(fn: Callable[[], _RetryT], timeout: float) -> _RetryT:
-    """Run ``fn`` with a wall-clock timeout. ``timeout <= 0`` disables it.
+    """Run ``fn`` with a wall-clock timeout on a dedicated daemon thread.
 
-    On timeout, raises ``TimeoutError`` (which ``_is_retryable`` treats as
-    retryable). The underlying worker thread may keep running until the
-    provider call returns, but the caller — and any SSE stream — regains
-    control immediately.
+    A per-call thread (rather than a bounded pool) means a hung provider call
+    can't exhaust a fixed worker set and block other calls — the abandoned
+    thread just lingers until the underlying call returns. On timeout, raises
+    ``TimeoutError`` (which ``_is_retryable`` treats as retryable), so the
+    caller — and any SSE stream — regains control immediately. ``timeout <= 0``
+    disables the guard. Signal-based alarms aren't used (they don't work on
+    Windows or in worker threads).
     """
     if timeout <= 0:
         return fn()
-    future = _LLM_EXECUTOR.submit(fn)
-    try:
-        return future.result(timeout=timeout)
-    except _futures.TimeoutError as exc:
-        future.cancel()
-        raise TimeoutError(f"LLM request exceeded timeout of {timeout:.0f}s") from exc
+    box: list[_RetryT] = []
+    err: list[Exception] = []
+    done = threading.Event()
+
+    def _runner() -> None:
+        try:
+            box.append(fn())
+        except Exception as exc:
+            err.append(exc)
+        finally:
+            done.set()
+
+    threading.Thread(target=_runner, name="llm-call", daemon=True).start()
+    if not done.wait(timeout):
+        raise TimeoutError(f"LLM request exceeded timeout of {timeout:.0f}s")
+    if err:
+        raise err[0]
+    return box[0]
 
 
 def _with_retry(fn: Callable[[], _RetryT], provider_label: str) -> _RetryT:
