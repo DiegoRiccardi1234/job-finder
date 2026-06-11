@@ -99,6 +99,12 @@ class PreferenceUpdateRequest(BaseModel):
     value: str
 
 
+class SchedulerConfigRequest(BaseModel):
+    enabled: bool | None = None
+    interval_hours: int | None = Field(default=None, ge=1, le=168)
+    threshold: int | None = Field(default=None, ge=0, le=10)
+
+
 class ProviderKeysRequest(BaseModel):
     cerebras_api_key: str | None = None
     groq_api_key: str | None = None

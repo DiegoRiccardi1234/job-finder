@@ -2406,4 +2406,15 @@ pre {
 .generated-box { margin-top: 0.8rem; }
 .generated-box .output { white-space: pre-wrap; word-break: break-word; }
 
+/* ── Auto-scan (config + highlights banner) ────────────────── */
+.autoscan-block { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid rgba(127, 127, 127, 0.18); }
+.autoscan-config { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; margin-top: 0.6rem; }
+.autoscan-field { display: inline-flex; align-items: center; gap: 0.35rem; }
+.autoscan-num { width: 4.2rem; padding: 0.25rem 0.4rem; }
+.autoscan-banner { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; margin-bottom: 1rem; border-radius: 12px; background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), rgba(139, 92, 246, 0.14)); border: 1px solid rgba(99, 102, 241, 0.3); }
+.autoscan-banner.hidden { display: none; }
+.autoscan-banner-text { flex: 1; font-size: 0.92rem; }
+.autoscan-banner-close { background: none; border: none; cursor: pointer; font-size: 1.2rem; line-height: 1; color: inherit; opacity: 0.7; }
+.autoscan-banner-close:hover { opacity: 1; }
+
 

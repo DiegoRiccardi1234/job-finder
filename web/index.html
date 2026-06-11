@@ -68,6 +68,14 @@
   <main class="page-grid">
     <section id="view-dashboard" class="view is-active">
 
+      <!-- Auto-scan highlights banner -->
+      <div id="autoscanBanner" class="autoscan-banner hidden" role="status">
+        <span class="material-symbols-outlined">notifications_active</span>
+        <span id="autoscanBannerText" class="autoscan-banner-text"></span>
+        <button type="button" id="autoscanBannerView" class="ghost-btn" data-i18n="autoscan.view">View</button>
+        <button type="button" id="autoscanBannerDismiss" class="autoscan-banner-close" aria-label="Dismiss">&times;</button>
+      </div>
+
       <!-- Onboarding placeholder (shown until provider key + CV are set) -->
       <section id="onboardingPlaceholder" class="onboarding-placeholder hidden">
         <div class="onboarding-card">
@@ -525,6 +533,16 @@
             <label class="feature-toggle"><input type="checkbox" data-feature="interview_prep" /> <span data-i18n="settings.features.interviewPrep">Interview prep generator</span></label>
             <label class="feature-toggle"><input type="checkbox" data-feature="resume_tailoring" /> <span data-i18n="settings.features.resumeTailoring">Resume tailoring</span></label>
             <label class="feature-toggle"><input type="checkbox" data-feature="skill_gap" /> <span data-i18n="settings.features.skillGap">Skill-gap analysis</span></label>
+          </div>
+
+          <div class="autoscan-block">
+            <label class="feature-toggle"><input type="checkbox" id="autoscanEnabled" /> <span data-i18n="settings.features.autoscan">Scheduled auto-scan</span></label>
+            <p class="micro" data-i18n="settings.features.autoscanHint">Re-runs your last search periodically while the app is open, and flags new high-scoring jobs.</p>
+            <div class="autoscan-config">
+              <label class="micro autoscan-field"><span data-i18n="settings.features.every">Every</span> <input type="number" id="autoscanInterval" min="1" max="168" value="12" class="autoscan-num" /> <span data-i18n="settings.features.hours">hours</span></label>
+              <label class="micro autoscan-field"><span data-i18n="settings.features.minScore">Min score</span> <input type="number" id="autoscanThreshold" min="0" max="10" value="7" class="autoscan-num" /></label>
+              <button type="button" id="autoscanRunNow" class="secondary" data-i18n="settings.features.runNow">Run now</button>
+            </div>
           </div>
         </article>
 

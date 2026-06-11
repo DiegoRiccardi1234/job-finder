@@ -43,6 +43,12 @@ class AppContainer:
         self.providers._db = self.db
         self.providers.initialize()
 
+        # In-process scheduler for the optional auto-scan feature. Created
+        # inert; started by the app lifespan, stopped on shutdown.
+        from app.services.autoscan import AutoScanScheduler
+
+        self.autoscan = AutoScanScheduler(self)
+
         cv_path = workspace_dir / "cv.md"
         if cv_path.exists() and not self.db.get_latest_candidate_profile():
             markdown = cv_path.read_text(encoding="utf-8", errors="replace")
@@ -61,6 +67,7 @@ class AppContainer:
                 self.db.set_active_profile(int(latest["id"]))
 
     def shutdown(self) -> None:
+        self.autoscan.shutdown()
         self.db.close()
 
     def reload_providers(self) -> None:

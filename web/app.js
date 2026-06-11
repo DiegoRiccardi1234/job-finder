@@ -2006,6 +2006,98 @@ if (refreshSkillGapBtn) {
   refreshSkillGapBtn.addEventListener("click", loadSkillGap);
 }
 
+// ── Scheduled auto-scan (in-process, only while app is open) ─────────────────
+
+async function loadSchedulerStatus() {
+  try {
+    const st = await api("/api/scheduler/status");
+    const en = document.getElementById("autoscanEnabled");
+    const iv = document.getElementById("autoscanInterval");
+    const th = document.getElementById("autoscanThreshold");
+    if (en) en.checked = !!st.enabled;
+    if (iv && st.interval_hours) iv.value = st.interval_hours;
+    if (th && typeof st.threshold === "number") th.value = st.threshold;
+    renderAutoscanBanner(st.pending);
+  } catch (error) {
+    /* scheduler is optional; ignore when unavailable */
+  }
+}
+
+function renderAutoscanBanner(pending) {
+  const banner = document.getElementById("autoscanBanner");
+  if (!banner) return;
+  if (pending && pending.count > 0) {
+    setText(
+      "autoscanBannerText",
+      t("autoscan.bannerText", { count: pending.count, threshold: pending.threshold }),
+    );
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+  }
+}
+
+async function saveSchedulerConfig(patch) {
+  try {
+    await api("/api/scheduler/config", { method: "POST", body: JSON.stringify(patch) });
+  } catch (error) {
+    showToast(`${t("toast.actionError")}: ${error.message}`, "error");
+  }
+}
+
+const autoscanEnabledEl = document.getElementById("autoscanEnabled");
+if (autoscanEnabledEl) {
+  autoscanEnabledEl.addEventListener("change", () =>
+    saveSchedulerConfig({ enabled: autoscanEnabledEl.checked }),
+  );
+}
+const autoscanIntervalEl = document.getElementById("autoscanInterval");
+if (autoscanIntervalEl) {
+  autoscanIntervalEl.addEventListener("change", () =>
+    saveSchedulerConfig({ interval_hours: parseInt(autoscanIntervalEl.value, 10) || 12 }),
+  );
+}
+const autoscanThresholdEl = document.getElementById("autoscanThreshold");
+if (autoscanThresholdEl) {
+  autoscanThresholdEl.addEventListener("change", () =>
+    saveSchedulerConfig({ threshold: parseInt(autoscanThresholdEl.value, 10) || 0 }),
+  );
+}
+const autoscanRunNowEl = document.getElementById("autoscanRunNow");
+if (autoscanRunNowEl) {
+  autoscanRunNowEl.addEventListener("click", async () => {
+    try {
+      await api("/api/scheduler/run-now", { method: "POST" });
+      showToast(t("settings.features.autoscanStarted") || "Auto-scan started", "info");
+    } catch (error) {
+      showToast(`${t("toast.actionError")}: ${error.message}`, "error");
+    }
+  });
+}
+const autoscanBannerDismissEl = document.getElementById("autoscanBannerDismiss");
+if (autoscanBannerDismissEl) {
+  autoscanBannerDismissEl.addEventListener("click", async () => {
+    document.getElementById("autoscanBanner").classList.add("hidden");
+    try {
+      await api("/api/scheduler/dismiss", { method: "POST" });
+    } catch (error) {
+      /* best-effort dismiss */
+    }
+  });
+}
+const autoscanBannerViewEl = document.getElementById("autoscanBannerView");
+if (autoscanBannerViewEl) {
+  autoscanBannerViewEl.addEventListener("click", () => {
+    const onlyNew = document.getElementById("onlyNew");
+    if (onlyNew) {
+      onlyNew.checked = true;
+      loadJobs();
+    }
+    const jobsSection = document.querySelector(".jobs-section");
+    if (jobsSection) jobsSection.scrollIntoView({ behavior: "smooth" });
+  });
+}
+
 document.getElementById("refreshJobsBtn").addEventListener("click", loadJobs);
 document.getElementById("onlyNew").addEventListener("change", loadJobs);
 document.getElementById("onlyFavorites").addEventListener("change", loadJobs);
@@ -2042,6 +2134,7 @@ async function bootstrap() {
   await Promise.all([loadJobs(), loadRecommendations()]);
   await loadAnalytics();
   await loadSkillGap();
+  await loadSchedulerStatus();
   await loadChatPrompts();
   await loadChatHistory();
 }

@@ -15,6 +15,7 @@ from app.routers import preferences as preferences_router
 from app.routers import profile as profile_router
 from app.routers import providers as providers_router
 from app.routers import scan as scan_router
+from app.routers import scheduler as scheduler_router
 from app.routers import system as system_router
 from app.version import __version__
 
@@ -28,6 +29,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        container.autoscan.start()
         yield
         container.shutdown()
 
@@ -55,6 +57,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         jobs_router,
         chat_router,
         preferences_router,
+        scheduler_router,
     ):
         fastapi_app.include_router(module.build_router(container))
 

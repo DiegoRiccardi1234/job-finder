@@ -217,7 +217,14 @@
       "interviewPrep": "Interview prep generator",
       "resumeTailoring": "Resume tailoring",
       "saved": "Saved",
-      "skillGap": "Skill-gap analysis"
+      "skillGap": "Skill-gap analysis",
+      "autoscan": "Scheduled auto-scan",
+      "autoscanHint": "Re-runs your last search periodically while the app is open, and flags new high-scoring jobs.",
+      "every": "Every",
+      "hours": "hours",
+      "minScore": "Min score",
+      "runNow": "Run now",
+      "autoscanStarted": "Auto-scan started"
     }
   },
   "coach": {
@@ -527,5 +534,9 @@
     "title": "Skill Gap",
     "subtitle": "Skills most often missing across your scored jobs — learn these to unlock more matches.",
     "empty": "Scan and score some jobs to see your skill gaps."
+  },
+  "autoscan": {
+    "bannerText": "Auto-scan found {count} new job(s) scoring {threshold}+.",
+    "view": "View"
   }
 }

@@ -217,7 +217,14 @@
       "interviewPrep": "Interview-Prep-Generator",
       "resumeTailoring": "Lebenslauf-Anpassung",
       "saved": "Gespeichert",
-      "skillGap": "Kompetenzlücken-Analyse"
+      "skillGap": "Kompetenzlücken-Analyse",
+      "autoscan": "Geplanter Auto-Scan",
+      "autoscanHint": "Wiederholt deine letzte Suche regelmäßig, solange die App geöffnet ist, und hebt neue Jobs mit hoher Bewertung hervor.",
+      "every": "Alle",
+      "hours": "Stunden",
+      "minScore": "Mindestscore",
+      "runNow": "Jetzt ausführen",
+      "autoscanStarted": "Auto-Scan gestartet"
     }
   },
   "coach": {
@@ -527,5 +534,9 @@
     "title": "Kompetenzlücke",
     "subtitle": "Die in deinen bewerteten Jobs am häufigsten fehlenden Fähigkeiten — lerne sie, um mehr Treffer freizuschalten.",
     "empty": "Scanne und bewerte einige Jobs, um deine Kompetenzlücken zu sehen."
+  },
+  "autoscan": {
+    "bannerText": "Der Auto-Scan fand {count} neue Jobs mit Bewertung {threshold}+.",
+    "view": "Ansehen"
   }
 }

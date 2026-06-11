@@ -217,7 +217,14 @@
       "interviewPrep": "Generador de prep. de entrevista",
       "resumeTailoring": "Adaptación de CV",
       "saved": "Guardado",
-      "skillGap": "Análisis de brecha de habilidades"
+      "skillGap": "Análisis de brecha de habilidades",
+      "autoscan": "Escaneo automático programado",
+      "autoscanHint": "Repite tu última búsqueda periódicamente mientras la app está abierta y destaca los nuevos empleos con mejor puntuación.",
+      "every": "Cada",
+      "hours": "horas",
+      "minScore": "Puntuación mín.",
+      "runNow": "Ejecutar ahora",
+      "autoscanStarted": "Escaneo iniciado"
     }
   },
   "coach": {
@@ -527,5 +534,9 @@
     "title": "Brecha de habilidades",
     "subtitle": "Las habilidades que más faltan en tus empleos analizados: apréndelas para desbloquear más coincidencias.",
     "empty": "Escanea y puntúa algunos empleos para ver tus brechas de habilidades."
+  },
+  "autoscan": {
+    "bannerText": "El escaneo automático encontró {count} nuevos empleos con puntuación {threshold}+.",
+    "view": "Ver"
   }
 }

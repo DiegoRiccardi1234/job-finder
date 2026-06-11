@@ -217,7 +217,14 @@
       "interviewPrep": "Generatore prep colloquio",
       "resumeTailoring": "Adattamento del CV",
       "saved": "Salvato",
-      "skillGap": "Analisi competenze mancanti"
+      "skillGap": "Analisi competenze mancanti",
+      "autoscan": "Scansione automatica programmata",
+      "autoscanHint": "Ripete la tua ultima ricerca a intervalli mentre l'app è aperta e segnala i nuovi lavori ad alto punteggio.",
+      "every": "Ogni",
+      "hours": "ore",
+      "minScore": "Punteggio min",
+      "runNow": "Esegui ora",
+      "autoscanStarted": "Scansione avviata"
     }
   },
   "coach": {
@@ -527,5 +534,9 @@
     "title": "Competenze mancanti",
     "subtitle": "Le competenze più spesso mancanti nelle offerte analizzate — impararle sblocca più match.",
     "empty": "Analizza e valuta qualche offerta per vedere le tue competenze mancanti."
+  },
+  "autoscan": {
+    "bannerText": "L'auto-scan ha trovato {count} nuovi lavori con punteggio {threshold}+.",
+    "view": "Vedi"
   }
 }
