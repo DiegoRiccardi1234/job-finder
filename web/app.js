@@ -3,6 +3,7 @@ import { initTheme } from "./modules/theme.js";
 import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistApi } from "./modules/shortlist.js";
 import { initI18n, t, loadLanguage, getCurrentLang, onLanguageChange } from "./modules/i18n.js";
 import { loadProfile as loadProfileView, bindProfileEvents, addRolesToProfile } from "./modules/profile.js";
+import { appState } from "./modules/state.js";
 
 initTheme();
 
@@ -22,7 +23,6 @@ if (langSelect) {
   });
 }
 
-let selectedJobId = null;
 const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey", "openrouterKey"];
 
 const PROVIDER_CATALOG = [
@@ -651,8 +651,6 @@ function ensureNoKeyBanner(show, message) {
   });
 }
 
-let featureFlags = {};
-
 async function loadHealth() {
   const health = await api("/api/health");
   setText("providerBadge", `Provider: ${health.provider.active_provider}`);
@@ -663,7 +661,7 @@ async function loadHealth() {
   ensureNoKeyBanner(missing, t("banner.noKey"));
 
   const prefs = health.preferences || {};
-  featureFlags = readFeatureFlags(prefs);
+  appState.featureFlags = readFeatureFlags(prefs);
   syncFeatureToggles();
   const linkedinInput = document.getElementById("linkedinUrl");
   if (linkedinInput && prefs.linkedin_url) {
@@ -784,7 +782,7 @@ async function showJobDetail(jobId) {
   const payload = await api(`/api/jobs/${jobId}`);
   const job = payload.job || {};
   const analysis = job.analysis || {};
-  selectedJobId = job.id || null;
+  appState.selectedJobId = job.id || null;
 
   setText("detailStatus", `Stato: ${job.status || "open"}`);
   setText("detailTitle", job.titolo || "Title unavailable");
@@ -818,14 +816,14 @@ async function showJobDetail(jobId) {
     btnId: "generateInterviewPrepBtn",
     boxId: "interviewPrepBox",
     outId: "interviewPrepOutput",
-    enabled: featureFlags.interview_prep !== false,
+    enabled: appState.featureFlags.interview_prep !== false,
     saved: analysis.interview_prep,
   });
   setupGenerationButton({
     btnId: "generateTailoredResumeBtn",
     boxId: "tailoredResumeBox",
     outId: "tailoredResumeOutput",
-    enabled: featureFlags.resume_tailoring !== false,
+    enabled: appState.featureFlags.resume_tailoring !== false,
     saved: analysis.tailored_resume,
   });
 
@@ -939,8 +937,8 @@ async function showJobDetail(jobId) {
     const pinBtn = document.getElementById("detailPinBtn");
     if (pinBtn) {
       pinBtn.addEventListener("click", () => {
-        if (selectedJobId && typeof pinJobToActiveSession === "function") {
-          pinJobToActiveSession(selectedJobId);
+        if (appState.selectedJobId && typeof pinJobToActiveSession === "function") {
+          pinJobToActiveSession(appState.selectedJobId);
         }
       });
     }
@@ -1807,12 +1805,12 @@ document.getElementById("railRecommendBtn").addEventListener("click", async () =
 });
 
 document.getElementById("detailApplyNowBtn").addEventListener("click", async () => {
-  if (!selectedJobId) {
+  if (!appState.selectedJobId) {
     showToast(t("toast.openJobFirst"), "info");
     return;
   }
   try {
-    await performJobAction(selectedJobId, "applied");
+    await performJobAction(appState.selectedJobId, "applied");
     showToast(t("toast.appMarked"), "info");
   } catch (error) {
     showToast(`${t("toast.actionError")}: ${error.message}`, "info");
@@ -1822,7 +1820,7 @@ document.getElementById("detailApplyNowBtn").addEventListener("click", async () 
 const genCovBtn = document.getElementById("generateCoverLetterBtn");
 if (genCovBtn) {
   genCovBtn.addEventListener("click", async () => {
-    if (!selectedJobId) return;
+    if (!appState.selectedJobId) return;
     const outBox = document.getElementById("coverLetterBox");
     const outTxt = document.getElementById("coverLetterOutput");
 
@@ -1834,7 +1832,7 @@ if (genCovBtn) {
     showToast(t("toast.coverLetterGenerating") || "Generating cover letter...", "info");
 
     try {
-      const payload = await api(`/api/jobs/${selectedJobId}/cover-letter`, { method: "POST" });
+      const payload = await api(`/api/jobs/${appState.selectedJobId}/cover-letter`, { method: "POST" });
       outTxt.textContent = payload.cover_letter || t("toast.noResult");
       showToast(t("toast.coverLetterReady") || "Cover letter ready", "info");
     } catch (error) {
@@ -1861,7 +1859,7 @@ function readFeatureFlags(prefs) {
 async function loadSkillGap() {
   const section = document.getElementById("skillGapSection");
   if (!section) return;
-  if (featureFlags.skill_gap === false) {
+  if (appState.featureFlags.skill_gap === false) {
     section.style.display = "none";
     return;
   }
@@ -1901,7 +1899,7 @@ function renderSkillGap(data) {
 function syncFeatureToggles() {
   document.querySelectorAll("#featureToggleList input[data-feature]").forEach((cb) => {
     const key = cb.dataset.feature;
-    if (key in featureFlags) cb.checked = featureFlags[key] !== false;
+    if (key in appState.featureFlags) cb.checked = appState.featureFlags[key] !== false;
   });
 }
 
@@ -1921,14 +1919,14 @@ function setupGenerationButton({ btnId, boxId, outId, enabled, saved }) {
 }
 
 async function runGeneration({ btn, box, out, endpoint, field }) {
-  if (!selectedJobId) return;
+  if (!appState.selectedJobId) return;
   box.style.display = "block";
   out.textContent = t("toast.generating");
   btn.disabled = true;
   const originalLabel = btn.innerHTML;
   btn.innerHTML = `<span class="spinner-inline"></span> ${t("toast.generating")}`;
   try {
-    const payload = await api(`/api/jobs/${selectedJobId}/${endpoint}`, { method: "POST" });
+    const payload = await api(`/api/jobs/${appState.selectedJobId}/${endpoint}`, { method: "POST" });
     out.textContent = payload[field] || t("toast.noResult");
   } catch (error) {
     out.textContent = `${t("toast.genError")}: ${error.message}`;
@@ -1985,7 +1983,7 @@ if (featureToggleList) {
     const cb = event.target.closest("input[data-feature]");
     if (!cb) return;
     const key = cb.dataset.feature;
-    featureFlags[key] = cb.checked;
+    appState.featureFlags[key] = cb.checked;
     try {
       await api("/api/preferences", {
         method: "POST",
@@ -1995,7 +1993,7 @@ if (featureToggleList) {
       if (key === "skill_gap") loadSkillGap();
     } catch (error) {
       cb.checked = !cb.checked;
-      featureFlags[key] = cb.checked;
+      appState.featureFlags[key] = cb.checked;
       showToast(`${t("toast.actionError")}: ${error.message}`, "error");
     }
   });
