@@ -216,7 +216,8 @@
       "subtitle": "Activa o desactiva funciones opcionales. Las desactivadas se ocultan en la app.",
       "interviewPrep": "Generador de prep. de entrevista",
       "resumeTailoring": "Adaptación de CV",
-      "saved": "Guardado"
+      "saved": "Guardado",
+      "skillGap": "Análisis de brecha de habilidades"
     }
   },
   "coach": {
@@ -521,5 +522,10 @@
   },
   "errors": {
     "noProviderToast": "Configura primero una clave de IA"
+  },
+  "skillGap": {
+    "title": "Brecha de habilidades",
+    "subtitle": "Las habilidades que más faltan en tus empleos analizados: apréndelas para desbloquear más coincidencias.",
+    "empty": "Escanea y puntúa algunos empleos para ver tus brechas de habilidades."
   }
 }

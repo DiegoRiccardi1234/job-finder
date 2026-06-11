@@ -215,6 +215,17 @@
         <div id="recommendationsGrid" class="recommendations-grid"></div>
       </section>
 
+      <!-- Skill Gap -->
+      <section id="skillGapSection" class="skill-gap-section" style="display:none;">
+        <div class="section-head">
+          <h2 data-i18n="skillGap.title">Skill Gap</h2>
+          <button id="refreshSkillGapBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span></button>
+        </div>
+        <p class="micro" data-i18n="skillGap.subtitle">Skills most often missing across your scored jobs — learn these to unlock more matches.</p>
+        <div id="skillGapBars" class="skill-gap-bars"></div>
+        <p id="skillGapEmpty" class="micro" data-i18n="skillGap.empty" style="display:none;">Scan and score some jobs to see your skill gaps.</p>
+      </section>
+
       <!-- Jobs Archive -->
       <section class="jobs-section">
         <div class="section-head jobs-head">
@@ -513,6 +524,7 @@
           <div id="featureToggleList" class="feature-toggle-list">
             <label class="feature-toggle"><input type="checkbox" data-feature="interview_prep" /> <span data-i18n="settings.features.interviewPrep">Interview prep generator</span></label>
             <label class="feature-toggle"><input type="checkbox" data-feature="resume_tailoring" /> <span data-i18n="settings.features.resumeTailoring">Resume tailoring</span></label>
+            <label class="feature-toggle"><input type="checkbox" data-feature="skill_gap" /> <span data-i18n="settings.features.skillGap">Skill-gap analysis</span></label>
           </div>
         </article>
 

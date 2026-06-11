@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from app.models import FavoriteRequest, JobActionRequest, ManualJobCreateRequest
 from app.services.generation import generate_with_profile
 from app.services.scanner_service import analyze_offer
+from app.services.skill_gap import compute_skill_gap
 
 if TYPE_CHECKING:
     from app.container import AppContainer
@@ -155,6 +156,11 @@ def build_router(container: AppContainer) -> APIRouter:
     @router.get("/api/analytics")
     def get_analytics() -> dict[str, Any]:
         return container.db.get_analytics()
+
+    @router.get("/api/skill-gap")
+    def skill_gap() -> dict[str, Any]:
+        container.require_feature("skill_gap")
+        return compute_skill_gap(container.db)
 
     @router.get("/api/recommendations")
     def recommendations(limit: int = Query(default=5, ge=1, le=20)) -> dict[str, Any]:

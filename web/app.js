@@ -1854,7 +1854,48 @@ function readFeatureFlags(prefs) {
   return {
     interview_prep: !off(prefs.feature_interview_prep),
     resume_tailoring: !off(prefs.feature_resume_tailoring),
+    skill_gap: !off(prefs.feature_skill_gap),
   };
+}
+
+async function loadSkillGap() {
+  const section = document.getElementById("skillGapSection");
+  if (!section) return;
+  if (featureFlags.skill_gap === false) {
+    section.style.display = "none";
+    return;
+  }
+  try {
+    const data = await api("/api/skill-gap");
+    renderSkillGap(data);
+    section.style.display = "block";
+  } catch (error) {
+    section.style.display = "none";
+  }
+}
+
+function renderSkillGap(data) {
+  const bars = document.getElementById("skillGapBars");
+  const empty = document.getElementById("skillGapEmpty");
+  if (!bars) return;
+  const gaps = (data && data.gaps) || [];
+  bars.innerHTML = "";
+  if (!gaps.length) {
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  const max = (data && data.max_count) || 1;
+  for (const g of gaps) {
+    const pct = Math.max(8, Math.round((g.count / max) * 100));
+    const row = document.createElement("div");
+    row.className = "skill-gap-row";
+    row.innerHTML =
+      `<span class="skill-gap-label">${escapeHtml(g.skill)}</span>` +
+      `<span class="skill-gap-track"><span class="skill-gap-fill" style="width:${pct}%"></span></span>` +
+      `<span class="skill-gap-count">${g.count}</span>`;
+    bars.appendChild(row);
+  }
 }
 
 function syncFeatureToggles() {
@@ -1951,12 +1992,18 @@ if (featureToggleList) {
         body: JSON.stringify({ key: `feature_${key}`, value: cb.checked ? "1" : "0" }),
       });
       showToast(t("settings.features.saved") || "Saved", "info");
+      if (key === "skill_gap") loadSkillGap();
     } catch (error) {
       cb.checked = !cb.checked;
       featureFlags[key] = cb.checked;
       showToast(`${t("toast.actionError")}: ${error.message}`, "error");
     }
   });
+}
+
+const refreshSkillGapBtn = document.getElementById("refreshSkillGapBtn");
+if (refreshSkillGapBtn) {
+  refreshSkillGapBtn.addEventListener("click", loadSkillGap);
 }
 
 document.getElementById("refreshJobsBtn").addEventListener("click", loadJobs);
@@ -1994,6 +2041,7 @@ async function bootstrap() {
   await loadProfiles();
   await Promise.all([loadJobs(), loadRecommendations()]);
   await loadAnalytics();
+  await loadSkillGap();
   await loadChatPrompts();
   await loadChatHistory();
 }

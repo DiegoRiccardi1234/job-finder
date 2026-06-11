@@ -216,7 +216,8 @@
       "subtitle": "Activez ou désactivez les fonctionnalités optionnelles. Celles désactivées sont masquées dans l'app.",
       "interviewPrep": "Générateur de prépa entretien",
       "resumeTailoring": "Adaptation du CV",
-      "saved": "Enregistré"
+      "saved": "Enregistré",
+      "skillGap": "Analyse des compétences manquantes"
     }
   },
   "coach": {
@@ -521,5 +522,10 @@
   },
   "errors": {
     "noProviderToast": "Configurez d'abord une clé IA"
+  },
+  "skillGap": {
+    "title": "Compétences manquantes",
+    "subtitle": "Les compétences les plus souvent manquantes dans vos offres analysées — apprenez-les pour débloquer plus de correspondances.",
+    "empty": "Analysez et notez quelques offres pour voir vos lacunes de compétences."
   }
 }

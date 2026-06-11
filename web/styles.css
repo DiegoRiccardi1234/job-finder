@@ -2391,4 +2391,19 @@ pre {
 .wizard-actions-right { display: flex; gap: 0.4rem; align-items: center; }
 .wizard-actions button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Skill gap ─────────────────────────────────────────────── */
+.skill-gap-section { margin-top: 1.5rem; }
+.skill-gap-bars { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.8rem; }
+.skill-gap-row { display: grid; grid-template-columns: minmax(120px, 0.32fr) 1fr auto; align-items: center; gap: 0.75rem; }
+.skill-gap-label { font-size: 0.9rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill-gap-track { position: relative; height: 0.65rem; border-radius: 999px; background: rgba(127, 127, 127, 0.16); overflow: hidden; }
+.skill-gap-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary, #6366f1), var(--accent, #8b5cf6)); }
+.skill-gap-count { font-size: 0.82rem; font-variant-numeric: tabular-nums; opacity: 0.7; min-width: 1.5rem; text-align: right; }
+
+/* ── Feature toggles + generated artifact boxes ────────────── */
+.feature-toggle-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.6rem; }
+.feature-toggle { display: flex; align-items: center; gap: 0.55rem; cursor: pointer; font-size: 0.92rem; }
+.generated-box { margin-top: 0.8rem; }
+.generated-box .output { white-space: pre-wrap; word-break: break-word; }
+
 

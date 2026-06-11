@@ -216,7 +216,8 @@
       "subtitle": "Attiva o disattiva le funzionalità opzionali. Quelle disattivate vengono nascoste nell'app.",
       "interviewPrep": "Generatore prep colloquio",
       "resumeTailoring": "Adattamento del CV",
-      "saved": "Salvato"
+      "saved": "Salvato",
+      "skillGap": "Analisi competenze mancanti"
     }
   },
   "coach": {
@@ -521,5 +522,10 @@
   },
   "errors": {
     "noProviderToast": "Configura prima una chiave AI"
+  },
+  "skillGap": {
+    "title": "Competenze mancanti",
+    "subtitle": "Le competenze più spesso mancanti nelle offerte analizzate — impararle sblocca più match.",
+    "empty": "Analizza e valuta qualche offerta per vedere le tue competenze mancanti."
   }
 }

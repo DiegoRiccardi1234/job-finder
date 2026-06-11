@@ -216,7 +216,8 @@
       "subtitle": "Turn optional features on or off. Disabled features are hidden across the app.",
       "interviewPrep": "Interview prep generator",
       "resumeTailoring": "Resume tailoring",
-      "saved": "Saved"
+      "saved": "Saved",
+      "skillGap": "Skill-gap analysis"
     }
   },
   "coach": {
@@ -521,5 +522,10 @@
   },
   "errors": {
     "noProviderToast": "Configure an AI provider key first"
+  },
+  "skillGap": {
+    "title": "Skill Gap",
+    "subtitle": "Skills most often missing across your scored jobs — learn these to unlock more matches.",
+    "empty": "Scan and score some jobs to see your skill gaps."
   }
 }
