@@ -287,7 +287,7 @@
   "scan": {
     "scanning": "Scansione portali lavoro...",
     "initializing": "Inizializzazione...",
-    "closePause": "Chiudi / Pausa",
+    "closePause": "Chiudi",
     "connecting": "Connessione ai portali lavoro...",
     "searching": "Ricerca",
     "foundJobs": "Trovate {count} offerte — analisi con IA...",

@@ -287,7 +287,7 @@
   "scan": {
     "scanning": "Scanning job portals...",
     "initializing": "Initializing...",
-    "closePause": "Close / Pause",
+    "closePause": "Close",
     "connecting": "Connecting to job portals...",
     "searching": "Searching",
     "foundJobs": "Found {count} jobs — analyzing with AI...",

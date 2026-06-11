@@ -1201,8 +1201,25 @@ if (_chatForm) _chatForm.addEventListener("submit", async (event) => {
   const message = input.value.trim();
   if (!message) return;
   input.value = "";
+  input.style.height = "auto";
   await sendChatMessage(message);
 });
+
+const _chatInputEl = document.getElementById("chatInput");
+if (_chatInputEl) {
+  // Enter sends the message; Shift+Enter inserts a newline.
+  _chatInputEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      if (_chatForm) _chatForm.requestSubmit();
+    }
+  });
+  // Auto-grow the textarea up to the CSS max-height as the user types.
+  _chatInputEl.addEventListener("input", () => {
+    _chatInputEl.style.height = "auto";
+    _chatInputEl.style.height = `${Math.min(_chatInputEl.scrollHeight, 140)}px`;
+  });
+}
 
 const _quickRecommendBtn = document.getElementById("quickRecommendBtn");
 if (_quickRecommendBtn) _quickRecommendBtn.addEventListener("click", async () => {

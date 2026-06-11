@@ -1,0 +1,77 @@
+============================================================
+  JOB FINDER — Guida rapida / Quick start
+============================================================
+
+-------------------- ITALIANO --------------------
+
+COME AVVIARE
+1. Fai doppio click su  JobFinder.exe
+2. Si apre il browser su  http://127.0.0.1:8000
+   (se non si apre, aprilo a mano e vai a quell'indirizzo)
+
+NOTA WINDOWS SMARTSCREEN
+Al primo avvio Windows potrebbe dire "Windows ha protetto il PC".
+Clicca "Ulteriori informazioni" -> "Esegui comunque".
+(L'eseguibile non e' firmato: il certificato costa ~200$/anno,
+fuori scopo per un progetto personale. Nessuna telemetria.)
+
+PRIMA CONFIGURAZIONE
+1. Apri "Impostazioni" e incolla almeno una chiave API di un
+   provider AI. Groq e Cerebras sono GRATIS e bastano 30 secondi
+   (nessuna carta di credito). C'e' un pulsante per registrarti.
+2. Vai su "Profilo" e carica il tuo CV (PDF / DOCX / immagine).
+3. Apri "Cerca Lavoro", scegli i filtri e avvia la scansione.
+4. Valuta i risultati nella Dashboard e parla con l'AI Coach.
+
+I TUOI DATI RESTANO SUL TUO PC
+CV, offerte, chat e chiavi API sono salvati in locale (cartella
+"data"). Niente viene caricato online tranne i prompt al provider
+AI che scegli tu e la ricerca su LinkedIn / Indeed.
+
+AGGIORNAMENTI
+Quando esce una nuova versione l'app mostra un banner
+"Aggiornamento disponibile": clicca "Aggiorna ora", il resto e'
+automatico (i tuoi dati vengono mantenuti).
+
+IMPORTANTE
+NON spostare/cancellare le cartelle  _internal  e  vendor :
+servono all'app per funzionare (Python + Tesseract OCR).
+
+-------------------- ENGLISH --------------------
+
+HOW TO RUN
+1. Double-click  JobFinder.exe
+2. Your browser opens at  http://127.0.0.1:8000
+   (if it doesn't, open it manually and go to that address)
+
+WINDOWS SMARTSCREEN
+On first launch Windows may show "Windows protected your PC".
+Click "More info" -> "Run anyway".
+(The exe is unsigned — a code-signing certificate costs ~$200/yr,
+out of scope for a personal project. No telemetry.)
+
+FIRST-TIME SETUP
+1. Open "Settings" and paste at least one AI provider API key.
+   Groq and Cerebras are FREE and take 30 seconds (no credit card)
+   — there's a button to register.
+2. Go to "Profile" and upload your CV (PDF / DOCX / image).
+3. Open "Job Search", pick filters and start the scan.
+4. Review results in the Dashboard and chat with the AI Coach.
+
+YOUR DATA STAYS ON YOUR MACHINE
+CV, jobs, chats and API keys are stored locally (the "data"
+folder). Nothing is uploaded except your prompts to the AI
+provider you choose and the LinkedIn / Indeed search.
+
+UPDATES
+When a new version ships the app shows an "Update available"
+banner: click "Update now" and the rest is automatic (your data
+is preserved).
+
+IMPORTANT
+Do NOT move/delete the  _internal  and  vendor  folders:
+the app needs them to run (Python + Tesseract OCR).
+
+------------------------------------------------------------
+GitHub: https://github.com/DiegoRiccardi1234/Linkedin-searcher
+============================================================

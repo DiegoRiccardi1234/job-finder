@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-06-12
+
+Polish + CI fix follow-up to v1.4.0.
+
+### Fixed
+- **Dark mode** — several elements hardcoded light/yellow backgrounds (the no-API-key banner, onboarding card, post-scan score chips, skills-match chips, Info-tab cost tags, Job Search pill toggles) that looked harsh on the dark surface. They're now theme-aware; light theme is unchanged.
+- **CI was red** — a floating `mypy` upgrade started flagging an optional-import guard (`requests = None`) the project's older local mypy didn't. Pinned the lint/test tools (`ruff`, `mypy`, `pytest`, `pytest-cov`) and added `types-requests` so CI and local agree, and annotated the guard.
+- **Hung LLM call could exhaust the timeout thread pool** — the per-attempt timeout now uses a dedicated daemon thread per call instead of a fixed 4-worker pool, so a stuck provider can't block other calls.
+- **Auto-scan run could die silently** — `run_once` now catches and logs any error and returns a status dict, so the manual "Run now" background thread never crashes unnoticed.
+
+### Changed
+- **Chat input** — now a textarea: **Enter sends**, **Shift+Enter** inserts a newline; it auto-grows as you type. The suggested-prompt chips are no longer hidden behind the input.
+- **Scan dialog** — the close button now reads just "Close" (red, clearly the stop action); the minimize-to-corner button is highlighted so it's easy to find.
+- **Windows bundle** — ships a `LEGGIMI.txt` / quick-start guide next to `JobFinder.exe`.
+
 ## [1.4.0] — 2026-06-11
 
 New AI features (interview prep, resume tailoring, skill-gap, scheduled auto-scan), all toggleable, plus reliability fixes and a backend refactor.

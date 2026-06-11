@@ -586,7 +586,7 @@
         <div id="chatBox" class="chat-box"></div>
         <div id="chatQuickPrompts" class="chat-quick-prompts"></div>
         <form id="chatForm" class="chat-form">
-          <input id="chatInput" type="text" data-i18n-placeholder="coach.chatPlaceholder" placeholder="Ask the coach..." required />
+          <textarea id="chatInput" rows="1" data-i18n-placeholder="coach.chatPlaceholder" placeholder="Ask the coach..." required></textarea>
           <button type="submit"><span class="material-symbols-outlined">send</span></button>
         </form>
       </div>
@@ -677,7 +677,7 @@
             <span class="material-symbols-outlined">info</span>
             <h3 data-i18n="info.version.title">Version</h3>
           </header>
-          <p>v<span id="infoVersionNumber">1.4.0</span> — <a href="https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases" target="_blank" rel="noopener" data-i18n="info.version.changelog">Changelog</a></p>
+          <p>v<span id="infoVersionNumber">1.4.1</span> — <a href="https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases" target="_blank" rel="noopener" data-i18n="info.version.changelog">Changelog</a></p>
         </article>
       </div>
     </section>
@@ -725,7 +725,7 @@
       <div class="progress-bar"><div class="progress-fill" id="scanProgressFill"></div></div>
       <p id="scanProgressText" class="micro" style="margin-top:8px;" data-i18n="scan.initializing">Initializing...</p>
       <ul id="scanFeed" class="scan-feed" aria-live="polite"></ul>
-      <button id="cancelScanBtn" class="secondary" style="margin-top:12px;" data-i18n="scan.closePause">Close / Pause</button>
+      <button id="cancelScanBtn" class="secondary scan-cancel-btn" style="margin-top:12px;" data-i18n="scan.closePause">Close</button>
     </div>
   </div>
 

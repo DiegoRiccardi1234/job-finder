@@ -112,6 +112,11 @@ def main() -> int:
         print("PyInstaller did not produce dist/JobFinder/", file=sys.stderr)
         return 2
     _bundle_tesseract(bundle)
+    # Quick-start guide next to JobFinder.exe for non-developer users.
+    readme_src = ROOT / "scripts" / "bundle_LEGGIMI.txt"
+    if readme_src.exists():
+        shutil.copy2(readme_src, bundle / "LEGGIMI.txt")
+        print(f"bundled quick-start guide -> {bundle / 'LEGGIMI.txt'}")
     zip_path = DIST / "JobFinder-windows.zip"
     print(f"creating {zip_path.name}...")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:

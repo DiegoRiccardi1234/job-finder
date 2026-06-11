@@ -38,7 +38,7 @@
 
 .chat-box {
   flex: 1;
-  min-height: clamp(420px, 65vh, 900px);
+  min-height: clamp(180px, 42vh, 560px);
   max-height: calc(100vh - 260px);
   overflow-y: auto;
   display: flex;
@@ -193,7 +193,8 @@
   padding-bottom: 2px;
   z-index: 2;
 }
-.chat-form input {
+.chat-form input,
+.chat-form textarea {
   flex: 1;
   padding: 8px 12px;
   background: var(--surface);
@@ -201,13 +202,23 @@
   border-radius: var(--r-md);
   color: var(--text);
   font-size: var(--fs-sm);
+  font-family: inherit;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
-.chat-form input:focus {
+.chat-form textarea {
+  resize: none;
+  line-height: 1.4;
+  max-height: 140px;
+  min-height: 38px;
+  overflow-y: auto;
+}
+.chat-form input:focus,
+.chat-form textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
+.chat-form button { align-self: flex-end; }
 .chat-form button {
   padding: 8px 14px;
   background: var(--accent);
@@ -310,6 +321,24 @@
   display: inline-flex;
 }
 .scan-modal-head .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+/* Minimize-to-corner button — made prominent so users find it. */
+#minimizeScanBtn {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  padding: 6px;
+}
+#minimizeScanBtn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* Close button — red, clearly the stop action. */
+.scan-cancel-btn {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.scan-cancel-btn:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger);
+}
 .scan-spinner {
   animation: scanSpin 1.6s linear infinite;
   color: var(--accent);
@@ -370,15 +399,15 @@
 .scan-feed .feed-chip.score-low { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 .scan-feed .feed-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* No-API-key banner — yellow soft warning, non blocking. */
+/* No-API-key banner — soft warning, non blocking. Theme-aware. */
 .no-key-banner {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: #fff4cc;
-  color: #7a4a00;
-  border-bottom: 2px solid #f0b400;
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-bottom: 2px solid var(--warning);
   font-size: var(--fs-sm);
   position: sticky;
   top: 0;

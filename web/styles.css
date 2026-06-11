@@ -2417,4 +2417,25 @@ pre {
 .autoscan-banner-close { background: none; border: none; cursor: pointer; font-size: 1.2rem; line-height: 1; color: inherit; opacity: 0.7; }
 .autoscan-banner-close:hover { opacity: 1; }
 
+/* ── Dark-mode color corrections ───────────────────────────────
+   Several elements hardcoded light/yellow backgrounds that look
+   harsh on the dark surface. Override them theme-aware; light theme
+   is left untouched. */
+[data-theme="dark"] .onboarding-card {
+  background: linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 70%);
+}
+[data-theme="dark"] .onb-bullet,
+[data-theme="dark"] .wizard-dot.active { background: var(--accent); color: #fff; }
+[data-theme="dark"] .ps-score.score-high,
+[data-theme="dark"] .skills-match .chip-mini { background: var(--success-soft); color: #5fd6a0; }
+[data-theme="dark"] .ps-score.score-mid { background: var(--warning-soft); color: #e0b15e; }
+[data-theme="dark"] .ps-score.score-low,
+[data-theme="dark"] .skills-match .chip-mini.missing { background: var(--danger-soft); color: #ef9a93; }
+[data-theme="dark"] .info-tag.free { background: var(--success-soft); color: #5fd6a0; }
+[data-theme="dark"] .info-tag.mixed { background: var(--accent-soft); color: var(--accent); }
+[data-theme="dark"] .info-tag.paid { background: var(--warning-soft); color: #e0b15e; }
+[data-theme="dark"] .pill-toggle { background: var(--surface); border-color: var(--border-strong); }
+[data-theme="dark"] .wizard-dot { background: var(--surface-2); color: var(--text-secondary); }
+[data-theme="dark"] .wizard-line { background: var(--border-strong); }
+
 
