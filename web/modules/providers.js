@@ -4,7 +4,7 @@
 // to avoid a circular import with app.js (loadHealth / loadKeysStatus run
 // after a key is saved).
 import { api, escapeHtml, setText, showToast, truncate } from "./helpers.js";
-import { t } from "./i18n.js";
+import { t, applyTranslations } from "./i18n.js";
 
 let _deps = {
   loadHealth: async () => {},
@@ -238,6 +238,10 @@ function renderProviderCards(keys, providerMeta) {
       </article>
     `;
   }).join("");
+
+  // Cards are injected after boot-time applyTranslations(), so translate the
+  // freshly-built markup or its data-i18n nodes stay on their English fallback.
+  applyTranslations(container);
 
   for (const p of PROVIDER_CATALOG) {
     if (configuredKey(p.name)) {

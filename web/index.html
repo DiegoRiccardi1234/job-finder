@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400" rel="stylesheet" />
-  <link rel="stylesheet" href="/web/styles.css" />
+  <link rel="stylesheet" href="/web/styles.css?v=1.4.2" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -44,8 +44,9 @@
     </div>
   </div>
   <header class="topbar">
+    <button type="button" id="navToggle" class="nav-toggle icon-btn" aria-label="Menu" aria-expanded="false"><span class="material-symbols-outlined">menu</span></button>
     <div class="brand"><span class="brand-icon material-symbols-outlined">work</span> Job Finder<span id="topbarVersion" class="version-chip"></span></div>
-    <nav class="topnav">
+    <nav class="topnav" id="topnav">
       <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> <span data-i18n="topbar.dashboard">Dashboard</span></button>
       <button type="button" class="nav-link" data-view="job-search"><span class="material-symbols-outlined">travel_explore</span> <span data-i18n="topbar.jobSearch">Job Search</span></button>
       <button type="button" class="nav-link" data-view="profile"><span class="material-symbols-outlined">person</span> <span data-i18n="topbar.profile">Profile</span></button>
@@ -677,11 +678,16 @@
             <span class="material-symbols-outlined">info</span>
             <h3 data-i18n="info.version.title">Version</h3>
           </header>
-          <p>v<span id="infoVersionNumber">1.4.1</span> — <a href="https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases" target="_blank" rel="noopener" data-i18n="info.version.changelog">Changelog</a></p>
+          <p>v<span id="infoVersionNumber">1.4.2</span> — <a href="https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases" target="_blank" rel="noopener" data-i18n="info.version.changelog">Changelog</a></p>
         </article>
       </div>
     </section>
   </main>
+
+  <!-- Mobile: off-canvas overlay (closes nav menu / chat drawer) -->
+  <div id="mobileOverlay" class="mobile-overlay" hidden></div>
+  <!-- Mobile: floating button to open the Career Coach drawer -->
+  <button type="button" id="chatFab" class="chat-fab" aria-label="Career Coach"><span class="material-symbols-outlined">forum</span></button>
 
 
   <!-- Toast -->
@@ -729,6 +735,6 @@
     </div>
   </div>
 
-  <script type="module" src="/web/app.js"></script>
+  <script type="module" src="/web/app.js?v=1.4.2"></script>
 </body>
 </html>

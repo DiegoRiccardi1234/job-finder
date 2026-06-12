@@ -81,6 +81,16 @@ function activateView(viewName) {
   // is not crowded by the chat panel. Other views keep it for quick access.
   const rail = document.querySelector(".right-rail");
   if (rail) rail.classList.toggle("hidden", viewName === "info");
+
+  // Mobile chrome: navigating closes any open menu/drawer and the chat FAB
+  // is suppressed on the Info view (where the rail is hidden).
+  rail?.classList.remove("drawer-open");
+  document.getElementById("topnav")?.classList.remove("open");
+  document.getElementById("navToggle")?.setAttribute("aria-expanded", "false");
+  const overlay = document.getElementById("mobileOverlay");
+  if (overlay) { overlay.classList.remove("active"); overlay.hidden = true; }
+  const fab = document.getElementById("chatFab");
+  if (fab) fab.classList.toggle("hidden", viewName === "info");
 }
 
 function roleLabel(role) {
@@ -329,10 +339,15 @@ async function showJobDetail(jobId) {
   setText("detailStatus", `Stato: ${job.status || "open"}`);
   setText("detailTitle", job.titolo || "Title unavailable");
   setText("detailCompany", job.azienda || "Company unavailable");
-  setText(
-    "detailMeta",
-    `${job.sede || "Sede N/D"} | Score ${job.punteggio_ai || 0}/10 | ${job.modalita || "Modalita N/D"}`,
-  );
+  // Build the meta line from distinct parts: legacy data sometimes stored the
+  // city in ``modalita`` too, which produced "Torino | Score | Torino".
+  const sede = (job.sede || "").trim();
+  const modalita = (job.modalita || "").trim();
+  const metaParts = [sede || "Sede N/D", `Score ${job.punteggio_ai || 0}/10`];
+  if (modalita && modalita.toLowerCase() !== sede.toLowerCase()) {
+    metaParts.push(modalita);
+  }
+  setText("detailMeta", metaParts.join(" | "));
 
   const detailLinkBtn = document.getElementById("detailLinkBtn");
   if (detailLinkBtn) {
@@ -1440,7 +1455,12 @@ async function bootstrap() {
   await loadSkillGap();
   await loadSchedulerStatus();
   await loadChatPrompts();
+  // i18n is ready here, so the session dropdown / empty-state get localised
+  // labels (no boot race). Sessions first: history loads the active one.
+  await initChatSessions().catch((e) => console.error("initChatSessions failed:", e));
   await loadChatHistory();
+  // Shows only if the conversation is empty, with localised suggestion labels.
+  renderChatEmptyState();
 }
 
 bootstrap().catch((error) => {
@@ -1713,16 +1733,54 @@ async function showFirstTimeTutorial() {
 window.addEventListener('load', () => {
   checkForUpdate().then(populateSystemInfo).catch(() => { /* offline ok */ });
   wireSystemSettings();
-  renderChatEmptyState();
   // Defer tutorial to let dashboard render first.
   setTimeout(showFirstTimeTutorial, 800);
-  initChatSessions().catch(() => {});
   wirePostScanModal();
   wireInfoTab();
   wireOnboardingPlaceholder();
   refreshOnboardingPlaceholder().catch(() => {});
   refreshPinnedStrip().catch(() => {});
+  wireMobileChrome();
 });
+
+// Hamburger nav + off-canvas Career Coach drawer (mobile only). The CSS hides
+// the toggle/FAB/overlay on wide viewports, so these handlers are inert there.
+function wireMobileChrome() {
+  const navToggle = document.getElementById("navToggle");
+  const topnav = document.getElementById("topnav");
+  const overlay = document.getElementById("mobileOverlay");
+  const fab = document.getElementById("chatFab");
+  const rail = document.querySelector(".right-rail");
+
+  const showOverlay = () => {
+    if (!overlay) return;
+    overlay.hidden = false;
+    overlay.classList.add("active");
+  };
+  const closeAll = () => {
+    topnav?.classList.remove("open");
+    navToggle?.setAttribute("aria-expanded", "false");
+    rail?.classList.remove("drawer-open");
+    if (overlay) { overlay.classList.remove("active"); overlay.hidden = true; }
+    fab?.classList.remove("hidden");
+  };
+
+  navToggle?.addEventListener("click", () => {
+    const open = topnav?.classList.toggle("open");
+    navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) { rail?.classList.remove("drawer-open"); showOverlay(); fab?.classList.remove("hidden"); }
+    else if (overlay) { overlay.classList.remove("active"); overlay.hidden = true; }
+  });
+
+  fab?.addEventListener("click", () => {
+    rail?.classList.add("drawer-open");
+    topnav?.classList.remove("open");
+    fab.classList.add("hidden");
+    showOverlay();
+  });
+
+  overlay?.addEventListener("click", closeAll);
+}
 
 
 /* =============================================================== */
@@ -1769,7 +1827,7 @@ function renderChatSessionDropdown() {
   if (!sel) return;
   sel.innerHTML = ChatSessions.list.map((s) => {
     const label = (s.title || "").trim() || (s.id === "default" ? (t("chat.defaultSession") || "Default") : s.id);
-    return `<option value="${escapeHtmlSafe(s.id)}" ${s.id === ChatSessions.active ? "selected" : ""}>${escapeHtmlSafe(label)}</option>`;
+    return `<option value="${escapeHtml(s.id)}" ${s.id === ChatSessions.active ? "selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
 }
 
@@ -1858,7 +1916,7 @@ async function refreshPinnedStrip() {
     strip.innerHTML = jobs.map((j) => `
       <span class="pinned-pill" data-job-id="${j.id}">
         <span class="material-symbols-outlined">push_pin</span>
-        <span class="pinned-text">${escapeHtmlSafe(j.titolo || "?")} · ${escapeHtmlSafe(j.azienda || "?")}</span>
+        <span class="pinned-text">${escapeHtml(j.titolo || "?")} · ${escapeHtml(j.azienda || "?")}</span>
         <button type="button" class="pinned-remove" data-unpin="${j.id}" title="${t("chat.unpin") || "Unpin"}">×</button>
       </span>
     `).join("");

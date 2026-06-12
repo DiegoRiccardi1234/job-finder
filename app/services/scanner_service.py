@@ -280,6 +280,9 @@ def _fallback_analysis(
     azienda: str,
     descrizione: str,
 ) -> dict[str, Any]:
+    # ``reason`` (provider error / invalid response) is for diagnostics only —
+    # it must never leak into the user-facing ``riassunto`` below.
+    log.warning("Heuristic fallback analysis for '%s' @ %s: %s", titolo, azienda, reason)
     offer_text = f"{titolo} {descrizione}".lower()
     profile_tokens = _tokenize(profile_markdown)
     offer_tokens = _tokenize(offer_text)
@@ -320,7 +323,7 @@ def _fallback_analysis(
         "anni_esperienza_richiesti": _estimate_experience_band(offer_text),
         "punti_forza_per_diego": f"Match su: {overlap_preview}.",
         "punti_deboli_per_diego": weakness_text,
-        "riassunto": f"Analisi euristica usata ({reason[:80]}). Match stimato {score}/10.",
+        "riassunto": f"Analisi euristica usata (IA non disponibile). Match stimato {score}/10.",
         "consiglio": advice,
         "ral_stimata": "Non stimabile",
         "reputazione_azienda": "Sconosciuta",
@@ -406,7 +409,7 @@ def run_scan(
     location = payload.location or (
         settings.location_remote_default if is_remote_effective else settings.location_default
     )
-    modalita = "Full Remote IT" if is_remote_effective else "Torino"
+    modalita = "Full Remote" if is_remote_effective else "In sede"
 
     augmented_terms = [_augment_search_term(t, exp_levels, work_types) for t in terms]
 

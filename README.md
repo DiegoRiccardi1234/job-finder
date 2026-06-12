@@ -69,7 +69,8 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Skill-gap analysis** (v1.4.0+) — Dashboard panel aggregating the skills your scored jobs most often flag as missing (excluding ones you already have) — no extra LLM calls.
 - **Scheduled auto-scan** (v1.4.0+) — Optional in-process scheduler re-runs your last search every N hours while the app is open and flags new high-scoring jobs via a dashboard banner.
 - **Per-feature toggles** (v1.4.0+) — Every optional feature above can be enabled/disabled from Settings → Features.
-- **Multilingual UI** — English, Italian, Spanish, French, German (259 keys per locale, 100% parity).
+- **Multilingual UI** — English, Italian, Spanish, French, German (450 keys per locale, 100% parity).
+- **Responsive layout** (v1.4.2+) — mobile-friendly below 960px: hamburger nav, off-canvas Career Coach drawer, horizontally-scrollable tables, single-column dashboards. Desktop layout unchanged.
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter — configurable order, exponential backoff retry.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
 - **Token usage tracker** (v1.1.0+) — every LLM call is logged to `usage_log`; `GET /api/usage/stats?range=today|week|month|all` returns aggregates (total / per-provider / per-day) so you always know how many tokens you've burned.
@@ -210,7 +211,7 @@ web/
 ├── modules/                 Feature modules (helpers, theme, shortlist, i18n, profile)
 ├── styles/                  Per-feature CSS (chat.css extracted)
 ├── styles.css               Core stylesheet (glassmorphism + tokens)
-└── i18n/                    Per-locale JSON (en, it, es, fr, de — 259 keys each)
+└── i18n/                    Per-locale JSON (en, it, es, fr, de — 450 keys each)
 tests/
 ├── unit/                    pytest suite (187 tests, FakeProviderManager fixture)
 └── e2e/                     Playwright specs (smoke, README screenshots, demo GIF)

@@ -115,54 +115,65 @@ def handle_chat_message(
         if auto_title:
             db.rename_chat_session(session_id, auto_title)
 
-    updates = extract_pref_updates(message)
-    for key, value in updates.items():
-        db.set_preference(key, value)
-
-    # Keep long conversations coherent without blowing up the prompt.
+    # From here on the user message is already persisted: any unexpected failure
+    # must still leave a coherent assistant reply, never an orphaned turn.
     try:
-        maybe_summarize(db=db, session_id=session_id, provider_manager=provider_manager)
-    except Exception as exc:  # never block the turn on summarizer failure
-        log.warning("maybe_summarize failed: %s", exc)
+        updates = extract_pref_updates(message)
+        for key, value in updates.items():
+            db.set_preference(key, value)
 
-    state = get_chat_state(db)
-    ui_lang = db.get_preference("ui_language", "en")
-    sys_prompt = system_prompt(state=state, ui_language=ui_lang)
+        # Keep long conversations coherent without blowing up the prompt.
+        try:
+            maybe_summarize(db=db, session_id=session_id, provider_manager=provider_manager)
+        except Exception as exc:  # never block the turn on summarizer failure
+            log.warning("maybe_summarize failed: %s", exc)
 
-    summary = load_session_summary(db, session_id)
-    summary_block = f"\n\n=== Conversation summary so far ===\n{summary}" if summary else ""
+        state = get_chat_state(db)
+        ui_lang = db.get_preference("ui_language", "en")
+        sys_prompt = system_prompt(state=state, ui_language=ui_lang)
 
-    prompt_messages = [
-        {"role": "system", "content": sys_prompt},
-        {
-            "role": "user",
-            "content": (
-                f"=== Candidate Profile ===\n{build_profile_context(db)}\n\n"
-                f"=== Preferences ===\n{build_preferences_context(db)}\n\n"
-                f"=== Top Job Listings ===\n{jobs_context(db, session_id=session_id)}"
-                f"{summary_block}\n\n"
-                f"=== User Message ===\n{message}"
-            ),
-        },
-    ]
+        summary = load_session_summary(db, session_id)
+        summary_block = f"\n\n=== Conversation summary so far ===\n{summary}" if summary else ""
 
-    suggested_roles: list[dict[str, Any]] = []
-    try:
-        raw_answer = provider_manager.chat(
-            prompt_messages, max_tokens=900, provider_name=provider, model_name=model
-        )
-        answer, action_payload, suggested_roles = _parse_llm_response(raw_answer)
-    except Exception as exc:
-        log.error("Provider chat call failed, using fallback: %s", exc, exc_info=True)
-        answer, action_payload = fallback_answer(db=db, message=message)
+        prompt_messages = [
+            {"role": "system", "content": sys_prompt},
+            {
+                "role": "user",
+                "content": (
+                    f"=== Candidate Profile ===\n{build_profile_context(db)}\n\n"
+                    f"=== Preferences ===\n{build_preferences_context(db)}\n\n"
+                    f"=== Top Job Listings ===\n{jobs_context(db, session_id=session_id)}"
+                    f"{summary_block}\n\n"
+                    f"=== User Message ===\n{message}"
+                ),
+            },
+        ]
 
-    answer = _sanitize_chat_answer(answer)
-    db.save_chat_message(session_id=session_id, role="assistant", content=answer)
-    return {
-        "session_id": session_id,
-        "answer": answer,
-        "updated_preferences": updates,
-        "chat_state": state,
-        "action": action_payload,
-        "suggested_roles": suggested_roles,
-    }
+        suggested_roles: list[dict[str, Any]] = []
+        try:
+            raw_answer = provider_manager.chat(
+                prompt_messages, max_tokens=900, provider_name=provider, model_name=model
+            )
+            answer, action_payload, suggested_roles = _parse_llm_response(raw_answer)
+        except Exception as exc:
+            log.error("Provider chat call failed, using fallback: %s", exc, exc_info=True)
+            answer, action_payload = fallback_answer(db=db, message=message)
+
+        answer = _sanitize_chat_answer(answer)
+        db.save_chat_message(session_id=session_id, role="assistant", content=answer)
+        return {
+            "session_id": session_id,
+            "answer": answer,
+            "updated_preferences": updates,
+            "chat_state": state,
+            "action": action_payload,
+            "suggested_roles": suggested_roles,
+        }
+    except Exception:
+        log.error("Chat turn failed after persisting user message", exc_info=True)
+        error_answer = "Si è verificato un errore durante l'elaborazione del messaggio. Riprova."
+        try:
+            db.save_chat_message(session_id=session_id, role="assistant", content=error_answer)
+        except Exception:  # best-effort: do not mask the original failure
+            log.error("Could not persist assistant error message", exc_info=True)
+        raise

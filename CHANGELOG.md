@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [1.4.2] — 2026-06-12
+
+Live-review bug-fix pass: restored the chat-session dropdown, killed an i18n boot race, stopped leaking provider errors into job summaries, fixed orphaned chat turns, and made the UI usable on phones.
+
+### Fixed
+- **Chat-session dropdown was empty again** (and the pinned-jobs strip silently failed) — `renderChatSessionDropdown` / `refreshPinnedStrip` called an undefined `escapeHtmlSafe`, throwing a `ReferenceError` that their `.catch()` swallowed. They now use the imported `escapeHtml`.
+- **i18n boot race** — dynamically-injected markup (provider cards, chat empty-state) and the session dropdown were rendered before `initI18n()` finished, leaving English fallback text under an Italian locale and emitting `[i18n] missing translation` warnings. `applyTranslations(root)` is now exported and re-applied after dynamic injection; chat/session init runs after i18n is ready.
+- **Provider errors leaked into job summaries** — the heuristic-fallback `riassunto` embedded the raw exception (e.g. `Error code: 401 - Wrong API Key`). The raw reason is now logged only; the user-facing text is generic ("IA non disponibile").
+- **Orphaned chat turns** — if a turn failed after the user message was persisted, no assistant reply was saved, leaving dangling user messages. `handle_chat_message` now always persists a coherent assistant reply (or a generic error message) so history stays consistent.
+- **Job detail header showed the location twice** (e.g. `Torino, PIE, IT | Score 7/10 | Torino`) — `modalita` was hardcoded to a city name for non-remote scans; it's now `In sede`, and the header de-duplicates defensively for legacy rows.
+
+### Added
+- **Responsive / mobile layout** — below 960px the top nav collapses into a hamburger menu and the Career Coach becomes an off-canvas drawer (floating button); wide tables scroll inside their wrapper and multi-column dashboards collapse to a single column. Desktop layout is unchanged.
+
+### Changed
+- **Static assets are cache-busted** (`?v=1.4.2` on `app.js` / `styles.css`) so the dashboard picks up new front-end code after a self-update without a manual hard refresh. Bump the query string on each release.
+
+### Maintenance
+- One-off `scripts/clean_dirty_data.py` (with automatic DB backup) to purge orphaned chat messages, empty sessions, and job summaries that captured a provider error before this release.
+
 ## [1.4.1] — 2026-06-12
 
 Polish + CI fix follow-up to v1.4.0.

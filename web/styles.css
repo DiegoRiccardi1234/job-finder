@@ -2439,3 +2439,135 @@ pre {
 [data-theme="dark"] .wizard-line { background: var(--border-strong); }
 
 
+
+/* ===================================================================== */
+/* Mobile / responsive layout (added v1.4.2)                             */
+/* ===================================================================== */
+
+/* Desktop default: mobile-only chrome stays hidden. */
+.nav-toggle { display: none; }
+.chat-fab { display: none; }
+.mobile-overlay { display: none; }
+
+@media (max-width: 960px) {
+  /* --- Fix horizontal overflow: let 1fr column shrink so wide children
+         (e.g. the jobs table) scroll inside their own wrapper. --- */
+  .page-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page-grid > * { min-width: 0; }
+  /* The off-canvas drawer sits at translateX(100%); clip prevents it (and any
+     stray wide child) from creating a horizontal scrollbar. */
+  body { overflow-x: clip; }
+  /* Collapse multi-column dashboards to a single column on narrow screens. */
+  .analytics-grid,
+  .action-center,
+  .hero-meta { grid-template-columns: 1fr; }
+  .kanban-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* --- Hamburger button --- */
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    padding: 4px;
+  }
+  /* Lift the whole topbar above the overlay so its dropdown stays clickable
+     (the nav lives inside the topbar's stacking context). */
+  .topbar { gap: var(--space-3); z-index: 100; }
+
+  /* --- Top nav becomes a dropdown under the (sticky) topbar --- */
+  .topnav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-left: 0;
+    padding: var(--space-2);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-130%);
+    transition: transform 0.2s ease;
+    z-index: 95;
+  }
+  .topnav.open { transform: translateY(0); }
+  .topnav .nav-link {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 10px 12px;
+  }
+
+  /* --- Career Coach becomes an off-canvas right drawer --- */
+  .right-rail {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: min(440px, 86vw);
+    margin: 0;
+    border-radius: 0;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 110;
+    overflow-y: auto;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .right-rail.drawer-open { transform: translateX(0); }
+  /* On views that hide the rail (e.g. Info) keep it fully off-screen. */
+  .right-rail.hidden { display: block !important; transform: translateX(100%); }
+
+  /* --- Floating button to open the chat drawer --- */
+  .chat-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    z-index: 85;
+  }
+  .chat-fab .material-symbols-outlined { font-size: 26px; }
+  /* Hide the FAB when the drawer is open or the rail is suppressed. */
+  .chat-fab.hidden { display: none !important; }
+
+  /* --- Shared dimming overlay for nav + drawer --- */
+  .mobile-overlay.active {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 80;
+  }
+
+  /* --- Dialogs / modals fit the viewport --- */
+  .post-scan-card,
+  .update-modal-card,
+  .scan-dialog,
+  .tutorial-card { max-width: calc(100vw - 32px); }
+}
+
+@media (max-width: 640px) {
+  .topbar { padding: var(--space-3) var(--space-4); gap: var(--space-2); }
+  .topbar-right { gap: var(--space-2); }
+  .lang-select { padding: 0 6px; }
+  .brand { font-size: var(--fs-sm); }
+  /* Reduce table density so fewer columns overflow before scroll kicks in. */
+  .table-wrap th, .table-wrap td { padding: 8px 10px; }
+}

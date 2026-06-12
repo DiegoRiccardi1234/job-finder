@@ -64,23 +64,33 @@ export function onLanguageChange(callback) {
   _onLanguageChange = typeof callback === "function" ? callback : null;
 }
 
-function applyTranslations() {
-  document.querySelectorAll("[data-i18n]").forEach((el) => {
+// Translate every i18n-annotated element under ``root`` (default: whole
+// document). Pass a freshly-injected container to translate dynamic markup
+// that was added after boot — otherwise it keeps its hard-coded fallback text.
+export function applyTranslations(root = document) {
+  const scope = (sel) => {
+    const list = Array.from(root.querySelectorAll(sel));
+    // querySelectorAll never matches the root node itself, so add it back if
+    // the caller handed us an annotated element.
+    if (root.nodeType === 1 && root.matches && root.matches(sel)) list.push(root);
+    return list;
+  };
+  scope("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     const val = t(key);
     if (val !== key) el.textContent = val;
   });
-  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+  scope("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
     const val = t(key);
     if (val !== key) el.placeholder = val;
   });
-  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+  scope("[data-i18n-title]").forEach((el) => {
     const key = el.getAttribute("data-i18n-title");
     const val = t(key);
     if (val !== key) el.title = val;
   });
-  document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+  scope("[data-i18n-html]").forEach((el) => {
     const key = el.getAttribute("data-i18n-html");
     const val = t(key);
     if (val !== key) el.innerHTML = val;
