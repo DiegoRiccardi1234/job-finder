@@ -135,8 +135,21 @@ def handle_chat_message(
         summary = load_session_summary(db, session_id)
         summary_block = f"\n\n=== Conversation summary so far ===\n{summary}" if summary else ""
 
+        # Recent turns as their own messages so the model has real conversation
+        # context (the rolling summary only kicks in for very long chats). The
+        # just-saved current user message is dropped to avoid duplicating it.
+        history_rows = db.list_chat_messages(session_id, limit=9, include_types=("message",))
+        if history_rows and history_rows[-1].get("role") == "user":
+            history_rows = history_rows[:-1]
+        history_msgs = [
+            {"role": str(r["role"]), "content": str(r["content"])}
+            for r in history_rows[-6:]
+            if r.get("role") in ("user", "assistant") and r.get("content")
+        ]
+
         prompt_messages = [
             {"role": "system", "content": sys_prompt},
+            *history_msgs,
             {
                 "role": "user",
                 "content": (
@@ -152,7 +165,7 @@ def handle_chat_message(
         suggested_roles: list[dict[str, Any]] = []
         try:
             raw_answer = provider_manager.chat(
-                prompt_messages, max_tokens=900, provider_name=provider, model_name=model
+                prompt_messages, max_tokens=1400, provider_name=provider, model_name=model
             )
             answer, action_payload, suggested_roles = _parse_llm_response(raw_answer)
         except Exception as exc:

@@ -30,9 +30,11 @@ def test_role_guidance_intent_requires_all_hints() -> None:
     assert not has_role_guidance_intent("Find me jobs")
 
 
-def test_system_prompt_includes_language_and_envelope() -> None:
+def test_system_prompt_replies_in_user_message_language() -> None:
+    """The bot must reply in the language of the user's message, not a forced UI
+    language — so the same prompt is language-neutral for any ui_language."""
     prompt = system_prompt("onboarding", "it")
-    assert "Italian" in prompt
+    assert "same language" in prompt.lower()
     assert "FILL_SCAN_FORM" in prompt
     assert "AI Career Coach" in prompt
 
@@ -80,6 +82,36 @@ def test_handle_chat_message_falls_back_when_provider_raises(tmp_path, fake_prov
 
     assert "scan" in result["answer"].lower() or "no analyzed" in result["answer"].lower()
     assert result["chat_state"] == "no_cv"
+
+
+def test_handle_chat_message_includes_recent_history(tmp_path, fake_provider) -> None:
+    """Prior turns must be sent to the model as their own messages, so the bot
+    has real conversation context (not only a post-20-message summary)."""
+    fake_provider.chat_response = json.dumps({"answer": "ok"})
+    db = Database(tmp_path / "searcher.db")
+    try:
+        db.save_chat_message(session_id="h1", role="user", content="mi chiamo Diego")
+        db.save_chat_message(session_id="h1", role="assistant", content="piacere Diego")
+        handle_chat_message(
+            db=db, provider_manager=fake_provider, message="come mi chiamo?", session_id="h1"
+        )
+    finally:
+        db.close()
+
+    msgs = fake_provider.chat_calls[0]["messages"]
+    joined = "\n".join(m["content"] for m in msgs)
+    assert "mi chiamo Diego" in joined
+    assert "piacere Diego" in joined
+    assert [m["role"] for m in msgs].count("assistant") >= 1
+
+
+def test_handle_chat_message_uses_larger_max_tokens(tmp_path, fake_provider) -> None:
+    db = Database(tmp_path / "searcher.db")
+    try:
+        handle_chat_message(db=db, provider_manager=fake_provider, message="ciao", session_id="t1")
+    finally:
+        db.close()
+    assert fake_provider.chat_calls[0]["max_tokens"] >= 1400
 
 
 def test_handle_chat_message_strips_markdown_fence(tmp_path, fake_provider) -> None:
