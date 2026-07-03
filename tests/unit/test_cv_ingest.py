@@ -47,10 +47,56 @@ def test_summarize_profile_detects_skills_and_roles() -> None:
     assert "python" in preferred or "automation" in preferred or "qa" in preferred
 
 
-def test_summarize_profile_extracts_last_year() -> None:
-    md = "Graduated 2021. Worked 2022-2024."
+# A junior CV shaped like Diego's — reproduces the bugs: education date ranges
+# inflating years, and a regulation number ("2016/679") leaking as graduation.
+_JUNIOR_CV = """\
+Diego Riccardi
+Dottore in Scienze e Tecnologie Informatiche
+PROFILO
+Laureato in Scienze e Tecnologie Informatiche con esperienza in sviluppo web.
+ESPERIENZA LAVORATIVA
+AI Data Annotator / Language Researcher 04/2026 - 05/2026
+Universita di Helsinki - Language Technology Research Group
+Sviluppatore Frontend B2B - Tirocinio Curriculare 05/2023 - 09/2023
+Finwave S.p.A. Torino
+ISTRUZIONE E FORMAZIONE
+Laurea Triennale in Scienze e Tecnologie Informatiche 09/2018 - 07/2025
+Universita degli Studi di Torino
+Certificazioni e Diploma 2012 - 2018
+Liceo Scientifico Dante Alighieri
+COMPETENZE TECNICHE
+Python, TypeScript, React, Java
+LINGUE
+Italiano: Madrelingua
+Autorizzo il trattamento dei dati ai sensi del Regolamento UE 2016/679 (GDPR).
+"""
+
+
+def test_junior_cv_not_reported_as_senior() -> None:
+    """Regression: a junior CV was parsed as 'Senior · 14 anni' because education
+    date ranges (laurea 2018-2025, liceo 2012-2018) were summed as experience."""
+    result = summarize_profile(_JUNIOR_CV)
+    assert result["years_experience"] <= 2, result["years_experience"]
+    assert result["experience_level"] not in ("senior", "mid")
+
+
+def test_education_ranges_excluded_from_experience() -> None:
+    result = summarize_profile(_JUNIOR_CV)
+    # The 7-year laurea span (2018-2025) and 6-year liceo span must NOT count.
+    assert result["years_experience"] < 5
+
+
+def test_graduation_year_ignores_regulation_number() -> None:
+    """'Regolamento UE 2016/679' must not be picked as the graduation year;
+    the degree line (…07/2025) is the graduation."""
+    result = summarize_profile(_JUNIOR_CV)
+    assert result["graduation_year"] == "2025"
+
+
+def test_summarize_profile_graduation_prefers_degree_line() -> None:
+    md = "ISTRUZIONE\nLaurea in Informatica 2018 - 2021\nESPERIENZA\nDeveloper 2022 - 2024"
     result = summarize_profile(md)
-    assert result["graduation_year"] == "2024"
+    assert result["graduation_year"] == "2021"
 
 
 def test_summarize_profile_empty_markdown() -> None:

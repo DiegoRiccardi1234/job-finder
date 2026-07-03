@@ -51,7 +51,9 @@ function _renderExperience(summary) {
   const parts = [];
   const headline = [];
   if (level) headline.push(`<span class="exp-level">${escapeHtml(String(level))}</span>`);
-  if (years !== undefined && years !== null && years !== "") {
+  // Show a year count only when it's meaningful (>= 1). A recent grad with a few
+  // months reads as just "Junior", not "Junior · 0 years".
+  if (years !== undefined && years !== null && years !== "" && Number(years) >= 1) {
     headline.push(`<span class="exp-years">${escapeHtml(String(years))} ${t("profile.years") || "years"}</span>`);
   }
   if (headline.length) {
