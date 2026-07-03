@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-07-03
+
+Major release: hardened LLM provider selection, four new providers, automatic cache-busting, a rewritten CV parser, smarter chat, and job-search + settings UX upgrades.
+
+### Added
+- **Four new LLM providers** — DeepSeek, xAI (Grok), Zhipu GLM, Mistral — via a reusable `OpenAICompatibleProvider` base (a future OpenAI-compatible provider is now a tiny subclass). Ten providers total.
+- **Remove-key button** per provider in Settings, so a provider you never want no longer lingers.
+- **Min-salary filter** and **more job sources** (Glassdoor, Google, ZipRecruiter alongside LinkedIn/Indeed) in the scan form.
+- **"Reduced answer" indicator** — chat now marks replies served from the offline fallback (e.g. during rate-limits) instead of passing them off as full LLM answers.
+
+### Fixed
+- **A dead provider key no longer bricks the LLM** — startup used to commit to the first provider even when its key returned 401 (a stale `CEREBRAS_API_KEY` environment variable was a common trigger); it now skips invalid providers and selects the next working one.
+- **A junior CV was parsed as "Senior · 14 anni / 2016"** — experience no longer sums education/diploma date ranges, the graduation year is read from the degree line (and ignores regulation numbers like `2016/679`), and a recent graduate reads as "Junior".
+- **`GET /api/scan/stream` was unguarded** — it now enforces provider-configured + rate-limit like `POST /api/scan`.
+- **Multiple selected job types were silently dropped to the first** — selecting several now returns all of them.
+- **Chat replied in the wrong language and forgot context** — it now replies in the language of your message and receives the recent conversation turns (not just a late summary); preference extraction no longer mis-fires on substrings ("qatar", "know").
+- **Model recommendation was near-random for the new providers** — the scorer now knows the DeepSeek/xAI/GLM/Mistral (and Kimi/Command-R) model families.
+
+### Changed
+- **Cache-busting is automatic** — every app-owned asset (HTML, CSS, `chat.css`, `app.js`, and every ES module) is versioned from `__version__` at serve time, so a release no longer needs a manual `?v=` bump.
+- **Settings model picker** — searchable model list on every provider, an explained ⭐ recommended marker, an "Auto (→ model)" hint showing what Auto resolves to, and a clearer key-invalid vs key-missing state.
+- **Quieter logs** — OpenAI-compatible clients no longer double-retry (the SDK retry is disabled so only our own retry runs) and the `openai` logger is set to WARNING.
+
 ## [1.4.2] — 2026-06-12
 
 Live-review bug-fix pass: restored the chat-session dropdown, killed an i18n boot race, stopped leaking provider errors into job summaries, fixed orphaned chat turns, and made the UI usable on phones.
