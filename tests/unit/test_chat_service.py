@@ -19,6 +19,24 @@ def test_extract_pref_updates_hybrid_lowercases_k_units() -> None:
     assert result["min_ral"] == "30000"
 
 
+def test_pref_qa_not_blocked_by_incidental_no_substring() -> None:
+    """'know' contains 'no' but must not block QA detection (the old
+    `'no' not in lower` guard mis-fired on any word containing 'no')."""
+    result = extract_pref_updates("you know, I'd like QA testing roles")
+    assert result.get("prefer_role_qa") == "1"
+
+
+def test_pref_qa_rejected_when_explicitly_negated() -> None:
+    assert "prefer_role_qa" not in extract_pref_updates("no QA for me please")
+
+
+def test_pref_data_requires_analytics_context() -> None:
+    assert "prefer_role_data" not in extract_pref_updates("I push database updates daily")
+    assert (
+        extract_pref_updates("interested in data analyst roles").get("prefer_role_data") == "1"
+    )
+
+
 def test_search_intent_detection() -> None:
     assert has_search_intent("Please find Python jobs in Milan")
     assert has_search_intent("cerca lavori remoti")
