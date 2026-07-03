@@ -100,6 +100,19 @@ def test_handle_chat_message_falls_back_when_provider_raises(tmp_path, fake_prov
 
     assert "scan" in result["answer"].lower() or "no analyzed" in result["answer"].lower()
     assert result["chat_state"] == "no_cv"
+    assert result["degraded"] is True  # fallback answer must be flagged as degraded
+
+
+def test_handle_chat_message_not_degraded_on_success(tmp_path, fake_provider) -> None:
+    fake_provider.chat_response = json.dumps({"answer": "real answer"})
+    db = Database(tmp_path / "searcher.db")
+    try:
+        result = handle_chat_message(
+            db=db, provider_manager=fake_provider, message="ciao", session_id="s2b"
+        )
+    finally:
+        db.close()
+    assert result["degraded"] is False
 
 
 def test_handle_chat_message_includes_recent_history(tmp_path, fake_provider) -> None:

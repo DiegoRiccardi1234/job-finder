@@ -27,6 +27,7 @@ def build_router(container: AppContainer) -> APIRouter:
         experience_levels: str = Query(default=""),
         job_types: str = Query(default=""),
         work_types: str = Query(default=""),
+        min_salary: int = Query(default=0),
     ) -> StreamingResponse:
         # Same guards as POST /api/scan: a direct hit or the pre-banner race
         # must not kick off an unauthenticated, provider-less scrape loop.
@@ -48,6 +49,7 @@ def build_router(container: AppContainer) -> APIRouter:
             experience_levels=_split(experience_levels),
             job_types=_split(job_types),
             work_types=_split(work_types),
+            min_salary=min_salary or None,
         )
 
         def event_generator() -> Iterator[str]:

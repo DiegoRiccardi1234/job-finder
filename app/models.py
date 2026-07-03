@@ -47,6 +47,7 @@ class ScanRequest(BaseModel):
     experience_levels: list[str] = Field(default_factory=list)
     job_types: list[str] = Field(default_factory=list)
     work_types: list[str] = Field(default_factory=list)
+    min_salary: int | None = None
 
 
 class ScanResponse(BaseModel):

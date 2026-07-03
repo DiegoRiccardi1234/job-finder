@@ -163,6 +163,7 @@ def handle_chat_message(
         ]
 
         suggested_roles: list[dict[str, Any]] = []
+        degraded = False
         try:
             raw_answer = provider_manager.chat(
                 prompt_messages, max_tokens=1400, provider_name=provider, model_name=model
@@ -171,6 +172,7 @@ def handle_chat_message(
         except Exception as exc:
             log.error("Provider chat call failed, using fallback: %s", exc, exc_info=True)
             answer, action_payload = fallback_answer(db=db, message=message)
+            degraded = True  # canned fallback, not a real LLM answer
 
         answer = _sanitize_chat_answer(answer)
         db.save_chat_message(session_id=session_id, role="assistant", content=answer)
@@ -181,6 +183,7 @@ def handle_chat_message(
             "chat_state": state,
             "action": action_payload,
             "suggested_roles": suggested_roles,
+            "degraded": degraded,
         }
     except Exception:
         log.error("Chat turn failed after persisting user message", exc_info=True)
