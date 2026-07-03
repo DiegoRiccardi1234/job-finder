@@ -49,3 +49,21 @@ def test_score_function_penalizes_embedding() -> None:
 def test_choose_best_model_prefers_recent_llama() -> None:
     models = ["llama-3-8b-instruct", "llama-3.3-70b-instruct"]
     assert choose_best_model(models) == "llama-3.3-70b-instruct"
+
+
+def test_new_provider_families_get_family_bonus() -> None:
+    """DeepSeek/xAI/GLM/Mistral models must score above an unknown model, so the
+    ⭐ recommended pick is sensible for the newly-added providers."""
+    baseline = score_model_name("mystery-model-xyz")
+    for m in ("deepseek-chat", "grok-3-mini", "glm-4.6", "mistral-large-latest", "kimi-k2"):
+        assert score_model_name(m) > baseline, m
+
+
+def test_choose_best_prefers_known_new_family_over_unknown() -> None:
+    assert choose_best_model(["mystery-xyz", "deepseek-chat"]) == "deepseek-chat"
+    assert choose_best_model(["some-random-id", "mistral-large-latest"]) == "mistral-large-latest"
+
+
+def test_new_family_models_are_default_pickable() -> None:
+    assert pick_default_model("deepseek", ["deepseek-chat", "deepseek-coder"]) is not None
+    assert pick_default_model("xai", ["grok-3", "grok-3-mini"]) is not None
