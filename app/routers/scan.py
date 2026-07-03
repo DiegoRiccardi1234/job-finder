@@ -19,6 +19,7 @@ def build_router(container: AppContainer) -> APIRouter:
 
     @router.get("/api/scan/stream")
     def scan_stream(
+        request: Request,
         search_terms: str = Query(default=""),
         location: str | None = Query(default=None),
         is_remote: bool = Query(default=False),
@@ -27,6 +28,10 @@ def build_router(container: AppContainer) -> APIRouter:
         job_types: str = Query(default=""),
         work_types: str = Query(default=""),
     ) -> StreamingResponse:
+        # Same guards as POST /api/scan: a direct hit or the pre-banner race
+        # must not kick off an unauthenticated, provider-less scrape loop.
+        rate_limit.check(request, bucket="scan", limit=5, window_seconds=60)
+        container.require_provider()
         term_list = (
             [t.strip() for t in search_terms.split(",") if t.strip()] if search_terms else []
         )
