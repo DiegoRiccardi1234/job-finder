@@ -55,10 +55,13 @@ def configure_logging(
         file_handler.setLevel(resolved_level)
         root.addHandler(file_handler)
 
-    # Silence overly chatty third-party loggers.
+    # Silence overly chatty third-party loggers. ``openai`` covers its
+    # ``_base_client`` child (per-request + retry chatter); retries are also
+    # disabled at the SDK level so this is belt-and-suspenders.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
 
     _CONFIGURED = True
 
