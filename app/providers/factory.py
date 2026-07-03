@@ -13,6 +13,12 @@ from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
 from app.providers.model_selector import choose_best_model
+from app.providers.openai_compat import (
+    DeepSeekProvider,
+    GLMProvider,
+    MistralProvider,
+    XAIProvider,
+)
 from app.providers.openai_provider import OpenAIProvider
 from app.providers.openrouter_provider import OpenRouterProvider
 
@@ -37,6 +43,10 @@ class ProviderManager:
             "anthropic": AnthropicProvider(api_key=settings.anthropic_api_key),
             "google": GoogleProvider(api_key=settings.google_api_key),
             "openrouter": OpenRouterProvider(api_key=settings.openrouter_api_key),
+            "deepseek": DeepSeekProvider(api_key=settings.deepseek_api_key),
+            "xai": XAIProvider(api_key=settings.xai_api_key),
+            "glm": GLMProvider(api_key=settings.glm_api_key),
+            "mistral": MistralProvider(api_key=settings.mistral_api_key),
         }
         self.active_provider: LLMProvider | None = None
         self.active_provider_name: str = "none"
@@ -87,6 +97,18 @@ class ProviderManager:
                     provider_name,
                     exc,
                 )
+
+            # ``select_model``/``list_models`` return a fallback string without
+            # raising even when the key is revoked (they flip ``key_invalid`` on
+            # a 401). Committing here would keep a dead provider "active" and
+            # brick every LLM call until the user changed the primary by hand.
+            # Skip it so the next configured provider gets a chance.
+            if getattr(provider, "key_invalid", False):
+                log.info(
+                    "Provider %s key invalid (401); skipping to next provider.",
+                    provider_name,
+                )
+                continue
 
             self.active_provider = provider
             self.active_provider_name = provider.name

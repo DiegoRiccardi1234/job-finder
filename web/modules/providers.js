@@ -16,7 +16,7 @@ export function setProviderDeps(d) {
   _deps = { ..._deps, ...d };
 }
 
-const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey", "openrouterKey"];
+const PROVIDER_KEY_IDS = ["cerebrasKey", "groqKey", "openaiKey", "anthropicKey", "googleKey", "openrouterKey", "deepseekKey", "xaiKey", "glmKey", "mistralKey"];
 
 const PROVIDER_CATALOG = [
   { name: "cerebras", label: "Cerebras", icon: "bolt", placeholder: "sk-..." },
@@ -25,6 +25,10 @@ const PROVIDER_CATALOG = [
   { name: "anthropic", label: "Anthropic", icon: "auto_awesome", placeholder: "sk-ant-..." },
   { name: "google", label: "Google", icon: "language", placeholder: "AI..." },
   { name: "openrouter", label: "OpenRouter", icon: "hub", placeholder: "sk-or-v1-..." },
+  { name: "deepseek", label: "DeepSeek", icon: "psychology", placeholder: "sk-..." },
+  { name: "xai", label: "xAI (Grok)", icon: "rocket_launch", placeholder: "xai-..." },
+  { name: "glm", label: "Zhipu GLM", icon: "token", placeholder: "..." },
+  { name: "mistral", label: "Mistral", icon: "air", placeholder: "..." },
 ];
 
 const _providerCardModelCache = {};
@@ -456,7 +460,11 @@ function hasAnyProviderConfigured(keys) {
       || keys.openai_configured
       || keys.anthropic_configured
       || keys.google_configured
-      || keys.openrouter_configured,
+      || keys.openrouter_configured
+      || keys.deepseek_configured
+      || keys.xai_configured
+      || keys.glm_configured
+      || keys.mistral_configured,
   );
 }
 
@@ -468,6 +476,10 @@ function normalizeKeyStatus(keys = {}, provider = {}) {
     anthropic_configured: !!keys.anthropic_configured,
     google_configured: !!keys.google_configured,
     openrouter_configured: !!keys.openrouter_configured,
+    deepseek_configured: !!keys.deepseek_configured,
+    xai_configured: !!keys.xai_configured,
+    glm_configured: !!keys.glm_configured,
+    mistral_configured: !!keys.mistral_configured,
     primary_provider: keys.primary_provider || "",
     active_provider: provider.active_provider || "none",
     active_model: provider.active_model || "none",

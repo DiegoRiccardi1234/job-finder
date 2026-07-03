@@ -485,6 +485,10 @@
       "groq": "Free, fast, generous limits. Great default.",
       "openrouter": "Access many models including free tiers.",
       "cerebras": "Very low latency.",
+      "deepseek": "Low-cost, strong general models.",
+      "xai": "Grok models from xAI.",
+      "glm": "Zhipu GLM models.",
+      "mistral": "European models, good free tier.",
       "paid": "Paid, top-tier quality.",
       "col": {
         "name": "Provider",

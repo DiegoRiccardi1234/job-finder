@@ -485,6 +485,10 @@
       "groq": "Gratuit, rapide, généreux. Excellent par défaut.",
       "openrouter": "Accès à de nombreux modèles, y compris gratuits.",
       "cerebras": "Latence très faible.",
+      "deepseek": "Modèles généralistes performants à bas coût.",
+      "xai": "Modèles Grok de xAI.",
+      "glm": "Modèles GLM de Zhipu.",
+      "mistral": "Modèles européens, bon niveau gratuit.",
       "paid": "Payant, qualité au top.",
       "col": {
         "name": "Fournisseur",

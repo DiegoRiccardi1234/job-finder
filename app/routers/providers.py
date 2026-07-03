@@ -32,6 +32,10 @@ def build_router(container: AppContainer) -> APIRouter:
             anthropic_api_key=payload.anthropic_api_key,
             google_api_key=payload.google_api_key,
             openrouter_api_key=payload.openrouter_api_key,
+            deepseek_api_key=payload.deepseek_api_key,
+            xai_api_key=payload.xai_api_key,
+            glm_api_key=payload.glm_api_key,
+            mistral_api_key=payload.mistral_api_key,
             primary_provider=payload.primary_provider,
             preferred_model=payload.preferred_model,
         )
@@ -47,7 +51,13 @@ def build_router(container: AppContainer) -> APIRouter:
         if name not in SUPPORTED_PROVIDERS:
             raise HTTPException(status_code=404, detail="unknown_provider")
         provider = container.providers.providers.get(name)
-        if not provider or not provider.is_available():
+        if provider is None:
+            raise HTTPException(status_code=400, detail="key_missing")
+        # Distinguish a revoked/wrong key (present but 401'd) from a missing one
+        # so the UI can say "check your key" instead of "add a key".
+        if getattr(provider, "key_invalid", False):
+            raise HTTPException(status_code=400, detail="key_invalid")
+        if not provider.is_available():
             raise HTTPException(status_code=400, detail="key_missing")
         result = container.providers.get_models(name, force_refresh=bool(force_refresh))
         return {"ok": True, "provider": name, **result}

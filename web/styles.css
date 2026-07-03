@@ -3,7 +3,7 @@
    Light-first, indigo accent, Inter font, subtle elevation.
    ============================================================= */
 
-@import url("./styles/chat.css");
+@import url("./styles/chat.css?v={{VERSION}}");
 
 :root {
   /* palette */
