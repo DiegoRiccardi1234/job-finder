@@ -100,9 +100,10 @@ async function _populateChatModelSelector(providerName) {
   sel.disabled = true;
   try {
     const data = _providerCardModelCache[providerName] || (await fetchProviderModels(providerName, false));
-    sel.innerHTML = `<option value="">${autoLabel}</option>`;
     const models = Array.isArray(data.models) ? data.models : [];
     const recommended = data.recommended || null;
+    const autoText = recommended ? `${autoLabel} (→ ${recommended})` : autoLabel;
+    sel.innerHTML = `<option value="">${autoText}</option>`;
 
     // Mirror Settings card ordering so users see the same list everywhere:
     // OpenRouter splits Free/Paid groups (alpha within each), other
@@ -165,6 +166,21 @@ async function _populateChatModelSelector(providerName) {
   }
 }
 
+// Build the chat provider-override <select> from PROVIDER_CATALOG so adding a
+// provider only needs one edit. Keeps the "Auto" option (value "") and its
+// data-i18n attribute, and preserves the current selection.
+function populateChatProviderSelector() {
+  const sel = document.getElementById("chatModelSelector");
+  if (!sel) return;
+  const previous = sel.value;
+  const autoOpt = sel.querySelector('option[value=""]');
+  const autoHtml = autoOpt ? autoOpt.outerHTML : `<option value="">${t("coach.autoApi") || "Auto API"}</option>`;
+  sel.innerHTML = autoHtml + PROVIDER_CATALOG
+    .map((p) => `<option value="${p.name}" data-label="${escapeHtml(p.label)}">${escapeHtml(p.label)}</option>`)
+    .join("");
+  if (previous && sel.querySelector(`option[value="${previous}"]`)) sel.value = previous;
+}
+
 function _refreshChatProviderSelectorOptions() {
   const sel = document.getElementById("chatModelSelector");
   if (!sel) return;
@@ -174,7 +190,8 @@ function _refreshChatProviderSelectorOptions() {
     if (!opt.value) return;
     const available = meta[opt.value]?.available !== false && meta[opt.value]?.available !== undefined;
     opt.disabled = !available;
-    opt.textContent = opt.value.charAt(0).toUpperCase() + opt.value.slice(1) + (available ? "" : " (no key)");
+    const base = opt.dataset.label || (opt.value.charAt(0).toUpperCase() + opt.value.slice(1));
+    opt.textContent = base + (available ? "" : " (no key)");
   });
   if (previous && sel.querySelector(`option[value="${previous}"]`)?.disabled) {
     sel.value = "";
@@ -234,6 +251,9 @@ function renderProviderCards(keys, providerMeta) {
           </label>
           <div class="provider-status">
             <span class="provider-status-text micro"></span>
+            ${configured ? `<button type="button" class="ghost-btn provider-remove-btn danger" data-provider-remove title="${t("settings.providers.removeKey")}">
+              <span class="material-symbols-outlined">delete</span>
+            </button>` : ""}
             <button type="button" class="ghost-btn provider-refresh-btn" title="${t("settings.providers.refresh")}" ${configured ? "" : "disabled"}>
               <span class="material-symbols-outlined">refresh</span>
             </button>
@@ -320,6 +340,44 @@ function _ensureOpenRouterFilter(card, models, recommended, renderOptions) {
   apply();
 }
 
+function _hoistRecommended(sorted, recommended) {
+  if (!recommended) return sorted;
+  const i = sorted.indexOf(recommended);
+  if (i <= 0) return sorted;
+  const copy = sorted.slice();
+  copy.splice(i, 1);
+  copy.unshift(recommended);
+  return copy;
+}
+
+// Generic search box for any provider with a long (non-OpenRouter) model list.
+// Reuses the same .or-filter markup/CSS but keeps a flat alphabetical list.
+function _ensureModelFilter(card, models, recommended, renderOptions) {
+  const row = card.querySelector(".provider-model-row");
+  if (!row) {
+    renderOptions(_hoistRecommended(_sortModelsAlpha(models), recommended));
+    return;
+  }
+  let filterBox = row.querySelector(".or-filter");
+  if (!filterBox) {
+    filterBox = document.createElement("div");
+    filterBox.className = "or-filter";
+    filterBox.innerHTML = `
+      <input type="search" class="or-filter-search" placeholder="${t("settings.providers.searchPlaceholder")}" />
+    `;
+    const select = row.querySelector(".provider-model-select");
+    row.insertBefore(filterBox, select);
+  }
+  const searchInput = filterBox.querySelector(".or-filter-search");
+  const apply = () => {
+    const q = (searchInput.value || "").toLowerCase().trim();
+    const filtered = _sortModelsAlpha(models.filter((m) => !q || m.toLowerCase().includes(q)));
+    renderOptions(_hoistRecommended(filtered, recommended));
+  };
+  searchInput.oninput = apply;
+  apply();
+}
+
 async function fetchProviderModels(name, force = false) {
   const url = `/api/providers/${encodeURIComponent(name)}/models${force ? "?force_refresh=1" : ""}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -349,8 +407,14 @@ async function fetchAndRenderProviderModels(name, force) {
     const select = card.querySelector(".provider-model-select");
     if (select) {
       const autoLabel = t("settings.providers.modelAuto");
+      // Show which concrete model "Auto" resolves to (recommended), so the
+      // default isn't a mystery, e.g. "Auto (→ llama-3.3-70b)".
+      const autoText = recommended
+        ? `${autoLabel.replace(/\s*\(.*\)\s*$/, "")} (→ ${recommended})`
+        : autoLabel;
+      const recHint = t("settings.providers.recommendedHint");
       const renderOptions = (filtered) => {
-        const opts = [`<option value="">${autoLabel}</option>`];
+        const opts = [`<option value="">${escapeHtml(autoText)}</option>`];
         for (const entry of filtered) {
           if (typeof entry === "object" && entry && entry.separator) {
             const label = String(entry.label || "──────");
@@ -360,24 +424,20 @@ async function fetchAndRenderProviderModels(name, force) {
           const m = String(entry);
           const isRec = m === recommended;
           const star = isRec ? "⭐ " : "";
-          opts.push(`<option value="${m}">${star}${m}</option>`);
+          const titleAttr = isRec ? ` title="${escapeHtml(recHint)}"` : "";
+          opts.push(`<option value="${m}"${titleAttr}>${star}${m}</option>`);
         }
         select.innerHTML = opts.join("");
       };
       if (name === "openrouter" && models.length > 30) {
         // OpenRouter: search + alphabetical free-then-paid grouping.
         _ensureOpenRouterFilter(card, models, recommended, renderOptions);
+      } else if (models.length > 8) {
+        // Any long list (not just OpenRouter): add a plain search filter.
+        _ensureModelFilter(card, models, recommended, renderOptions);
       } else {
-        // All other providers: alphabetical sort, recommended stays at top.
-        const sorted = _sortModelsAlpha(models);
-        if (recommended) {
-          const recIdx = sorted.indexOf(recommended);
-          if (recIdx > 0) {
-            sorted.splice(recIdx, 1);
-            sorted.unshift(recommended);
-          }
-        }
-        renderOptions(sorted);
+        // Short list: alphabetical sort, recommended stays at top.
+        renderOptions(_hoistRecommended(_sortModelsAlpha(models), recommended));
       }
       select.disabled = false;
       // Pre-select if this provider is the primary and a preferred_model is known
@@ -401,8 +461,19 @@ async function fetchAndRenderProviderModels(name, force) {
     _providersMetadataCache[name].models = models;
     _providersMetadataCache[name].available = true;
   } catch (err) {
-    _setProviderCardState(name, "error");
-    _setProviderStatusText(name, t("settings.providers.fetchFailed"), "error");
+    const detail = String((err && err.message) || "");
+    if (detail === "key_missing") {
+      // No key on this provider — neutral "add a key" state, never a red error.
+      _setProviderCardState(name, "empty");
+      _setProviderStatusText(name, t("settings.providers.addKey"));
+    } else if (detail === "key_invalid") {
+      // Key present but rejected (401) — warn the user, don't hard-error.
+      _setProviderCardState(name, "warn");
+      _setProviderStatusText(name, t("settings.providers.keyInvalid"), "warn");
+    } else {
+      _setProviderCardState(name, "error");
+      _setProviderStatusText(name, t("settings.providers.fetchFailed"), "error");
+    }
   }
 }
 
@@ -433,6 +504,31 @@ async function onSaveProviderKey(name, keyValue) {
     showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
   } finally {
     if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function onRemoveProviderKey(name) {
+  const card = _providerCardEl(name);
+  if (!card) return;
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.saving"));
+  try {
+    // Empty string clears the stored key (backend contract).
+    const payload = {};
+    payload[`${name}_api_key`] = "";
+    await api("/api/providers/keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    // Mirror onSaveProviderKey's reload so cards/health re-render to empty state.
+    await _deps.loadKeysStatus();
+    await _deps.loadHealth();
+    await _deps.refreshOnboardingPlaceholder();
+    showToast(t("toast.providerSaved"), "info");
+  } catch (err) {
+    _setProviderCardState(name, "error");
+    _setProviderStatusText(name, `${t("settings.providers.saveFailed")}: ${err.message}`, "error");
+    showToast(`${t("toast.keySaveError")}: ${err.message}`, "error");
   }
 }
 
@@ -531,8 +627,10 @@ export {
   updateProvidersMetadata,
   populateModelOptions,
   onSaveProviderKey,
+  onRemoveProviderKey,
   onSetPrimaryProvider,
   fetchAndRenderProviderModels,
+  populateChatProviderSelector,
   _populateChatModelSelector as populateChatModelSelector,
   _maybeOfferPersistChatOverride as maybeOfferPersistChatOverride,
 };

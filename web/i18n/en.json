@@ -209,7 +209,11 @@
       "recommended": "Recommended",
       "fetchFailed": "Could not fetch models. Check the key.",
       "active": "Active provider",
-      "justNow": "just now"
+      "justNow": "just now",
+      "keyInvalid": "Invalid key, check it",
+      "removeKey": "Remove key",
+      "recommendedHint": "Recommended model for this provider",
+      "setPrimaryFirst": "Set this provider as primary to use this model."
     },
     "features": {
       "title": "Features",
@@ -295,6 +299,10 @@
     "complete": "Done! {newJobs} new jobs, {analyzed} analyzed.",
     "connectionLost": "Connection lost. Check results below.",
     "error": "Error",
+    "minSalary": "Min salary (RAL)",
+    "siteGlassdoor": "Glassdoor",
+    "siteGoogle": "Google",
+    "siteZipRecruiter": "ZipRecruiter",
     "feedStarted": "Searching for: <b>{terms}</b>",
     "feedScraped": "Found {found} ads on <b>{portal}</b>",
     "feedAnalyzed": "<b>{title}</b> @ {company}",
@@ -408,6 +416,7 @@
     "modelAuto": "Auto model",
     "saveAsDefault": "Use as default?",
     "saveAsDefaultBody": "Save {provider} / {model} to Settings",
+    "degradedNote": "Reduced answer — LLM unavailable",
     "suggestions": {
       "label": "Try asking the coach to find roles for you:",
       "roles": "Which roles best fit my CV?",

@@ -209,7 +209,11 @@
       "recommended": "Empfohlen",
       "fetchFailed": "Modelle konnten nicht geladen werden. Schlüssel prüfen.",
       "active": "Aktiver Anbieter",
-      "justNow": "gerade eben"
+      "justNow": "gerade eben",
+      "keyInvalid": "Ungültiger Schlüssel, bitte prüfen",
+      "removeKey": "Schlüssel entfernen",
+      "recommendedHint": "Empfohlenes Modell für diesen Anbieter",
+      "setPrimaryFirst": "Lege diesen Anbieter als primär fest, um dieses Modell zu verwenden."
     },
     "features": {
       "title": "Funktionen",
@@ -295,6 +299,10 @@
     "complete": "Fertig! {newJobs} neue Stellen, {analyzed} analysiert.",
     "connectionLost": "Verbindung verloren. Ergebnisse unten prüfen.",
     "error": "Fehler",
+    "minSalary": "Mindestgehalt (RAL)",
+    "siteGlassdoor": "Glassdoor",
+    "siteGoogle": "Google",
+    "siteZipRecruiter": "ZipRecruiter",
     "feedStarted": "Suche nach: <b>{terms}</b>",
     "feedScraped": "{found} Anzeigen auf <b>{portal}</b> gefunden",
     "feedAnalyzed": "<b>{title}</b> @ {company}",
@@ -408,6 +416,7 @@
     "modelAuto": "Auto-Modell",
     "saveAsDefault": "Als Standard verwenden?",
     "saveAsDefaultBody": "{provider} / {model} in Einstellungen speichern",
+    "degradedNote": "Reduzierte Antwort — LLM nicht verfügbar",
     "suggestions": {
       "label": "Bitte den Coach, passende Rollen zu finden:",
       "roles": "Welche Rollen passen am besten zu meinem Lebenslauf?",
