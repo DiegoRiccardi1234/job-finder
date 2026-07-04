@@ -3,14 +3,14 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://sqlite.org)
-[![CI](https://github.com/DiegoRiccardi1234/Linkedin-searcher/actions/workflows/tests.yml/badge.svg)](https://github.com/DiegoRiccardi1234/Linkedin-searcher/actions/workflows/tests.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DiegoRiccardi1234/Linkedin-searcher/main/coverage.json)](https://github.com/DiegoRiccardi1234/Linkedin-searcher/actions/workflows/tests.yml)
+[![CI](https://github.com/DiegoRiccardi1234/job-finder/actions/workflows/tests.yml/badge.svg)](https://github.com/DiegoRiccardi1234/job-finder/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DiegoRiccardi1234/job-finder/main/coverage.json)](https://github.com/DiegoRiccardi1234/job-finder/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![AI Powered](https://img.shields.io/badge/AI-10%20LLM%20providers-blueviolet)](#supported-llm-providers)
 [![Mypy: strict](https://img.shields.io/badge/mypy-strict-2A6DB2)](https://mypy.readthedocs.io/)
 [![Ruff](https://img.shields.io/badge/ruff-checked-261230)](https://github.com/astral-sh/ruff)
 [![Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-orange)](CHANGELOG.md)
-[![Latest Release](https://img.shields.io/github/v/release/DiegoRiccardi1234/Linkedin-searcher?include_prereleases&label=download)](https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/DiegoRiccardi1234/job-finder?include_prereleases&label=download)](https://github.com/DiegoRiccardi1234/job-finder/releases/latest)
 
 > A localhost-first AI-powered job search assistant. Scrape LinkedIn & Indeed, score offers against your CV with the LLM of your choice, and plan applications from a single dashboard.
 
@@ -22,7 +22,7 @@
 
 ## For non-developers (Windows)
 
-Don't want to install Python? Grab the standalone Windows bundle from the [latest release](https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases/latest):
+Don't want to install Python? Grab the standalone Windows bundle from the [latest release](https://github.com/DiegoRiccardi1234/job-finder/releases/latest):
 
 1. Download `JobFinder-windows.zip` from the release assets.
 2. Right-click → "Extract All" anywhere you like.
@@ -55,7 +55,7 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Features
 
-- **Smart CV analysis** — Upload PDF / DOCX / TXT or images (JPG / PNG / AVIF / WEBP / TIFF / BMP / SVG). Scanned PDFs and image CVs are read via Tesseract OCR; the LLM extracts skills, seniority, languages, and ideal roles.
+- **Smart CV analysis** — Upload PDF / DOCX / TXT or images (JPG / PNG / AVIF / WEBP / TIFF / BMP / SVG). Scanned PDFs and image CVs are read via Tesseract OCR; the LLM extracts skills, seniority, languages, and ideal roles — with the narrative summary written in your UI language (v1.5.0+).
 - **Profile tab** — Inspect what the AI understood from your CV, edit `preferred_roles` / `skills` / `languages` inline (chip-list with PATCH), switch between previously uploaded CVs (multi-CV history with **Set active**, delete unwanted CVs).
 - **AI Career Coach** — Chat that learns your preferences, suggests search terms via clickable role pills, and can autofill the scan form via structured `action` payloads. Quick-prompt suggestions derived from your CV. Override the active provider **and model** per turn; a one-shot toast offers to persist the choice as default.
 - **Provider cards** (Settings) — One card per LLM (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI/Grok, Zhipu GLM, Mistral) with its own state (empty → configured → fetching → active), per-provider Save & fetch, ⭐-recommended model dropdown populated live from the provider's `list_models`, and a refresh button (5-min TTL cache).
@@ -69,7 +69,11 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Skill-gap analysis** (v1.4.0+) — Dashboard panel aggregating the skills your scored jobs most often flag as missing (excluding ones you already have) — no extra LLM calls.
 - **Scheduled auto-scan** (v1.4.0+) — Optional in-process scheduler re-runs your last search every N hours while the app is open and flags new high-scoring jobs via a dashboard banner.
 - **Per-feature toggles** (v1.4.0+) — Every optional feature above can be enabled/disabled from Settings → Features.
-- **Multilingual UI** — English, Italian, Spanish, French, German (450 keys per locale, 100% parity).
+- **Chat in your language** (v1.5.0+) — The coach replies in the language of your message and receives the recent conversation turns, not just a summary.
+- **Min-salary filter & multiple job types** (v1.5.0+) — Filter scans by minimum salary and combine job types (full-time + internship + …) in one search.
+- **Honest degraded-answer indicator** (v1.5.0+) — Replies served from the offline fallback (e.g. during rate-limits) are visibly marked instead of passing as full LLM answers.
+- **Searchable model pickers** (v1.5.0+) — Every provider card gets model search, an explained ⭐ recommendation, an "Auto (→ model)" resolution hint, and one-click key removal.
+- **Multilingual UI** — English, Italian, Spanish, French, German (460 keys per locale, 100% parity).
 - **Responsive layout** (v1.4.2+) — mobile-friendly below 960px: hamburger nav, off-canvas Career Coach drawer, horizontally-scrollable tables, single-column dashboards. Desktop layout unchanged.
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI (Grok), Zhipu GLM, Mistral — configurable order, skips a dead (401) key, exponential backoff retry.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
@@ -92,7 +96,7 @@ The animated hero above walks through six beats end-to-end:
 
 ### Static screenshots
 
-For readers who can't render the GIF, four still frames cover the main flows:
+For readers who can't render the GIF, five still frames cover the main flows:
 
 | Dashboard + Analytics | Career Coach in action |
 |-----------------------|------------------------|
@@ -103,6 +107,11 @@ For readers who can't render the GIF, four still frames cover the main flows:
 |--------------------------|--------------------|
 | ![Job Search](screenshots/readme/job-search-en.png) | ![Scan progress](screenshots/readme/scan-progress-en.png) |
 | Profile-derived role chips, tag-input keywords/locations, LinkedIn + Indeed + remote toggles, Start Scan. | Progress bar + per-job score chips (green/yellow/red) streamed via SSE. |
+
+| Settings — AI providers (v1.5.0) |
+|----------------------------------|
+| ![Settings providers](screenshots/readme/settings-providers-en.png) |
+| Ten provider cards with searchable model pickers, ⭐-recommended models, "Auto (→ model)" resolution hint, and one-click key removal. |
 
 > ✨ Dark mode toggle in the top bar.
 
@@ -244,8 +253,8 @@ vendor/tesseract/            Bundled Tesseract OCR (created by build_exe.py)
 ### Install & run
 
 ```bash
-git clone https://github.com/DiegoRiccardi1234/Linkedin-searcher.git
-cd Linkedin-searcher
+git clone https://github.com/DiegoRiccardi1234/job-finder.git
+cd job-finder
 
 python -m venv .venv
 # Windows
