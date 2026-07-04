@@ -9,7 +9,7 @@ Major release: hardened LLM provider selection, four new providers, automatic ca
 ### Added
 - **Four new LLM providers** — DeepSeek, xAI (Grok), Zhipu GLM, Mistral — via a reusable `OpenAICompatibleProvider` base (a future OpenAI-compatible provider is now a tiny subclass). Ten providers total.
 - **Remove-key button** per provider in Settings, so a provider you never want no longer lingers.
-- **Min-salary filter** and **more job sources** (Glassdoor, Google, ZipRecruiter alongside LinkedIn/Indeed) in the scan form.
+- **Min-salary filter** in the scan form. (Extra job sources — Glassdoor, Google, ZipRecruiter — were prototyped but pulled from the UI before release: the underlying scrapers return no results from Italy. The API still accepts them via the `sites` param.)
 - **"Reduced answer" indicator** — chat now marks replies served from the offline fallback (e.g. during rate-limits) instead of passing them off as full LLM answers.
 
 ### Fixed

@@ -339,11 +339,12 @@
           </div>
 
           <div class="scan-quick-row">
+            <!-- Only sites that actually return results from Italy on the current
+                 jobspy (1.1.82). Glassdoor (HTTP 400 on IT locations), Google (always
+                 0 rows) and ZipRecruiter (403, US/CA-only) were removed from the UI;
+                 the backend still accepts them via the `sites` API param. -->
             <label class="pill-toggle"><input type="checkbox" name="scanSites" value="linkedin" checked /><span>LinkedIn</span></label>
             <label class="pill-toggle"><input type="checkbox" name="scanSites" value="indeed" checked /><span>Indeed</span></label>
-            <label class="pill-toggle"><input type="checkbox" name="scanSites" value="glassdoor" /><span data-i18n="scan.siteGlassdoor">Glassdoor</span></label>
-            <label class="pill-toggle"><input type="checkbox" name="scanSites" value="google" /><span data-i18n="scan.siteGoogle">Google</span></label>
-            <label class="pill-toggle"><input type="checkbox" name="scanSites" value="zip_recruiter" /><span data-i18n="scan.siteZipRecruiter">ZipRecruiter</span></label>
             <label class="pill-toggle"><input type="checkbox" id="remoteToggle" /><span data-i18n="settings.remoteOnly">Remote only</span></label>
           </div>
 
