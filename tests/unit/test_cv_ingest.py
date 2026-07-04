@@ -8,6 +8,7 @@ from app.cv_ingest import (
     InvalidCVContent,
     extract_markdown_from_upload,
     summarize_profile,
+    summarize_profile_with_llm,
     validate_cv_content,
 )
 
@@ -310,3 +311,29 @@ def test_validate_cv_content_accepts_german_cv() -> None:
         "Sprachen: Deutsch (Muttersprache), Englisch (C1)."
     )
     validate_cv_content(cv)
+
+
+class _FakeProviderManager:
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def complete_json(self, prompt: str, max_tokens: int = 600) -> dict:
+        return self._payload
+
+
+def test_llm_entry_graduate_upgraded_to_junior() -> None:
+    """The recent-graduate bias (entry → junior when a degree line is present)
+    must survive the LLM merge, not only the heuristic-only path."""
+    result = summarize_profile_with_llm(
+        _JUNIOR_CV,
+        _FakeProviderManager({"experience_level": "entry", "years_experience": 0}),
+    )
+    assert result["experience_level"] == "junior"
+
+
+def test_llm_senior_level_not_overridden_by_graduate_bias() -> None:
+    result = summarize_profile_with_llm(
+        _JUNIOR_CV,
+        _FakeProviderManager({"experience_level": "mid", "years_experience": 5}),
+    )
+    assert result["experience_level"] == "mid"

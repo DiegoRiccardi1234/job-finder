@@ -689,6 +689,12 @@ def summarize_profile_with_llm(
                 # Merge LLM output with heuristic-derived fields so years_experience
                 # and experience_level always have a sensible fallback.
                 heuristic.update({k: v for k, v in result.items() if v not in (None, "", [])})
+                # Re-apply the recent-graduate bias after the merge: the LLM may
+                # answer "entry", but a graduate reads as "junior" on both paths.
+                if heuristic.get("experience_level") == "entry" and _DEGREE_LINE_RE.search(
+                    markdown_text
+                ):
+                    heuristic["experience_level"] = "junior"
                 return heuristic
         except Exception as exc:
             last_exc = exc
