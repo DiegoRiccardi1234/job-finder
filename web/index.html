@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400" rel="stylesheet" />
-  <link rel="stylesheet" href="/web/styles.css?v=1.4.2" />
+  <link rel="stylesheet" href="/web/styles.css?v={{VERSION}}" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -339,6 +339,10 @@
           </div>
 
           <div class="scan-quick-row">
+            <!-- Only sites that actually return results from Italy on the current
+                 jobspy (1.1.82). Glassdoor (HTTP 400 on IT locations), Google (always
+                 0 rows) and ZipRecruiter (403, US/CA-only) were removed from the UI;
+                 the backend still accepts them via the `sites` API param. -->
             <label class="pill-toggle"><input type="checkbox" name="scanSites" value="linkedin" checked /><span>LinkedIn</span></label>
             <label class="pill-toggle"><input type="checkbox" name="scanSites" value="indeed" checked /><span>Indeed</span></label>
             <label class="pill-toggle"><input type="checkbox" id="remoteToggle" /><span data-i18n="settings.remoteOnly">Remote only</span></label>
@@ -379,6 +383,11 @@
                 <label class="pill-toggle"><input type="checkbox" name="scanWorkType" value="hybrid" /><span data-i18n="scan.filters.wt.hybrid">Hybrid</span></label>
                 <label class="pill-toggle"><input type="checkbox" name="scanWorkType" value="remote" /><span data-i18n="scan.filters.wt.remote">Remote</span></label>
               </div>
+            </div>
+
+            <div class="filter-group">
+              <p class="filter-group-label" data-i18n="scan.minSalary">Min salary (RAL)</p>
+              <input type="number" id="scanMinSalary" min="0" step="1000" class="scan-salary-input" data-i18n-placeholder="scan.minSalary" placeholder="Min salary (RAL)" />
             </div>
           </details>
 
@@ -520,6 +529,10 @@
             <option value="anthropic">Anthropic</option>
             <option value="google">Google</option>
             <option value="openrouter">OpenRouter</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="xai">xAI (Grok)</option>
+            <option value="glm">Zhipu GLM</option>
+            <option value="mistral">Mistral</option>
           </select>
           <select id="preferredModel" class="hidden" aria-hidden="true">
             <option value=""></option>
@@ -566,13 +579,8 @@
         <div class="coach-head">
           <h3><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="coach.aiCareerCoach">AI Career Coach</span></h3>
           <select id="chatModelSelector" class="mini-select" title="Override provider">
+            <!-- Provider options are populated from PROVIDER_CATALOG in providers.js -->
             <option value="" data-i18n="coach.autoApi">Auto API</option>
-            <option value="groq">Groq</option>
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="google">Google</option>
-            <option value="cerebras">Cerebras</option>
-            <option value="openrouter">OpenRouter</option>
           </select>
           <select id="chatModelSelectorModel" class="mini-select" title="Override model" disabled>
             <option value="" data-i18n="chat.modelAuto">Auto model</option>
@@ -640,6 +648,10 @@
               <tr><td><strong>Groq</strong></td><td><span class="info-tag free">Free</span></td><td data-i18n="info.providers.groq">Free, fast, generous limits. Great default.</td></tr>
               <tr><td><strong>OpenRouter</strong></td><td><span class="info-tag mixed">Mixed</span></td><td data-i18n="info.providers.openrouter">Access many models including free tiers.</td></tr>
               <tr><td><strong>Cerebras</strong></td><td><span class="info-tag free">Free</span></td><td data-i18n="info.providers.cerebras">Very low latency.</td></tr>
+              <tr><td><strong>DeepSeek</strong></td><td><span class="info-tag mixed">Mixed</span></td><td data-i18n="info.providers.deepseek">Low-cost, strong general models.</td></tr>
+              <tr><td><strong>xAI (Grok)</strong></td><td><span class="info-tag paid">Paid</span></td><td data-i18n="info.providers.xai">Grok models from xAI.</td></tr>
+              <tr><td><strong>Zhipu GLM</strong></td><td><span class="info-tag mixed">Mixed</span></td><td data-i18n="info.providers.glm">Zhipu GLM models.</td></tr>
+              <tr><td><strong>Mistral</strong></td><td><span class="info-tag mixed">Mixed</span></td><td data-i18n="info.providers.mistral">European models, good free tier.</td></tr>
               <tr><td><strong>Anthropic / OpenAI / Google</strong></td><td><span class="info-tag paid">Paid</span></td><td data-i18n="info.providers.paid">Paid, top-tier quality.</td></tr>
             </tbody>
           </table>
@@ -678,7 +690,7 @@
             <span class="material-symbols-outlined">info</span>
             <h3 data-i18n="info.version.title">Version</h3>
           </header>
-          <p>v<span id="infoVersionNumber">1.4.2</span> — <a href="https://github.com/DiegoRiccardi1234/Linkedin-searcher/releases" target="_blank" rel="noopener" data-i18n="info.version.changelog">Changelog</a></p>
+          <p>v<span id="infoVersionNumber">{{VERSION}}</span> — <a href="https://github.com/DiegoRiccardi1234/job-finder/releases" target="_blank" rel="noopener" data-i18n="info.version.changelog">Changelog</a></p>
         </article>
       </div>
     </section>
@@ -735,6 +747,6 @@
     </div>
   </div>
 
-  <script type="module" src="/web/app.js?v=1.4.2"></script>
+  <script type="module" src="/web/app.js?v={{VERSION}}"></script>
 </body>
 </html>

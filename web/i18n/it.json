@@ -209,7 +209,11 @@
       "recommended": "Consigliato",
       "fetchFailed": "Impossibile caricare i modelli. Verifica la chiave.",
       "active": "Provider attivo",
-      "justNow": "ora"
+      "justNow": "ora",
+      "keyInvalid": "Chiave non valida, controllala",
+      "removeKey": "Rimuovi chiave",
+      "recommendedHint": "Modello consigliato per questo provider",
+      "setPrimaryFirst": "Imposta questo provider come primario per usare questo modello."
     },
     "features": {
       "title": "Funzionalità",
@@ -295,6 +299,7 @@
     "complete": "Fatto! {newJobs} nuove offerte, {analyzed} analizzate.",
     "connectionLost": "Connessione persa. Controlla i risultati sotto.",
     "error": "Errore",
+    "minSalary": "Stipendio min (RAL)",
     "feedStarted": "Cerco: <b>{terms}</b>",
     "feedScraped": "Trovati {found} annunci su <b>{portal}</b>",
     "feedAnalyzed": "<b>{title}</b> @ {company}",
@@ -408,6 +413,7 @@
     "modelAuto": "Modello auto",
     "saveAsDefault": "Imposta come predefinito?",
     "saveAsDefaultBody": "Salva {provider} / {model} in Impostazioni",
+    "degradedNote": "Risposta ridotta — LLM non disponibile",
     "suggestions": {
       "label": "Prova a chiedere al coach di trovarti dei ruoli:",
       "roles": "Quali ruoli si adattano meglio al mio CV?",
@@ -485,6 +491,10 @@
       "groq": "Gratuito, veloce, generoso. Ottimo default.",
       "openrouter": "Accesso a molti modelli, inclusi tier gratuiti.",
       "cerebras": "Latenza molto bassa.",
+      "deepseek": "Modelli general-purpose a basso costo.",
+      "xai": "Modelli Grok di xAI.",
+      "glm": "Modelli GLM di Zhipu.",
+      "mistral": "Modelli europei, buon piano gratuito.",
       "paid": "A pagamento, qualità top.",
       "col": {
         "name": "Provider",

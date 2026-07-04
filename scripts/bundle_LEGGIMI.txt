@@ -73,5 +73,5 @@ Do NOT move/delete the  _internal  and  vendor  folders:
 the app needs them to run (Python + Tesseract OCR).
 
 ------------------------------------------------------------
-GitHub: https://github.com/DiegoRiccardi1234/Linkedin-searcher
+GitHub: https://github.com/DiegoRiccardi1234/job-finder
 ============================================================

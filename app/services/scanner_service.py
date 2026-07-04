@@ -48,6 +48,33 @@ _JOBSPY_JOB_TYPE: dict[str, str] = {
 }
 
 
+def _resolve_jobspy_job_type(job_types: list[str]) -> str | None:
+    """Pick the single ``job_type`` to pass to jobspy.
+
+    jobspy accepts only one type. A single selection narrows the scrape; with
+    multiple selections we must NOT silently drop to the first (that would hide
+    the other chosen types) — return ``None`` so jobspy returns all types, a
+    superset of what the user picked.
+    """
+    mapped = [_JOBSPY_JOB_TYPE[j.lower()] for j in job_types if j.lower() in _JOBSPY_JOB_TYPE]
+    return mapped[0] if len(mapped) == 1 else None
+
+
+def _below_min_salary(max_amount: Any, min_salary: int) -> bool:
+    """True only when a job's (known) top salary is below ``min_salary``.
+
+    Jobs with no/unparseable salary are kept (return False) — most listings omit
+    pay, so filtering them out would hide almost everything.
+    """
+    if not min_salary:
+        return False
+    try:
+        amount = float(max_amount)
+    except (TypeError, ValueError):
+        return False
+    return amount < min_salary
+
+
 def _augment_search_term(term: str, exp_levels: list[str], work_types: list[str]) -> str:
     bits = [term]
     for lvl in exp_levels:
@@ -403,6 +430,7 @@ def run_scan(
     exp_levels = list(payload.experience_levels or [])
     job_types = list(payload.job_types or [])
     work_types = list(payload.work_types or [])
+    min_salary = int(payload.min_salary or 0)
 
     is_remote_effective = payload.is_remote or ("remote" in work_types)
 
@@ -413,10 +441,7 @@ def run_scan(
 
     augmented_terms = [_augment_search_term(t, exp_levels, work_types) for t in terms]
 
-    jobspy_job_type: str | None = None
-    if job_types:
-        first = job_types[0].lower()
-        jobspy_job_type = _JOBSPY_JOB_TYPE.get(first)
+    jobspy_job_type = _resolve_jobspy_job_type(job_types)
 
     db.set_preference("last_scan_location", location)
     db.set_preference("last_scan_is_remote", "1" if is_remote_effective else "0")
@@ -522,6 +547,10 @@ def run_scan(
 
             skip, _reason = pre_filtro(titolo=titolo, descrizione=descrizione)
             if skip:
+                totale_scartati += 1
+                continue
+
+            if _below_min_salary(row.get("max_amount"), min_salary):
                 totale_scartati += 1
                 continue
 

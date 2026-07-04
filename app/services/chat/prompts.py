@@ -30,10 +30,19 @@ def _load(name: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def system_prompt(state: str, ui_language: str) -> str:
-    """Build the full system prompt for the given chat state and UI language."""
+def system_prompt(state: str, ui_language: str = "en") -> str:
+    """Build the full system prompt for the given chat state.
+
+    The bot replies in the language of the user's message (not the UI language),
+    so this prompt is language-neutral. ``ui_language`` is kept for signature
+    compatibility but no longer forces the reply language.
+    """
     state_key = state if state in _STATES else _FALLBACK_STATE
     base = _load(state_key)
     envelope = _load("json_envelope")
-    lang_name = LANG_MAP.get(ui_language, "English")
-    return f"{base}\n\nIMPORTANT: Always respond in {lang_name}.\n\n{envelope}"
+    return (
+        f"{base}\n\n"
+        "IMPORTANT: Always reply in the SAME language as the user's latest message "
+        "(detect it from that message; ignore the app's UI language).\n\n"
+        f"{envelope}"
+    )

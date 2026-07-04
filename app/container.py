@@ -11,20 +11,13 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app.config import AppSettings, load_settings
+from app.config import SUPPORTED_PROVIDERS, AppSettings, load_settings
 from app.cv_ingest import extract_candidate_name, summarize_profile
 from app.db import Database
 from app.log import configure_logging, get_logger
 from app.providers.factory import ProviderManager
 
-_PROVIDER_FLAGS = (
-    "cerebras_configured",
-    "groq_configured",
-    "openai_configured",
-    "anthropic_configured",
-    "google_configured",
-    "openrouter_configured",
-)
+_PROVIDER_FLAGS = tuple(f"{name}_configured" for name in SUPPORTED_PROVIDERS)
 
 
 class AppContainer:
@@ -78,16 +71,13 @@ class AppContainer:
 
     def keys_status(self) -> dict[str, Any]:
         primary = self.settings.llm_provider_order[0] if self.settings.llm_provider_order else ""
-        return {
-            "cerebras_configured": bool(self.settings.cerebras_api_key),
-            "groq_configured": bool(self.settings.groq_api_key),
-            "openai_configured": bool(self.settings.openai_api_key),
-            "anthropic_configured": bool(self.settings.anthropic_api_key),
-            "google_configured": bool(self.settings.google_api_key),
-            "openrouter_configured": bool(self.settings.openrouter_api_key),
-            "primary_provider": primary,
-            "preferred_model": self.settings.preferred_model or "",
+        status: dict[str, Any] = {
+            f"{name}_configured": bool(getattr(self.settings, f"{name}_api_key"))
+            for name in SUPPORTED_PROVIDERS
         }
+        status["primary_provider"] = primary
+        status["preferred_model"] = self.settings.preferred_model or ""
+        return status
 
     def has_provider_configured(self) -> bool:
         status = self.keys_status()

@@ -26,11 +26,15 @@ def extract_pref_updates(message: str) -> dict[str, str]:
             value = value * 1000
         updates["min_ral"] = str(value)
 
-    if "qa" in lower and "no" not in lower:
+    # Word-boundary matches so "qa"/"data" don't fire on substrings ("qatar",
+    # "database"), and reject only an explicit negation right before the term
+    # (the old `"no" not in lower` blocked on any word containing "no").
+    _NEG = r"\b(?:no|not|non|senza|niente|avoid)\s+"
+    if re.search(r"\bqa\b", lower) and not re.search(_NEG + r"qa\b", lower):
         updates["prefer_role_qa"] = "1"
-    if "cyber" in lower and "no" not in lower:
+    if re.search(r"\bcyber", lower) and not re.search(_NEG + r"cyber", lower):
         updates["prefer_role_cyber"] = "1"
-    if "data" in lower and ("analyst" in lower or "analy" in lower):
+    if re.search(r"\bdata\b", lower) and re.search(r"analy", lower):
         updates["prefer_role_data"] = "1"
 
     return updates

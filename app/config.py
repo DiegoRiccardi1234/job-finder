@@ -14,7 +14,18 @@ DEFAULT_SEARCH_TERMS = [
 ]
 
 LOCAL_SECRETS_FILE = "local_secrets.json"
-SUPPORTED_PROVIDERS = ["cerebras", "groq", "openai", "anthropic", "google", "openrouter"]
+SUPPORTED_PROVIDERS = [
+    "cerebras",
+    "groq",
+    "openai",
+    "anthropic",
+    "google",
+    "openrouter",
+    "deepseek",
+    "xai",
+    "glm",
+    "mistral",
+]
 
 
 @dataclass
@@ -39,6 +50,10 @@ class AppSettings:
     anthropic_api_key: str | None
     google_api_key: str | None
     openrouter_api_key: str | None
+    deepseek_api_key: str | None
+    xai_api_key: str | None
+    glm_api_key: str | None
+    mistral_api_key: str | None
     model_selection_policy: dict[str, Any]
     # Tesseract language list passed to ``image_to_string(lang=...)`` (``+`` joined).
     # Default covers the 5 UI locales; the bundle ships ``eng+ita+spa+fra+deu+osd``.
@@ -62,6 +77,10 @@ def save_local_provider_keys(
     anthropic_api_key: str | None = None,
     google_api_key: str | None = None,
     openrouter_api_key: str | None = None,
+    deepseek_api_key: str | None = None,
+    xai_api_key: str | None = None,
+    glm_api_key: str | None = None,
+    mistral_api_key: str | None = None,
     primary_provider: str | None = None,
     preferred_model: str | None = None,
 ) -> dict[str, Any]:
@@ -71,47 +90,28 @@ def save_local_provider_keys(
     if not isinstance(current, dict):
         current = {}
 
-    if cerebras_api_key is not None:
-        value = cerebras_api_key.strip()
+    # A non-None value is a write: a non-empty string stores the key, an empty
+    # string clears it (the "Remove key" UI path). ``None`` leaves it untouched.
+    provider_keys = {
+        "cerebras_api_key": cerebras_api_key,
+        "groq_api_key": groq_api_key,
+        "openai_api_key": openai_api_key,
+        "anthropic_api_key": anthropic_api_key,
+        "google_api_key": google_api_key,
+        "openrouter_api_key": openrouter_api_key,
+        "deepseek_api_key": deepseek_api_key,
+        "xai_api_key": xai_api_key,
+        "glm_api_key": glm_api_key,
+        "mistral_api_key": mistral_api_key,
+    }
+    for field_name, raw in provider_keys.items():
+        if raw is None:
+            continue
+        value = raw.strip()
         if value:
-            current["cerebras_api_key"] = value
+            current[field_name] = value
         else:
-            current.pop("cerebras_api_key", None)
-
-    if groq_api_key is not None:
-        value = groq_api_key.strip()
-        if value:
-            current["groq_api_key"] = value
-        else:
-            current.pop("groq_api_key", None)
-
-    if openai_api_key is not None:
-        value = openai_api_key.strip()
-        if value:
-            current["openai_api_key"] = value
-        else:
-            current.pop("openai_api_key", None)
-
-    if anthropic_api_key is not None:
-        value = anthropic_api_key.strip()
-        if value:
-            current["anthropic_api_key"] = value
-        else:
-            current.pop("anthropic_api_key", None)
-
-    if google_api_key is not None:
-        value = google_api_key.strip()
-        if value:
-            current["google_api_key"] = value
-        else:
-            current.pop("google_api_key", None)
-
-    if openrouter_api_key is not None:
-        value = openrouter_api_key.strip()
-        if value:
-            current["openrouter_api_key"] = value
-        else:
-            current.pop("openrouter_api_key", None)
+            current.pop(field_name, None)
 
     if primary_provider is not None:
         normalized = primary_provider.strip().lower()
@@ -128,16 +128,10 @@ def save_local_provider_keys(
             current.pop("preferred_model", None)
 
     secrets_path.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {
-        "cerebras_configured": bool(current.get("cerebras_api_key")),
-        "groq_configured": bool(current.get("groq_api_key")),
-        "openai_configured": bool(current.get("openai_api_key")),
-        "anthropic_configured": bool(current.get("anthropic_api_key")),
-        "google_configured": bool(current.get("google_api_key")),
-        "openrouter_configured": bool(current.get("openrouter_api_key")),
-        "primary_provider": current.get("primary_provider", ""),
-        "preferred_model": current.get("preferred_model", ""),
-    }
+    status = {f"{p}_configured": bool(current.get(f"{p}_api_key")) for p in SUPPORTED_PROVIDERS}
+    status["primary_provider"] = current.get("primary_provider", "")
+    status["preferred_model"] = current.get("preferred_model", "")
+    return status
 
 
 def _load_dotenv(workspace_dir: Path) -> None:
@@ -192,6 +186,10 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         or os.getenv("GEMINI_API_KEY")
     )
     openrouter_api_key = local_secrets.get("openrouter_api_key") or os.getenv("OPENROUTER_API_KEY")
+    deepseek_api_key = local_secrets.get("deepseek_api_key") or os.getenv("DEEPSEEK_API_KEY")
+    xai_api_key = local_secrets.get("xai_api_key") or os.getenv("XAI_API_KEY")
+    glm_api_key = local_secrets.get("glm_api_key") or os.getenv("GLM_API_KEY")
+    mistral_api_key = local_secrets.get("mistral_api_key") or os.getenv("MISTRAL_API_KEY")
 
     provider_order = cfg.get("llm_provider_order", SUPPORTED_PROVIDERS)
     if not isinstance(provider_order, list) or not provider_order:
@@ -276,5 +274,9 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         anthropic_api_key=anthropic_api_key,
         google_api_key=google_api_key,
         openrouter_api_key=openrouter_api_key,
+        deepseek_api_key=deepseek_api_key,
+        xai_api_key=xai_api_key,
+        glm_api_key=glm_api_key,
+        mistral_api_key=mistral_api_key,
         model_selection_policy=merged_policy,
     )

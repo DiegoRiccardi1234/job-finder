@@ -34,12 +34,25 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
         score += _weight(policy, "family", 40) - 2
     elif "gpt-4.1" in name or "gpt-4o" in name:
         score += _weight(policy, "family", 40) + 6
-    elif "gpt" in name:
+    elif "gpt" in name or "deepseek" in name or "grok" in name:
         score += _weight(policy, "family", 40)
     elif "claude" in name:
         score += _weight(policy, "family", 40) + 4
     elif "gemini" in name:
         score += _weight(policy, "family", 40) + 2
+    elif (
+        "mistral" in name
+        or "mixtral" in name
+        or "codestral" in name
+        or "magistral" in name
+        or "glm" in name
+        or "chatglm" in name
+    ):
+        score += _weight(policy, "family", 40) - 2
+    elif "kimi" in name:
+        score += _weight(policy, "family", 40) - 4
+    elif "command-r" in name or "command" in name:
+        score += _weight(policy, "family", 40) - 6
 
     parsed_sizes = [int(x) for x in re.findall(r"(\d{1,4})b", name)]
     size_b = max(parsed_sizes) if parsed_sizes else 0

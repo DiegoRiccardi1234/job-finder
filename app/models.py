@@ -47,6 +47,7 @@ class ScanRequest(BaseModel):
     experience_levels: list[str] = Field(default_factory=list)
     job_types: list[str] = Field(default_factory=list)
     work_types: list[str] = Field(default_factory=list)
+    min_salary: int | None = None
 
 
 class ScanResponse(BaseModel):
@@ -112,5 +113,9 @@ class ProviderKeysRequest(BaseModel):
     anthropic_api_key: str | None = None
     google_api_key: str | None = None
     openrouter_api_key: str | None = None
+    deepseek_api_key: str | None = None
+    xai_api_key: str | None = None
+    glm_api_key: str | None = None
+    mistral_api_key: str | None = None
     primary_provider: str | None = None
     preferred_model: str | None = None

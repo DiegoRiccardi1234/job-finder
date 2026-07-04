@@ -44,6 +44,17 @@ def test_missing_key_returns_400(client: TestClient) -> None:
     assert res.json()["detail"] == "key_missing"
 
 
+def test_invalid_key_returns_key_invalid(client: TestClient, monkeypatch) -> None:
+    """A key that 401'd must report ``key_invalid`` (not the misleading
+    ``key_missing``) so the UI can say 'check your key' vs 'add a key'."""
+    from app.providers.cerebras_provider import CerebrasProvider
+
+    monkeypatch.setattr(CerebrasProvider, "key_invalid", True, raising=False)
+    res = client.get("/api/providers/cerebras/models")
+    assert res.status_code == 400
+    assert res.json()["detail"] == "key_invalid"
+
+
 def test_returns_models_and_recommended(client: TestClient, monkeypatch) -> None:
     from app.providers.cerebras_provider import CerebrasProvider
 

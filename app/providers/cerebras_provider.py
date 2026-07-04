@@ -32,7 +32,7 @@ class CerebrasProvider(LLMProvider):
     def __init__(self, api_key: str | None):
         self.api_key = api_key
         self.client = (
-            OpenAI(api_key=api_key, base_url="https://api.cerebras.ai/v1")
+            OpenAI(api_key=api_key, base_url="https://api.cerebras.ai/v1", max_retries=0)
             if (api_key and OpenAI is not None)
             else None
         )

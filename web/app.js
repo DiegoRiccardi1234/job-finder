@@ -27,9 +27,11 @@ import {
   updateProvidersMetadata,
   populateModelOptions,
   onSaveProviderKey,
+  onRemoveProviderKey,
   onSetPrimaryProvider,
   fetchAndRenderProviderModels,
   populateChatModelSelector,
+  populateChatProviderSelector,
   maybeOfferPersistChatOverride,
   setProviderDeps,
 } from "./modules/providers.js";
@@ -162,6 +164,15 @@ function appendChat(role, content, extras) {
       pillRow.appendChild(pill);
     }
     if (pillRow.childElementCount) item.appendChild(pillRow);
+  }
+
+  // Degraded reply: the LLM failed and a canned fallback was returned. Flag it
+  // with a subtle inline pill so the answer isn't mistaken for a full one.
+  if (role === "assistant" && extras && extras.degraded) {
+    const note = document.createElement("div");
+    note.className = "chat-degraded-note";
+    note.innerHTML = `<span class="material-symbols-outlined">warning</span><span>${escapeHtml(t("chat.degradedNote") || "Reduced answer — LLM unavailable")}</span>`;
+    item.appendChild(note);
   }
 
   box.appendChild(item);
@@ -668,7 +679,7 @@ async function sendChatMessage(message) {
 
     maybeOfferPersistChatOverride(providerVal, modelVal);
     if (pendingEl && pendingEl.parentNode) pendingEl.parentNode.removeChild(pendingEl);
-    appendChat("assistant", result.answer || "No response available.", { suggested_roles: result.suggested_roles });
+    appendChat("assistant", result.answer || "No response available.", { suggested_roles: result.suggested_roles, degraded: result.degraded === true });
     if (typeof refreshChatSessions === "function") {
       refreshChatSessions().then(renderChatSessionDropdown).catch(() => {});
     }
@@ -916,10 +927,13 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   showToast(t("toast.cvAnalyzing") || "Analyzing CV with AI...", "info");
 
   try {
-    const response = await fetch("/api/upload-cv", {
-      method: "POST",
-      body: formData,
-    });
+    const response = await fetch(
+      `/api/upload-cv?lang=${encodeURIComponent(getCurrentLang() || "en")}`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
     if (!response.ok) {
       setText("cvSummary", `${t("toast.uploadError")}: ${await response.text()}`);
       showToast(t("toast.uploadError") || "Upload failed", "error");
@@ -1003,6 +1017,11 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
         if (input) input.type = input.type === "password" ? "text" : "password";
         return;
       }
+      if (target.hasAttribute("data-provider-remove")) {
+        if (!window.confirm(t("settings.providers.removeKey"))) return;
+        await onRemoveProviderKey(name);
+        return;
+      }
       if (target.classList.contains("provider-save-btn")) {
         const input = card.querySelector(".provider-key-input");
         const value = input ? input.value.trim() : "";
@@ -1035,6 +1054,9 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
         const radio = card.querySelector('input[name="primaryProviderRadio"]');
         if (radio && radio.checked) {
           await onSetPrimaryProvider(name, event.target.value);
+        } else {
+          // Model only applies to the primary provider — nudge the user.
+          showToast(t("settings.providers.setPrimaryFirst"), "info");
         }
       }
     });
@@ -1088,6 +1110,10 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
   if (expLevels.length) params.set("experience_levels", expLevels.join(","));
   if (jobTypes.length) params.set("job_types", jobTypes.join(","));
   if (workTypes.length) params.set("work_types", workTypes.join(","));
+
+  const minSalaryRaw = document.getElementById("scanMinSalary")?.value.trim();
+  const minSalary = minSalaryRaw ? parseInt(minSalaryRaw, 10) : 0;
+  if (minSalary > 0) params.set("min_salary", String(minSalary));
 
   // Show scan overlay
   const overlay = document.getElementById("scanOverlay");
@@ -1289,6 +1315,8 @@ if (_primaryProviderEl) {
 
 const _chatProviderEl = document.getElementById("chatModelSelector");
 if (_chatProviderEl) {
+  // Options are data-driven from PROVIDER_CATALOG (single source of truth).
+  populateChatProviderSelector();
   _chatProviderEl.addEventListener("change", () => {
     populateChatModelSelector(_chatProviderEl.value);
   });

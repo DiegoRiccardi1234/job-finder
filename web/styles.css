@@ -3,7 +3,7 @@
    Light-first, indigo accent, Inter font, subtle elevation.
    ============================================================= */
 
-@import url("./styles/chat.css");
+@import url("./styles/chat.css?v={{VERSION}}");
 
 :root {
   /* palette */
@@ -1339,6 +1339,12 @@ pre {
 .provider-card[data-state="error"] .provider-status-text {
   color: #c0392b;
 }
+.provider-card[data-state="warn"] {
+  border-color: #d99100;
+}
+.provider-card[data-state="warn"] .provider-status-text {
+  color: #d99100;
+}
 .provider-card-head {
   display: flex;
   align-items: center;
@@ -1420,6 +1426,31 @@ pre {
 .provider-refresh-btn[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.provider-remove-btn {
+  padding: 2px 6px;
+}
+.provider-remove-btn .material-symbols-outlined {
+  color: #c0392b;
+}
+.scan-salary-input {
+  width: 180px;
+  max-width: 100%;
+}
+.chat-degraded-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--space-1);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: var(--fs-xs);
+}
+.chat-degraded-note .material-symbols-outlined {
+  font-size: 0.9rem;
+  color: #d99100;
 }
 @media (max-width: 640px) {
   .provider-grid {

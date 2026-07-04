@@ -8,6 +8,7 @@ from app.cv_ingest import (
     InvalidCVContent,
     extract_markdown_from_upload,
     summarize_profile,
+    summarize_profile_with_llm,
     validate_cv_content,
 )
 
@@ -47,10 +48,56 @@ def test_summarize_profile_detects_skills_and_roles() -> None:
     assert "python" in preferred or "automation" in preferred or "qa" in preferred
 
 
-def test_summarize_profile_extracts_last_year() -> None:
-    md = "Graduated 2021. Worked 2022-2024."
+# A junior CV shaped like Diego's — reproduces the bugs: education date ranges
+# inflating years, and a regulation number ("2016/679") leaking as graduation.
+_JUNIOR_CV = """\
+Diego Riccardi
+Dottore in Scienze e Tecnologie Informatiche
+PROFILO
+Laureato in Scienze e Tecnologie Informatiche con esperienza in sviluppo web.
+ESPERIENZA LAVORATIVA
+AI Data Annotator / Language Researcher 04/2026 - 05/2026
+Universita di Helsinki - Language Technology Research Group
+Sviluppatore Frontend B2B - Tirocinio Curriculare 05/2023 - 09/2023
+Finwave S.p.A. Torino
+ISTRUZIONE E FORMAZIONE
+Laurea Triennale in Scienze e Tecnologie Informatiche 09/2018 - 07/2025
+Universita degli Studi di Torino
+Certificazioni e Diploma 2012 - 2018
+Liceo Scientifico Dante Alighieri
+COMPETENZE TECNICHE
+Python, TypeScript, React, Java
+LINGUE
+Italiano: Madrelingua
+Autorizzo il trattamento dei dati ai sensi del Regolamento UE 2016/679 (GDPR).
+"""
+
+
+def test_junior_cv_not_reported_as_senior() -> None:
+    """Regression: a junior CV was parsed as 'Senior · 14 anni' because education
+    date ranges (laurea 2018-2025, liceo 2012-2018) were summed as experience."""
+    result = summarize_profile(_JUNIOR_CV)
+    assert result["years_experience"] <= 2, result["years_experience"]
+    assert result["experience_level"] not in ("senior", "mid")
+
+
+def test_education_ranges_excluded_from_experience() -> None:
+    result = summarize_profile(_JUNIOR_CV)
+    # The 7-year laurea span (2018-2025) and 6-year liceo span must NOT count.
+    assert result["years_experience"] < 5
+
+
+def test_graduation_year_ignores_regulation_number() -> None:
+    """'Regolamento UE 2016/679' must not be picked as the graduation year;
+    the degree line (…07/2025) is the graduation."""
+    result = summarize_profile(_JUNIOR_CV)
+    assert result["graduation_year"] == "2025"
+
+
+def test_summarize_profile_graduation_prefers_degree_line() -> None:
+    md = "ISTRUZIONE\nLaurea in Informatica 2018 - 2021\nESPERIENZA\nDeveloper 2022 - 2024"
     result = summarize_profile(md)
-    assert result["graduation_year"] == "2024"
+    assert result["graduation_year"] == "2021"
 
 
 def test_summarize_profile_empty_markdown() -> None:
@@ -264,3 +311,53 @@ def test_validate_cv_content_accepts_german_cv() -> None:
         "Sprachen: Deutsch (Muttersprache), Englisch (C1)."
     )
     validate_cv_content(cv)
+
+
+class _FakeProviderManager:
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def complete_json(self, prompt: str, max_tokens: int = 600) -> dict:
+        return self._payload
+
+
+def test_llm_entry_graduate_upgraded_to_junior() -> None:
+    """The recent-graduate bias (entry → junior when a degree line is present)
+    must survive the LLM merge, not only the heuristic-only path."""
+    result = summarize_profile_with_llm(
+        _JUNIOR_CV,
+        _FakeProviderManager({"experience_level": "entry", "years_experience": 0}),
+    )
+    assert result["experience_level"] == "junior"
+
+
+def test_llm_senior_level_not_overridden_by_graduate_bias() -> None:
+    result = summarize_profile_with_llm(
+        _JUNIOR_CV,
+        _FakeProviderManager({"experience_level": "mid", "years_experience": 5}),
+    )
+    assert result["experience_level"] == "mid"
+
+
+class _PromptCapturingManager(_FakeProviderManager):
+    def __init__(self) -> None:
+        super().__init__({})
+        self.prompt = ""
+
+    def complete_json(self, prompt: str, max_tokens: int = 600) -> dict:
+        self.prompt = prompt
+        return super().complete_json(prompt, max_tokens)
+
+
+def test_llm_summary_language_follows_ui_locale() -> None:
+    manager = _PromptCapturingManager()
+    summarize_profile_with_llm(_JUNIOR_CV, manager, language="it")
+    assert "in Italian" in manager.prompt
+
+
+def test_llm_summary_language_defaults_to_english() -> None:
+    manager = _PromptCapturingManager()
+    summarize_profile_with_llm(_JUNIOR_CV, manager)
+    assert "in English" in manager.prompt
+    summarize_profile_with_llm(_JUNIOR_CV, manager, language="xx")
+    assert "in English" in manager.prompt

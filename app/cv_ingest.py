@@ -401,13 +401,14 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
         if _keyword_present(trigger, lower) and role not in preferred_roles:
             preferred_roles.append(role)
 
-    years = re.findall(r"(20\d{2})", markdown_text)
-    graduation_year = ""
-    if years:
-        graduation_year = years[-1]
+    graduation_year = _estimate_graduation_year(markdown_text)
 
     years_experience = _estimate_years_experience(markdown_text)
     experience_level = _estimate_experience_level(years_experience)
+    # A recent graduate with little measured experience is "junior", not raw
+    # "entry" — but never override a mid/senior signal from real work history.
+    if experience_level == "entry" and _DEGREE_LINE_RE.search(markdown_text):
+        experience_level = "junior"
     languages = _extract_languages(markdown_text)
 
     return {
@@ -436,7 +437,7 @@ _WORK_SECTION_HEADER_RE = re.compile(
     r"|experiencia\s+laboral|experiencia\s+profesional"
     r"|expérience\s+professionnelle|expériences\s+professionnelles|expérience"
     r"|berufserfahrung|berufliche\s+erfahrung"
-    r")\s*[:\n]",
+    r")[^\n]*[:\n]",  # header keyword may be followed by more words on the line
     re.IGNORECASE,
 )
 _OTHER_SECTION_HEADER_RE = re.compile(
@@ -448,9 +449,35 @@ _OTHER_SECTION_HEADER_RE = re.compile(
     r"progetti|projects|proyectos|projets|projekte|"
     r"profilo|profile|summary|sobre|à\s+propos|über\s+mich|"
     r"interessi|interests|hobby|hobbies|aficiones|loisirs"
-    r")\s*[:\n]",
+    r")[^\n]*[:\n]",  # e.g. "ISTRUZIONE E FORMAZIONE" — keyword not at line end
     re.IGNORECASE,
 )
+
+# A line that names a degree/education, used to locate the graduation year and to
+# recognise a recent graduate (bias entry-level → junior).
+_DEGREE_LINE_RE = re.compile(
+    r"laurea|degree|bachelor|master|dottorat|phd|universit|graduat|diplom", re.IGNORECASE
+)
+# A 4-digit year, but NOT one that is the numerator of a regulation/law number
+# like "2016/679" (which used to leak in as the graduation year).
+_YEAR_TOKEN_RE = re.compile(r"(?:19|20)\d{2}(?!/\d)")
+
+
+def _estimate_graduation_year(text: str) -> str:
+    """Best-effort graduation year: prefer the max year on a degree/education
+    line; fall back to the latest plausible year in the whole CV. Regulation
+    numbers (``2016/679``) are excluded via ``_YEAR_TOKEN_RE``."""
+
+    def years_in(s: str) -> list[int]:
+        return [int(y) for y in _YEAR_TOKEN_RE.findall(s)]
+
+    for line in text.splitlines():
+        if _DEGREE_LINE_RE.search(line):
+            ys = years_in(line)
+            if ys:
+                return str(max(ys))
+    ys = years_in(text)
+    return str(max(ys)) if ys else ""
 
 
 _LANG_SECTION_HEADER_RE = re.compile(
@@ -620,15 +647,32 @@ def _estimate_experience_level(years: int) -> str:
     return "entry"
 
 
+# UI locale code -> language name used in the LLM prompt. The narrative fields
+# of the profile summary must come back in the site language, not the CV's.
+_SUMMARY_LANGUAGES = {
+    "en": "English",
+    "it": "Italian",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+}
+
+
 def summarize_profile_with_llm(
-    markdown_text: str, provider_manager: "Any", on_retry: Any = None
+    markdown_text: str,
+    provider_manager: "Any",
+    on_retry: Any = None,
+    language: str | None = None,
 ) -> dict[str, Any]:
     """Rich profile summary using LLM. Falls back to keyword-based if LLM fails.
 
+    ``language`` is the UI locale code (en/it/es/fr/de): narrative fields
+    (summary, strengths, industries, education) are written in that language.
     Retries up to 5 times with longer waits (3s, 5s, 7s, 9s) on transient
     errors like 429 rate-limits. Calls ``on_retry(attempt, wait_seconds, exc)``
     between attempts, if provided, so the caller can stream progress events.
     """
+    language_name = _SUMMARY_LANGUAGES.get((language or "en").lower()[:2], "English")
     prompt = (
         "You are an expert career advisor. Analyze this CV/resume and extract a structured profile.\n"
         "Return a JSON object with these fields:\n"
@@ -636,13 +680,22 @@ def summarize_profile_with_llm(
         "Use null if you cannot determine it confidently.\n"
         "- skills: list of technical and soft skills found\n"
         "- preferred_roles: list of 3-5 job titles that best match this candidate\n"
-        "- experience_level: 'entry' | 'junior' | 'mid' | 'senior'\n"
-        "- years_experience: estimated years of professional experience (number)\n"
+        "- experience_level: one of 'entry' | 'junior' | 'mid' | 'senior', based ONLY on "
+        "professional work experience. A recent graduate whose only roles are internships or "
+        "short jobs is 'entry' or 'junior', NEVER 'senior'.\n"
+        "- years_experience: total years of PROFESSIONAL WORK experience only (jobs and "
+        "internships). Do NOT count education, degree/coursework years, certifications, or "
+        "high-school years, and never treat a law/regulation number (e.g. '2016/679') as a year. "
+        "If under a year, use 0.\n"
         "- strengths: list of 3 key strengths\n"
         "- industries: list of industries the candidate has experience in\n"
         "- education: highest education level and field\n"
         "- languages: list of spoken languages with level if stated, e.g. 'Italian (Native)', 'English (B2)'\n"
         "- summary: 2-3 sentence professional summary\n\n"
+        f"Write the values of 'summary', 'strengths', 'industries' and 'education' in "
+        f"{language_name}, regardless of the CV's language. Keep 'skills' and "
+        "'preferred_roles' as commonly written in job postings (do not translate "
+        "technology names or job titles).\n\n"
         f"CV Content:\n{markdown_text[:3000]}"
     )
     import time as _time
@@ -657,6 +710,12 @@ def summarize_profile_with_llm(
                 # Merge LLM output with heuristic-derived fields so years_experience
                 # and experience_level always have a sensible fallback.
                 heuristic.update({k: v for k, v in result.items() if v not in (None, "", [])})
+                # Re-apply the recent-graduate bias after the merge: the LLM may
+                # answer "entry", but a graduate reads as "junior" on both paths.
+                if heuristic.get("experience_level") == "entry" and _DEGREE_LINE_RE.search(
+                    markdown_text
+                ):
+                    heuristic["experience_level"] = "junior"
                 return heuristic
         except Exception as exc:
             last_exc = exc
