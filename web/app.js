@@ -927,10 +927,13 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   showToast(t("toast.cvAnalyzing") || "Analyzing CV with AI...", "info");
 
   try {
-    const response = await fetch("/api/upload-cv", {
-      method: "POST",
-      body: formData,
-    });
+    const response = await fetch(
+      `/api/upload-cv?lang=${encodeURIComponent(getCurrentLang() || "en")}`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
     if (!response.ok) {
       setText("cvSummary", `${t("toast.uploadError")}: ${await response.text()}`);
       showToast(t("toast.uploadError") || "Upload failed", "error");

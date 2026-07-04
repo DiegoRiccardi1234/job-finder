@@ -647,15 +647,32 @@ def _estimate_experience_level(years: int) -> str:
     return "entry"
 
 
+# UI locale code -> language name used in the LLM prompt. The narrative fields
+# of the profile summary must come back in the site language, not the CV's.
+_SUMMARY_LANGUAGES = {
+    "en": "English",
+    "it": "Italian",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+}
+
+
 def summarize_profile_with_llm(
-    markdown_text: str, provider_manager: "Any", on_retry: Any = None
+    markdown_text: str,
+    provider_manager: "Any",
+    on_retry: Any = None,
+    language: str | None = None,
 ) -> dict[str, Any]:
     """Rich profile summary using LLM. Falls back to keyword-based if LLM fails.
 
+    ``language`` is the UI locale code (en/it/es/fr/de): narrative fields
+    (summary, strengths, industries, education) are written in that language.
     Retries up to 5 times with longer waits (3s, 5s, 7s, 9s) on transient
     errors like 429 rate-limits. Calls ``on_retry(attempt, wait_seconds, exc)``
     between attempts, if provided, so the caller can stream progress events.
     """
+    language_name = _SUMMARY_LANGUAGES.get((language or "en").lower()[:2], "English")
     prompt = (
         "You are an expert career advisor. Analyze this CV/resume and extract a structured profile.\n"
         "Return a JSON object with these fields:\n"
@@ -675,6 +692,10 @@ def summarize_profile_with_llm(
         "- education: highest education level and field\n"
         "- languages: list of spoken languages with level if stated, e.g. 'Italian (Native)', 'English (B2)'\n"
         "- summary: 2-3 sentence professional summary\n\n"
+        f"Write the values of 'summary', 'strengths', 'industries' and 'education' in "
+        f"{language_name}, regardless of the CV's language. Keep 'skills' and "
+        "'preferred_roles' as commonly written in job postings (do not translate "
+        "technology names or job titles).\n\n"
         f"CV Content:\n{markdown_text[:3000]}"
     )
     import time as _time

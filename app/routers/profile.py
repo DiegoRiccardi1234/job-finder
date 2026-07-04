@@ -27,7 +27,9 @@ def build_router(container: AppContainer) -> APIRouter:
     router = APIRouter()
 
     @router.post("/api/upload-cv")
-    async def upload_cv(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
+    async def upload_cv(
+        request: Request, file: UploadFile = File(...), lang: str | None = None
+    ) -> dict[str, Any]:
         rate_limit.check(request, bucket="upload_cv", limit=10, window_seconds=60)
         MAX_CV_BYTES = 5 * 1024 * 1024  # 5 MB
         ALLOWED_EXTS = {
@@ -89,7 +91,7 @@ def build_router(container: AppContainer) -> APIRouter:
 
         try:
             summary = summarize_profile_with_llm(
-                markdown, container.providers, on_retry=_track_retry
+                markdown, container.providers, on_retry=_track_retry, language=lang
             )
             # If the result is structurally richer than the heuristic, mark as llm.
             if any(k in summary for k in ("strengths", "industries", "summary")):

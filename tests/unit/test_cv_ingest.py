@@ -337,3 +337,27 @@ def test_llm_senior_level_not_overridden_by_graduate_bias() -> None:
         _FakeProviderManager({"experience_level": "mid", "years_experience": 5}),
     )
     assert result["experience_level"] == "mid"
+
+
+class _PromptCapturingManager(_FakeProviderManager):
+    def __init__(self) -> None:
+        super().__init__({})
+        self.prompt = ""
+
+    def complete_json(self, prompt: str, max_tokens: int = 600) -> dict:
+        self.prompt = prompt
+        return super().complete_json(prompt, max_tokens)
+
+
+def test_llm_summary_language_follows_ui_locale() -> None:
+    manager = _PromptCapturingManager()
+    summarize_profile_with_llm(_JUNIOR_CV, manager, language="it")
+    assert "in Italian" in manager.prompt
+
+
+def test_llm_summary_language_defaults_to_english() -> None:
+    manager = _PromptCapturingManager()
+    summarize_profile_with_llm(_JUNIOR_CV, manager)
+    assert "in English" in manager.prompt
+    summarize_profile_with_llm(_JUNIOR_CV, manager, language="xx")
+    assert "in English" in manager.prompt
