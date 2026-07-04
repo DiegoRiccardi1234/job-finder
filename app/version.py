@@ -16,7 +16,7 @@ log = get_logger(__name__)
 
 __version__ = "1.5.0"
 
-GITHUB_REPO = "DiegoRiccardi1234/Linkedin-searcher"
+GITHUB_REPO = "DiegoRiccardi1234/job-finder"
 RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 CACHE_TTL_SECONDS = 3600
 
