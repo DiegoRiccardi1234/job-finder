@@ -77,8 +77,14 @@ def build_router(container: AppContainer) -> APIRouter:
         info = get_version_info(force_refresh=True)
         latest = info.get("latest")
         current = info.get("current")
-        if not latest or latest == current:
-            raise HTTPException(status_code=409, detail="Already on the latest version.")
+        # Require latest to be strictly NEWER, not merely different: with a local
+        # dev/pre-release version ahead of the newest GitHub release, `latest !=
+        # current` would happily downgrade the install to the older bundle.
+        if not latest or not info.get("update_available"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"No newer version available (current {current}, latest {latest}).",
+            )
 
         install_dir = Path(sys.executable).resolve().parent
         updater_exe = install_dir / "Updater.exe"
