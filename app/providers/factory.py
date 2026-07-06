@@ -32,6 +32,13 @@ _MODELS_CACHE_TTL_SECONDS = 300.0
 # providers that have invalid keys. Shorter than _MODELS_CACHE because settings
 # changes invalidate this cache anyway.
 _METADATA_CACHE_TTL_SECONDS = 60.0
+# After a provider is flagged key_invalid (401), re-probe it once this many
+# seconds have passed — a transient 401 shouldn't disable it for the whole
+# session. Env-overridable like the retry knobs.
+_KEY_INVALID_COOLDOWN_SECONDS = float(_os.environ.get("LLM_KEY_INVALID_COOLDOWN_SECONDS", "600"))
+# After a model returns a persistent 429 (rate limit), avoid auto-picking it for
+# this many seconds so selection rotates to another model.
+_MODEL_429_COOLDOWN_SECONDS = float(_os.environ.get("LLM_MODEL_429_COOLDOWN_SECONDS", "300"))
 
 
 class ProviderManager:
@@ -46,7 +53,7 @@ class ProviderManager:
             "openrouter": OpenRouterProvider(api_key=settings.openrouter_api_key),
             "deepseek": DeepSeekProvider(api_key=settings.deepseek_api_key),
             "xai": XAIProvider(api_key=settings.xai_api_key),
-            "glm": GLMProvider(api_key=settings.glm_api_key),
+            "glm": GLMProvider(api_key=settings.glm_api_key, base_url=settings.glm_base_url),
             "mistral": MistralProvider(api_key=settings.mistral_api_key),
         }
         self.active_provider: LLMProvider | None = None
@@ -54,6 +61,11 @@ class ProviderManager:
         self.active_model: str = "none"
         self._models_cache: dict[str, tuple[float, list[str]]] = {}
         self._metadata_cache: tuple[float, dict[str, Any]] | None = None
+        # When each provider was first observed key_invalid (for the re-probe
+        # cooldown). Reset for free on reload_providers (new manager instance).
+        self._key_invalid_since: dict[str, float] = {}
+        # When each model last returned a persistent 429 (for de-rank cooldown).
+        self._model_429_at: dict[str, float] = {}
         # Set by AppContainer after the DB is open; ``_record_call`` uses it
         # to persist token usage. None = no-op (unit tests, isolated usage).
         self._db: Any = None
@@ -91,6 +103,7 @@ class ProviderManager:
                         models=models,
                         preferred_model=self.settings.preferred_model,
                         policy=self.settings.model_selection_policy,
+                        penalized=self._recent_429_models(),
                     )
             except Exception as exc:
                 log.info(
@@ -145,7 +158,7 @@ class ProviderManager:
                 log.warning("Provider %s is_available error: %s", name, exc)
                 available = False
 
-            key_invalid = bool(getattr(provider, "key_invalid", False))
+            key_invalid = self._key_invalid_active(name, provider)
             models: list[str] = []
             # Skip the network call when we already know the key is bad — it
             # will only produce another 401 in the log.
@@ -156,7 +169,7 @@ class ProviderManager:
                     log.info("Provider %s list_models error: %s", name, exc)
                     models = []
                 # The provider may have flipped key_invalid during list_models.
-                key_invalid = bool(getattr(provider, "key_invalid", False))
+                key_invalid = self._key_invalid_active(name, provider)
 
             providers_metadata[name] = {
                 "available": available and not key_invalid,
@@ -181,9 +194,42 @@ class ProviderManager:
         """
         self._metadata_cache = None
         self._models_cache = {}
+        self._key_invalid_since = {}
         for provider in self.providers.values():
             if hasattr(provider, "key_invalid"):
                 provider.key_invalid = False
+
+    def _key_invalid_active(self, name: str, provider: LLMProvider) -> bool:
+        """True while a provider's key_invalid flag should still exclude it.
+
+        Records when the flag was first seen; after
+        ``_KEY_INVALID_COOLDOWN_SECONDS`` it clears the flag (one re-probe) so
+        the next call/metadata tries the provider again. If the key is still
+        bad, the live call 401s and it gets re-flagged — bounded, not permanent.
+        """
+        if not getattr(provider, "key_invalid", False):
+            self._key_invalid_since.pop(name, None)
+            return False
+        now = _time.time()
+        since = self._key_invalid_since.get(name)
+        if since is None:
+            self._key_invalid_since[name] = now
+            return True
+        if now - since >= _KEY_INVALID_COOLDOWN_SECONDS:
+            provider.key_invalid = False
+            self._key_invalid_since.pop(name, None)
+            return False
+        return True
+
+    def _recent_429_models(self) -> set[str]:
+        """Models seen persistently rate-limited within the cooldown window
+        (stale entries pruned). Auto model-selection de-ranks these."""
+        now = _time.time()
+        fresh = {
+            m for m, ts in self._model_429_at.items() if now - ts < _MODEL_429_COOLDOWN_SECONDS
+        }
+        self._model_429_at = {m: self._model_429_at[m] for m in fresh}
+        return fresh
 
     def get_models(self, provider_name: str, force_refresh: bool = False) -> dict[str, Any]:
         """Return models + recommended for a single provider, cached for 5 min."""
@@ -263,9 +309,24 @@ class ProviderManager:
     def _model_for(self, provider: LLMProvider) -> str:
         """A model to use on a failover provider (cheap, no commit to active_*)."""
         try:
-            return provider.select_model(preferred_model=self.settings.preferred_model)
+            model = provider.select_model(preferred_model=self.settings.preferred_model)
         except Exception:
             return self.settings.preferred_model or self.active_model
+        # If the picked model has been 429ing, re-pick among the provider's
+        # models with it de-ranked (only when there's a real alternative).
+        penalized = self._recent_429_models()
+        if model in penalized:
+            try:
+                models = provider.list_models()
+                if len(models) > 1:
+                    model = choose_best_model(
+                        models,
+                        preferred_model=self.settings.preferred_model,
+                        penalized=penalized,
+                    )
+            except Exception:
+                pass
+        return model
 
     def _failover_candidates(
         self, explicit_provider: str | None, explicit_model: str | None
@@ -296,7 +357,9 @@ class ProviderManager:
             if provider is None:
                 continue
             try:
-                usable = provider.is_available() and not getattr(provider, "key_invalid", False)
+                # Cooldown check first so it always runs (it may clear the flag
+                # after the window); is_available then reflects the fresh state.
+                usable = not self._key_invalid_active(name, provider) and provider.is_available()
             except Exception:
                 usable = False
             if not usable:
@@ -315,6 +378,7 @@ class ProviderManager:
         """
         if is_unauthorized(exc) and not getattr(provider, "key_invalid", False):
             provider.key_invalid = True
+            self._key_invalid_since[provider.name] = _time.time()
             log.warning("Provider %s key marked invalid (401) during live call.", provider.name)
 
     def _run_with_failover(
@@ -337,6 +401,8 @@ class ProviderManager:
                 )
             except Exception as exc:
                 last_exc = exc
+                if _is_rate_limited(exc):
+                    self._model_429_at[model] = _time.time()
                 self._maybe_flag_key_invalid(provider, exc)
                 self._record_call(provider, model, endpoint, False, type(exc).__name__)
                 if idx < len(candidates) - 1:
@@ -404,6 +470,15 @@ def _is_retryable(exc: Exception) -> bool:
         return True
     text = str(exc).lower()
     return any(marker in text for marker in _RETRYABLE_MARKERS)
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    """True for a 429 specifically (not 5xx) — used to de-rank a model."""
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    if status == 429:
+        return True
+    text = str(exc).lower()
+    return "429" in text or "rate limit" in text or "too many requests" in text
 
 
 def _call_with_timeout(fn: Callable[[], _RetryT], timeout: float) -> _RetryT:

@@ -139,6 +139,36 @@ def test_single_failing_provider_raises(tmp_path: Any) -> None:
         mgr.chat(messages=[{"role": "user", "content": "hi"}])
 
 
+def test_key_invalid_cooldown_reprobes_after_window(tmp_path: Any, monkeypatch) -> None:
+    """A key_invalid provider is excluded within the cooldown, then re-probed
+    (flag cleared) once the cooldown window elapses — a transient 401 no longer
+    disables it for the whole session."""
+    from app.providers import factory as _mod
+
+    bad = _StubProvider("cerebras", exc=Exception("boom"))
+    good = _StubProvider("openrouter", answer="ok")
+    bad.key_invalid = True
+    mgr = _mgr(tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "openrouter")
+
+    names1 = [p.name for p, _m in mgr._failover_candidates(None, None)]
+    assert "cerebras" not in names1  # within cooldown → excluded
+
+    monkeypatch.setattr(_mod, "_KEY_INVALID_COOLDOWN_SECONDS", 0.0)
+    names2 = [p.name for p, _m in mgr._failover_candidates(None, None)]
+    assert "cerebras" in names2  # cooldown elapsed → re-probed
+    assert bad.key_invalid is False
+
+
+def test_429_records_model_for_derank(tmp_path: Any) -> None:
+    """A persistent 429 records the model so auto-selection de-ranks it."""
+    bad = _StubProvider("openrouter", exc=Exception("429 rate limit"))
+    mgr = _mgr(tmp_path, {"openrouter": bad}, ["openrouter"], "openrouter")
+    with pytest.raises(Exception):
+        mgr.chat(messages=[{"role": "user", "content": "hi"}])
+    assert "model-x" in mgr._model_429_at
+    assert "model-x" in mgr._recent_429_models()
+
+
 def test_explicit_provider_is_not_failed_over(tmp_path: Any) -> None:
     """An explicit provider request is honored — no silent switch to another."""
     bad = _StubProvider("cerebras", exc=Exception("boom"))

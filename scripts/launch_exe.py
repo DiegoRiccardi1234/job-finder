@@ -89,12 +89,39 @@ def _open_browser_when_ready() -> None:
     print(f"Server slow to come up. Open {URL} manually in your browser.")
 
 
-def _run_tray() -> None:
+_TRAY_LABELS = {
+    "en": {"open": "Open Job Finder", "quit": "Quit"},
+    "it": {"open": "Apri Job Finder", "quit": "Esci"},
+    "es": {"open": "Abrir Job Finder", "quit": "Salir"},
+    "fr": {"open": "Ouvrir Job Finder", "quit": "Quitter"},
+    "de": {"open": "Job Finder öffnen", "quit": "Beenden"},
+}
+
+
+def _ui_language(workspace: Path) -> str:
+    """Read the persisted UI language from the DB (read-only), default 'en'."""
+    db = workspace / "data" / "searcher.db"
+    try:
+        import sqlite3
+
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1.0)
+        try:
+            row = con.execute("SELECT value FROM preferences WHERE key='ui_language'").fetchone()
+        finally:
+            con.close()
+        lang = (row[0] if row else "en") or "en"
+        return lang if lang in _TRAY_LABELS else "en"
+    except Exception:
+        return "en"
+
+
+def _run_tray(workspace: Path) -> None:
     """Show a system-tray icon (Open / Quit); blocks the main thread until Quit.
 
     pystray owns the main thread's Win32 message loop, so uvicorn runs on a
     daemon thread. If pystray/Pillow can't load, block forever instead so the
-    server keeps serving and the in-app Quit button still works.
+    server keeps serving and the in-app Quit button still works. Also registers
+    the icon's native notification with app.notify so the scheduler can toast.
     """
     try:
         import pystray
@@ -112,6 +139,10 @@ def _run_tray() -> None:
         d.rectangle([10, 33, 54, 37], fill=(255, 255, 255, 110))
         return img
 
+    def _label(key: str) -> str:
+        # Callable menu text → follows an in-app language change without restart.
+        return _TRAY_LABELS[_ui_language(workspace)][key]
+
     def _open(_icon: object, _item: object) -> None:
         webbrowser.open(URL)
 
@@ -120,10 +151,19 @@ def _run_tray() -> None:
         os._exit(0)
 
     menu = pystray.Menu(
-        pystray.MenuItem("Open Job Finder", _open, default=True),
-        pystray.MenuItem("Quit", _quit),
+        pystray.MenuItem(lambda _i: _label("open"), _open, default=True),
+        pystray.MenuItem(lambda _i: _label("quit"), _quit),
     )
-    pystray.Icon("JobFinder", _image(), "Job Finder", menu).run()
+    icon = pystray.Icon("JobFinder", _image(), "Job Finder", menu)
+
+    def _setup(ic: object) -> None:
+        ic.visible = True
+        from app.notify import register_notifier
+
+        # pystray's signature is notify(message, title) — swap to (title, message).
+        register_notifier(lambda title, msg: ic.notify(msg, title))
+
+    icon.run(setup=_setup)
 
 
 def main() -> int:
@@ -147,7 +187,7 @@ def main() -> int:
     if getattr(sys, "frozen", False) and sys.platform == "win32":
         server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="info"))
         threading.Thread(target=server.run, name="uvicorn", daemon=True).start()
-        _run_tray()
+        _run_tray(workspace)
     else:
         uvicorn.run(app, host=HOST, port=PORT, log_level="info")
     return 0

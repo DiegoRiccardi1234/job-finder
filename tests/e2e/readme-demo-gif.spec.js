@@ -319,6 +319,44 @@ test("record README demo GIF", async ({ page }) => {
   // Hold on the jobs list so the matches are clearly readable in the GIF.
   idx = await captureFor(page, 1500, idx);
 
+  // Beat 7 — AI Usage panel (v1.5.4): tokens/calls per provider
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    const el = document.getElementById("usageCard");
+    if (el) el.scrollIntoView({ block: "center" });
+  });
+  await page.waitForTimeout(300);
+  idx = await captureFor(page, 1400, idx);
+
+  // Beat 8 — Add a job manually (v1.5.4): the modal is a fixed overlay
+  await page.locator(".topnav .nav-link[data-view='job-search']").click();
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    document.getElementById("mjTitolo").value = "Senior Platform Engineer";
+    document.getElementById("mjAzienda").value = "Vercel";
+    document.getElementById("mjSede").value = "Remote - EU";
+    document.getElementById("manualJobModal").classList.remove("hidden");
+  });
+  await page.waitForTimeout(300);
+  idx = await captureFor(page, 1500, idx);
+  await page.evaluate(() => document.getElementById("manualJobModal").classList.add("hidden"));
+
+  // Beat 9 — Dark-mode flourish (v1.5.3 theme overhaul)
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    localStorage.setItem("theme", "dark");
+  });
+  await page.waitForTimeout(400);
+  idx = await captureFor(page, 1700, idx);
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "light");
+    localStorage.setItem("theme", "light");
+  });
+
   expect(idx).toBeGreaterThan(60);
 
   if (!ffmpegAvailable() && !pythonPillowAvailable()) {

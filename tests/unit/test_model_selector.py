@@ -51,6 +51,17 @@ def test_choose_best_model_prefers_recent_llama() -> None:
     assert choose_best_model(models) == "llama-3.3-70b-instruct"
 
 
+def test_choose_best_model_de_ranks_penalized_model() -> None:
+    """A model recently 429'd is penalized in auto-selection (not excluded)."""
+    models = ["llama-3.3-70b-instruct", "llama-3.1-70b-instruct"]
+    winner = choose_best_model(models)
+    loser = next(m for m in models if m != winner)
+    assert choose_best_model(models, penalized={winner}) == loser
+    assert choose_best_model(models, penalized=None) == winner
+    # even if ALL are penalized, one is still returned (penalty, not exclusion)
+    assert choose_best_model(models, penalized=set(models)) in models
+
+
 def test_new_provider_families_get_family_bonus() -> None:
     """DeepSeek/xAI/GLM/Mistral models must score above an unknown model, so the
     ⭐ recommended pick is sensible for the newly-added providers."""

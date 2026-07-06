@@ -123,4 +123,53 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
     const overlay = document.getElementById("scanOverlay");
     if (overlay) overlay.style.display = "none";
   });
+
+  // 5. AI Usage panel close-up (v1.5.4)
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await page.waitForTimeout(600);
+  const usageCard = page.locator("#usageCard");
+  if (await usageCard.count()) {
+    await usageCard.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await usageCard.screenshot({ path: path.join(OUTPUT_DIR, "usage-panel-en.png") });
+  }
+
+  // 6. Manual "Add job" modal (v1.5.4) — the modal is a fixed overlay; fill it
+  // via evaluate (robust for a screenshot; the click flow is covered elsewhere).
+  await page.locator(".topnav .nav-link[data-view='job-search']").click();
+  await page.waitForTimeout(600);
+  await page.evaluate(() => {
+    document.getElementById("mjTitolo").value = "Senior Platform Engineer";
+    document.getElementById("mjAzienda").value = "Vercel";
+    document.getElementById("mjSede").value = "Remote - EU";
+    document.getElementById("manualJobModal").classList.remove("hidden");
+  });
+  await page.waitForTimeout(300);
+  await shot(page, "manual-add-en.png");
+  await page.evaluate(() => document.getElementById("manualJobModal").classList.add("hidden"));
+  await page.waitForTimeout(200);
+
+  // 7. Job detail with timeline + notes (v1.5.4) — opened from the dashboard
+  // recommendations (where the inline detail panel lives + is visible).
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await page.waitForTimeout(700);
+  await page.evaluate(() => {
+    const btn = document.querySelector('#recommendationsGrid button[data-rec-action="detail"]');
+    if (btn) btn.click();
+  });
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => {
+    const tl = document.getElementById("detailTimeline");
+    if (tl) tl.scrollIntoView({ block: "center" });
+  });
+  await page.waitForTimeout(400);
+  await shot(page, "job-timeline-en.png");
+
+  // 8. Dark-mode dashboard (v1.5.3 theme overhaul)
+  await page.locator(".topnav .nav-link[data-view='dashboard']").click();
+  await setTheme(page, "dark");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(500);
+  await shot(page, "dashboard-dark.png");
+  await setTheme(page, "light");
 });

@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.5.5] — 2026-07-06
+
+Provider-resilience hardening, native tray notifications, and a refreshed README.
+
+### Added
+- **Native desktop notifications** — the opt-in "new high-scoring jobs" alert now fires from the system-tray icon, so it works even with no browser tab open. The tray menu (Open / Quit) is also shown in your UI language.
+- **Configurable GLM endpoint** — set `GLM_BASE_URL` to point the Zhipu/GLM provider at the China console (`open.bigmodel.cn`) instead of the international default.
+
+### Fixed
+- **A transient 401 no longer disables a provider for the whole session** — a key flagged invalid is automatically re-probed after a cooldown (default 10 min); if it's still bad it's simply re-flagged.
+- **Auto model selection avoids a rate-limited model** — a model that keeps returning 429 is de-ranked for a few minutes so selection rotates to another, instead of hammering the same one.
+
+### Changed
+- README, demo screenshots, and the hero GIF refreshed to cover v1.5.1–v1.5.4 (quit + system tray, dark mode, dashboard job display, AI usage panel, manual add, job timeline + notes, desktop notifications).
+
 ## [1.5.4] — 2026-07-06
 
 Four features that surface data the app already had, plus a quieter test build.

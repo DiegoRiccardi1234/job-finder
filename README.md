@@ -73,11 +73,18 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Min-salary filter & multiple job types** (v1.5.0+) — Filter scans by minimum salary and combine job types (full-time + internship + …) in one search.
 - **Honest degraded-answer indicator** (v1.5.0+) — Replies served from the offline fallback (e.g. during rate-limits) are visibly marked instead of passing as full LLM answers.
 - **Searchable model pickers** (v1.5.0+) — Every provider card gets model search, an explained ⭐ recommendation, an "Auto (→ model)" resolution hint, and one-click key removal.
-- **Multilingual UI** — English, Italian, Spanish, French, German (460 keys per locale, 100% parity).
+- **Windowless build + Quit button + system tray** (v1.5.1–v1.5.2) — the Windows app runs with no terminal; quit it from a header button or a system-tray icon (Open / Quit, in your language). Auto-update relaunches cleanly (no more "Restart 95%" hang).
+- **Per-request provider failover** (v1.5.1+) — a rate-limited or down provider fails over to the next configured one before the offline fallback; models that keep returning 429 are temporarily de-ranked, and a key that 401s is re-probed after a cooldown instead of being disabled for the session.
+- **Dashboard job display + working filters** (v1.5.2–v1.5.3) — a coloured status pill per job, colour-coded match scores, unscored jobs shown as "—" (not 0/10), a status/empty/loading/error state on the table, and scan filters (on-site, multiple contract types, remote) that actually filter.
+- **Consistent dark mode + accessibility** (v1.5.3) — the whole UI (dashboard, Info tab, post-scan summary, modals) follows one light/dark theme built on design tokens; visible keyboard-focus rings and `aria-label`s throughout.
+- **Add a job manually** (v1.5.4) — a "+ Add job" form for referrals or roles found off LinkedIn/Indeed; AI-scored against your CV like any scanned one.
+- **Per-job history + notes** (v1.5.4) — the job detail panel shows a timeline of status changes and lets you attach free-text notes.
+- **AI usage panel + desktop notifications** (v1.5.4) — a dashboard card with tokens/calls per provider over today / 7 / 30 days / all time; opt-in native tray notification when the auto-scan finds new above-threshold jobs.
+- **Multilingual UI** — English, Italian, Spanish, French, German (100% key parity across locales).
 - **Responsive layout** (v1.4.2+) — mobile-friendly below 960px: hamburger nav, off-canvas Career Coach drawer, horizontally-scrollable tables, single-column dashboards. Desktop layout unchanged.
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI (Grok), Zhipu GLM, Mistral — configurable order, skips a dead (401) key, exponential backoff retry.
 - **Resilient by default** — Structured logging, no silent `except Exception`, WAL-mode SQLite, file size + MIME validation on uploads.
-- **Token usage tracker** (v1.1.0+) — every LLM call is logged to `usage_log`; `GET /api/usage/stats?range=today|week|month|all` returns aggregates (total / per-provider / per-day) so you always know how many tokens you've burned.
+- **Token usage tracker** (v1.1.0+) — every LLM call is logged to `usage_log`; `GET /api/usage/stats?range=today|week|month|all` returns aggregates (total / per-provider / per-day), surfaced in the **AI Usage** dashboard card (v1.5.4) so you always know how many tokens you've burned.
 - **Soft onboarding gate** (v1.1.0+) — fresh installs land on a non-dismissable banner pointing to Settings; non-Settings tabs are visually locked until you save at least one provider key. Backend `/api/chat` and `/api/scan` return HTTP 412 if no provider is configured.
 - **OCR multi-lingua** (v1.1.0+) — Tesseract bundle ships 5 language packs (`eng+ita+spa+fra+deu`); browser locale is auto-detected on first run; CV keywords are balanced across all 5 locales.
 
@@ -85,7 +92,7 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Demo
 
-The animated hero above walks through six beats end-to-end:
+The animated hero above walks through the full flow end-to-end:
 
 1. **Dashboard** with personalized hero, analytics, and the always-on AI Career Coach.
 2. **Settings** — ten AI Provider cards with per-provider state, ⭐-recommended model dropdowns.
@@ -93,6 +100,9 @@ The animated hero above walks through six beats end-to-end:
 4. **Job Search** — flat layout with profile-derived role chips ready to click into keywords, plus tag-input filters for locations and sites.
 5. **Chat coach** — natural-language Q&A with clickable role pills and CV-derived quick prompts.
 6. **Live scan** — animated progress bar, per-job score chips (green/yellow/red), real-time feed.
+7. **AI Usage panel** — tokens and calls per provider, with a today / 7 / 30-day / all-time range (v1.5.4).
+8. **Add a job manually** — a quick form to track referrals and off-board finds (v1.5.4).
+9. **Dark mode** — the whole UI switches theme from the top bar (v1.5.3).
 
 ### Static screenshots
 
@@ -101,19 +111,27 @@ For readers who can't render the GIF, five still frames cover the main flows:
 | Dashboard + Analytics | Career Coach in action |
 |-----------------------|------------------------|
 | ![Dashboard](screenshots/readme/dashboard-en.png) | ![Chat coach](screenshots/readme/chat-view-en.png) |
-| Active Model + Profile, Application Status pie, AI Score Distribution histogram. | Conversation with role pills (Backend Engineer, Data Engineer, ML Engineer, Platform Engineer) ready to one-click. |
+| Active Model + Profile and the analytics grid — Application Status & AI Score Distribution here; Top Companies & the AI Usage panel below. | Conversation with role pills (Backend Engineer, Data Engineer, ML Engineer, Platform Engineer) ready to one-click. |
 
 | Job Search (flat layout) | Live scan progress |
 |--------------------------|--------------------|
 | ![Job Search](screenshots/readme/job-search-en.png) | ![Scan progress](screenshots/readme/scan-progress-en.png) |
 | Profile-derived role chips, tag-input keywords/locations, LinkedIn + Indeed + remote toggles, Start Scan. | Progress bar + per-job score chips (green/yellow/red) streamed via SSE. |
 
-| Settings — AI providers (v1.5.0) |
-|----------------------------------|
-| ![Settings providers](screenshots/readme/settings-providers-en.png) |
-| Ten provider cards with searchable model pickers, ⭐-recommended models, "Auto (→ model)" resolution hint, and one-click key removal. |
+| Settings — AI providers | AI Usage panel (v1.5.4) |
+|-------------------------|-------------------------|
+| ![Settings providers](screenshots/readme/settings-providers-en.png) | ![AI Usage](screenshots/readme/usage-panel-en.png) |
+| Ten provider cards with searchable model pickers, ⭐-recommended models, "Auto (→ model)" hint, one-click key removal. | Tokens & calls per provider, over today / 7-day / 30-day / all-time. |
 
-> ✨ Dark mode toggle in the top bar.
+| Add a job manually (v1.5.4) | Per-job timeline + notes (v1.5.4) |
+|-----------------------------|-----------------------------------|
+| ![Add job](screenshots/readme/manual-add-en.png) | ![Job timeline](screenshots/readme/job-timeline-en.png) |
+| Track referrals or roles found off-board; AI-scored like any scanned job. | Status history and free-text notes in the job detail panel. |
+
+| Dark mode (v1.5.3) | Quit + system tray (v1.5.2) |
+|--------------------|-----------------------------|
+| ![Dark dashboard](screenshots/readme/dashboard-dark.png) | The windowless build adds a header **Quit** button and a system-tray icon (Open / Quit). |
+| The whole UI — dashboard, Info tab, modals — follows one consistent light/dark theme; toggle from the top bar. | (Tray icon lives next to the clock; not capturable in a browser screenshot.) |
 
 ---
 

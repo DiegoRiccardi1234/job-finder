@@ -41,8 +41,10 @@ class OpenAICompatibleProvider(LLMProvider):
     base_url: str = ""
     default_model: str = ""
 
-    def __init__(self, api_key: str | None):
+    def __init__(self, api_key: str | None, base_url: str | None = None):
         self.api_key = api_key
+        # An explicit override shadows the class default (e.g. GLM China console).
+        self.base_url = base_url or type(self).base_url
         client_kwargs: dict[str, Any] = {"api_key": api_key, "max_retries": 0}
         if self.base_url:
             client_kwargs["base_url"] = self.base_url

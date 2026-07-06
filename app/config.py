@@ -54,6 +54,9 @@ class AppSettings:
     xai_api_key: str | None
     glm_api_key: str | None
     mistral_api_key: str | None
+    # Optional GLM/Zhipu endpoint override (env GLM_BASE_URL). Default is the
+    # international host; the China console uses open.bigmodel.cn.
+    glm_base_url: str | None
     model_selection_policy: dict[str, Any]
     # Tesseract language list passed to ``image_to_string(lang=...)`` (``+`` joined).
     # Default covers the 5 UI locales; the bundle ships ``eng+ita+spa+fra+deu+osd``.
@@ -189,6 +192,7 @@ def load_settings(workspace_dir: Path) -> AppSettings:
     deepseek_api_key = local_secrets.get("deepseek_api_key") or os.getenv("DEEPSEEK_API_KEY")
     xai_api_key = local_secrets.get("xai_api_key") or os.getenv("XAI_API_KEY")
     glm_api_key = local_secrets.get("glm_api_key") or os.getenv("GLM_API_KEY")
+    glm_base_url = local_secrets.get("glm_base_url") or os.getenv("GLM_BASE_URL")
     mistral_api_key = local_secrets.get("mistral_api_key") or os.getenv("MISTRAL_API_KEY")
 
     provider_order = cfg.get("llm_provider_order", SUPPORTED_PROVIDERS)
@@ -278,5 +282,6 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         xai_api_key=xai_api_key,
         glm_api_key=glm_api_key,
         mistral_api_key=mistral_api_key,
+        glm_base_url=glm_base_url,
         model_selection_policy=merged_policy,
     )

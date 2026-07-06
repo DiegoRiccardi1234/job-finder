@@ -121,26 +121,8 @@ function renderAutoscanBanner(pending) {
       t("autoscan.bannerText", { count: pending.count, threshold: pending.threshold }),
     );
     banner.classList.remove("hidden");
-    _maybeNotify(pending);
   } else {
     banner.classList.add("hidden");
-  }
-}
-
-// F2 — fire ONE desktop notification per new auto-scan batch, when the user
-// opted in and granted permission. Signature-guarded so a reload doesn't repeat.
-function _maybeNotify(pending) {
-  if (localStorage.getItem("autoscanNotify") !== "1") return;
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-  const sig = JSON.stringify(pending);
-  if (localStorage.getItem("autoscanNotifiedSig") === sig) return;
-  localStorage.setItem("autoscanNotifiedSig", sig);
-  try {
-    new Notification(t("autoscan.notifyTitle"), {
-      body: t("autoscan.bannerText", { count: pending.count, threshold: pending.threshold }),
-    });
-  } catch {
-    /* notifications unavailable */
   }
 }
 
@@ -277,14 +259,15 @@ export function initFeatures({ loadJobs }) {
   if (autoscanNotifyEl) {
     autoscanNotifyEl.checked = localStorage.getItem("autoscanNotify") === "1";
     autoscanNotifyEl.addEventListener("change", () => {
-      if (autoscanNotifyEl.checked) {
-        localStorage.setItem("autoscanNotify", "1");
-        if (typeof Notification !== "undefined" && Notification.permission === "default") {
-          Notification.requestPermission();
-        }
-      } else {
-        localStorage.removeItem("autoscanNotify");
-      }
+      // Persist to the DB (the scheduler reads it to fire a native tray toast);
+      // mirror in localStorage so the checkbox restores instantly on reload.
+      const on = autoscanNotifyEl.checked;
+      localStorage.setItem("autoscanNotify", on ? "1" : "0");
+      fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "autoscan_notify", value: on ? "1" : "0" }),
+      }).catch(() => {});
     });
   }
 

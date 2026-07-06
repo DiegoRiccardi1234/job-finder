@@ -185,6 +185,7 @@ class AutoScanScheduler:
                 }
                 self._db.set_preference("autoscan_last_run_ts", str(self._clock()))
                 self._db.set_preference("autoscan_pending", json.dumps(pending, ensure_ascii=False))
+                self._maybe_native_notify(pending)
                 log.info("autoscan completed: %d new jobs >= %d", pending["count"], threshold)
                 return {"status": "complete", **pending}
             except Exception as exc:
@@ -194,6 +195,35 @@ class AutoScanScheduler:
                 return {"status": "error", "error": str(exc)}
         finally:
             self._running.release()
+
+    def _maybe_native_notify(self, pending: dict[str, Any]) -> None:
+        """Fire a native (tray) desktop notification for new high-scoring jobs.
+
+        Opt-in via the ``autoscan_notify`` preference. No-op unless a notifier is
+        registered (frozen build with a live tray) — dev/source runs skip it.
+        """
+        if pending.get("count", 0) <= 0:
+            return
+        if self._db.get_preference("autoscan_notify", "0") != "1":
+            return
+        texts = {
+            "en": ("New matching jobs", "{count} new jobs at or above score {threshold}."),
+            "it": ("Nuovi lavori adatti", "{count} nuovi lavori con punteggio >= {threshold}."),
+            "es": (
+                "Nuevos empleos compatibles",
+                "{count} nuevos empleos con puntuación >= {threshold}.",
+            ),
+            "de": ("Neue passende Jobs", "{count} neue Jobs mit Score >= {threshold}."),
+            "fr": ("Nouvelles offres", "{count} nouvelles offres avec un score >= {threshold}."),
+        }
+        try:
+            from app.notify import notify
+            from app.services.chat.state import get_ui_language
+
+            title, body_tpl = texts.get(get_ui_language(self._db), texts["en"])
+            notify(title, body_tpl.format(count=pending["count"], threshold=pending["threshold"]))
+        except Exception as exc:
+            log.debug("native notify skipped: %s", exc)
 
     # ---- status / pending ----
 

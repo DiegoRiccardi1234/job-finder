@@ -15,14 +15,13 @@ import json
 import random
 import sqlite3
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.db import Database, make_job_hash  # noqa: E402
-
 
 RNG = random.Random(42)
 
@@ -384,13 +383,13 @@ CHAT_MESSAGES = [
 
 
 def now_iso(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).isoformat()
+    return dt.astimezone(UTC).isoformat()
 
 
 def wipe(conn: sqlite3.Connection) -> None:
     for table in (
         "job_actions", "chat_messages", "preferences",
-        "candidate_profiles", "scan_runs", "jobs",
+        "candidate_profiles", "scan_runs", "jobs", "usage_log",
     ):
         conn.execute(f"DELETE FROM {table}")
     conn.commit()
@@ -399,7 +398,7 @@ def wipe(conn: sqlite3.Connection) -> None:
 def insert_jobs(db: Database) -> None:
     conn = db.conn
     cur = conn.cursor()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for idx, job in enumerate(JOBS):
         link = f"https://example.com/jobs/{idx + 1}-{job['azienda'].lower().replace(' ', '-')}"
         seen = now - timedelta(days=job["days_ago"], hours=RNG.randint(0, 12))
@@ -457,7 +456,7 @@ def insert_jobs(db: Database) -> None:
 
 
 def insert_scan_runs(db: Database) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     runs = [
         (now - timedelta(days=14), "Italy", True, ["Junior Python Developer", "Junior Full Stack Developer"], 18, 18, 16, 2),
         (now - timedelta(days=7), "Italy", True, ["Junior Python Developer", "AI Engineer"], 14, 9, 9, 0),
@@ -478,7 +477,7 @@ def insert_scan_runs(db: Database) -> None:
 
 
 def insert_chat(db: Database) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     session_id = "default"
     for i, (role, content) in enumerate(CHAT_MESSAGES):
         ts = now - timedelta(minutes=(len(CHAT_MESSAGES) - i) * 2)
@@ -486,6 +485,56 @@ def insert_chat(db: Database) -> None:
             "INSERT INTO chat_messages(session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
             (session_id, role, content, now_iso(ts)),
         )
+    db.conn.commit()
+
+
+def insert_usage_log(db: Database) -> None:
+    """Populate usage_log so the dashboard 'AI Usage' panel shows real numbers."""
+    now = datetime.now(UTC)
+    # (provider, model, endpoint, days_ago, calls, avg_prompt, avg_completion)
+    rows = [
+        ("openrouter", "openai/gpt-oss-120b:free", "chat", 0, 8, 900, 350),
+        ("openrouter", "openai/gpt-oss-120b:free", "complete_json", 0, 18, 1200, 300),
+        ("groq", "llama-3.3-70b-versatile", "chat", 0, 5, 800, 400),
+        ("cerebras", "qwen-3-235b", "complete_json", 1, 12, 1100, 280),
+        ("anthropic", "claude-sonnet", "chat", 2, 3, 1500, 600),
+        ("openrouter", "openai/gpt-oss-120b:free", "complete_json", 5, 22, 1150, 290),
+        ("groq", "llama-3.3-70b-versatile", "chat", 6, 4, 850, 380),
+    ]
+    for provider, model, endpoint, days_ago, calls, ap, ac in rows:
+        for _ in range(calls):
+            if days_ago == 0:
+                ts = now - timedelta(minutes=RNG.randint(2, 180))
+            else:
+                ts = now - timedelta(days=days_ago, hours=RNG.randint(0, 20))
+            pt = max(1, ap + RNG.randint(-150, 150))
+            ct = max(1, ac + RNG.randint(-80, 80))
+            db.conn.execute(
+                """INSERT INTO usage_log(ts, provider, model, endpoint, prompt_tokens,
+                   completion_tokens, total_tokens, success, error_type)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (now_iso(ts), provider, model, endpoint, pt, ct, pt + ct, 1, None),
+            )
+    db.conn.commit()
+
+
+def insert_sample_note(db: Database) -> None:
+    """Add a note to a job's timeline so the detail panel demo isn't empty."""
+    # Target the top open job (a top recommendation) so the detail-panel timeline
+    # demo — opened from the dashboard recommendations — shows a real note.
+    row = db.conn.execute(
+        "SELECT id FROM jobs WHERE status = 'open' ORDER BY punteggio_ai DESC LIMIT 1"
+    ).fetchone()
+    if not row:
+        return
+    db.conn.execute(
+        "INSERT INTO job_actions(job_id, action, notes, created_at) VALUES (?, 'note', ?, ?)",
+        (
+            row[0],
+            "Recruiter call scheduled for Thursday 3pm. Prep: local-first architecture questions.",
+            now_iso(datetime.now(UTC)),
+        ),
+    )
     db.conn.commit()
 
 
@@ -518,16 +567,20 @@ def main() -> int:
             print("  Existing rows wiped.")
 
         insert_profile_and_prefs(db)
-        print(f"  Inserted candidate profile + preferences.")
+        print("  Inserted candidate profile + preferences.")
         insert_jobs(db)
         print(f"  Inserted {len(JOBS)} jobs.")
         insert_scan_runs(db)
-        print(f"  Inserted 3 scan runs.")
+        print("  Inserted 3 scan runs.")
         insert_chat(db)
         print(f"  Inserted {len(CHAT_MESSAGES)} chat messages.")
+        insert_usage_log(db)
+        print("  Inserted usage_log rows (AI Usage panel).")
+        insert_sample_note(db)
+        print("  Inserted a sample job note (timeline).")
 
         analytics = db.get_analytics()
-        print(f"\nResult summary:")
+        print("\nResult summary:")
         print(f"  Total jobs: {analytics['total']}")
         print(f"  By status: {analytics['jobs_by_status']}")
         print(f"  Favorites: {sum(1 for j in JOBS if j['favorite'])}")

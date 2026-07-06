@@ -129,8 +129,16 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
 
 
 def choose_best_model(
-    models: list[str], preferred_model: str | None = None, policy: dict[str, Any] | None = None
+    models: list[str],
+    preferred_model: str | None = None,
+    policy: dict[str, Any] | None = None,
+    *,
+    penalized: set[str] | None = None,
 ) -> str:
+    """Pick the highest-scoring model. ``penalized`` (e.g. models seen 429ing
+    recently) get a large score penalty so auto-selection avoids them, but they
+    are never excluded — if every model is penalized, one is still returned. An
+    explicit ``preferred_model`` always wins (a user choice overrides de-ranking)."""
     if preferred_model:
         for model in models:
             if model.lower() == preferred_model.lower():
@@ -139,7 +147,11 @@ def choose_best_model(
     if not models:
         raise RuntimeError("Nessun modello disponibile")
 
-    ranked = sorted(models, key=lambda x: score_model_name(x, policy=policy), reverse=True)
+    def _key(x: str) -> int:
+        penalty = 10_000 if penalized and x in penalized else 0
+        return score_model_name(x, policy=policy) - penalty
+
+    ranked = sorted(models, key=_key, reverse=True)
     return ranked[0]
 
 
