@@ -167,15 +167,15 @@
         <div class="analytics-grid">
           <div class="analytics-card">
             <h4><span class="material-symbols-outlined">bar_chart</span> <span data-i18n="analytics.appStatus">Application Status</span></h4>
-            <canvas id="statusChart"></canvas>
+            <canvas id="statusChart" role="img" aria-label="Application status chart"></canvas>
           </div>
           <div class="analytics-card">
             <h4><span class="material-symbols-outlined">insights</span> <span data-i18n="analytics.scoreDist">AI Score Distribution</span></h4>
-            <canvas id="scoreChart"></canvas>
+            <canvas id="scoreChart" role="img" aria-label="AI score distribution chart"></canvas>
           </div>
           <div class="analytics-card">
             <h4><span class="material-symbols-outlined">apartment</span> <span data-i18n="analytics.topCompanies">Top Companies</span></h4>
-            <canvas id="topCompaniesChart"></canvas>
+            <canvas id="topCompaniesChart" role="img" aria-label="Top companies chart"></canvas>
           </div>
         </div>
       </section>
@@ -184,7 +184,7 @@
       <section id="jobDetailInline" class="job-detail-inline" style="display:none;">
         <div class="section-head">
           <h2 id="detailTitle" data-i18n="offcanvas.details">Dettagli</h2>
-          <button id="closeDetailBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">close</span></button>
+          <button id="closeDetailBtn" type="button" class="ghost-btn" aria-label="Close details"><span class="material-symbols-outlined">close</span></button>
         </div>
         <p id="detailStatus" class="eyebrow" style="margin-bottom:8px"></p>
         <p id="detailCompany" class="detail-company"></p>
@@ -203,10 +203,6 @@
           <div id="coverLetterBox" style="display:none;">
             <h4 data-i18n="offcanvas.coverLetter">Lettera di Presentazione</h4>
             <pre id="coverLetterOutput" class="output"></pre>
-            <div style="display:flex;gap:8px;margin-top:8px;">
-              <button id="saveCoverLetterBtn" class="secondary" data-i18n="offcanvas.saveDraft">Salva Bozza</button>
-              <span id="clSaveStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
-            </div>
           </div>
           <div id="interviewPrepBox" class="generated-box" style="display:none;">
             <h4 data-i18n="offcanvas.interviewPrep">Interview Prep</h4>
@@ -236,7 +232,7 @@
       <section id="skillGapSection" class="skill-gap-section" style="display:none;">
         <div class="section-head">
           <h2 data-i18n="skillGap.title">Skill Gap</h2>
-          <button id="refreshSkillGapBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span></button>
+          <button id="refreshSkillGapBtn" type="button" class="ghost-btn" aria-label="Refresh skill gap"><span class="material-symbols-outlined">refresh</span></button>
         </div>
         <p class="micro" data-i18n="skillGap.subtitle">Skills most often missing across your scored jobs — learn these to unlock more matches.</p>
         <div id="skillGapBars" class="skill-gap-bars"></div>
@@ -266,9 +262,9 @@
             <option value="interviewing" data-i18n="jobs.interviewing">Interviewing</option>
             <option value="rejected" data-i18n="jobs.rejected">Rejected</option>
           </select>
-          <button id="refreshJobsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span></button>
+          <button id="refreshJobsBtn" type="button" class="ghost-btn" aria-label="Refresh jobs"><span class="material-symbols-outlined">refresh</span></button>
           <button id="exportCsvBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">download</span> <span data-i18n="jobs.csv">CSV</span></button>
-          <button id="deleteAllJobsBtn" type="button" class="ghost-btn danger" title="Delete all jobs"><span class="material-symbols-outlined">delete_sweep</span> <span data-i18n="jobs.deleteAll">Delete all</span></button>
+          <button id="deleteAllJobsBtn" type="button" class="ghost-btn danger" title="Delete all jobs" data-i18n-title="jobs.deleteAllTitle"><span class="material-symbols-outlined">delete_sweep</span> <span data-i18n="jobs.deleteAll">Delete all</span></button>
         </div>
 
         <div id="tableView" class="table-wrap is-active">
@@ -605,7 +601,7 @@
         <div id="chatQuickPrompts" class="chat-quick-prompts"></div>
         <form id="chatForm" class="chat-form">
           <textarea id="chatInput" rows="1" data-i18n-placeholder="coach.chatPlaceholder" placeholder="Ask the coach..." required></textarea>
-          <button type="submit"><span class="material-symbols-outlined">send</span></button>
+          <button type="submit" aria-label="Send message"><span class="material-symbols-outlined">send</span></button>
         </form>
       </div>
     </aside>

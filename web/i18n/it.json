@@ -154,7 +154,9 @@
     "locationUnavailable": "Sede N/D",
     "emptyNoJobs": "Ancora nessun lavoro — fai la prima scansione.",
     "emptyFiltered": "Nessun lavoro con questi filtri.",
-    "loadError": "Impossibile caricare i lavori. Riprova."
+    "loadError": "Impossibile caricare i lavori. Riprova.",
+    "exportEmpty": "Nessun lavoro da esportare.",
+    "deleteAllTitle": "Elimina tutti i lavori"
   },
   "kanbanCols": {
     "open": "Aperto",
@@ -349,7 +351,8 @@
         "remote": "Remoto"
       },
       "advanced": "Filtri avanzati"
-    }
+    },
+    "postScanRenderFailed": "Scansione completata (riepilogo non mostrabile)."
   },
   "toast": {
     "enterKeyOrProvider": "Inserisci almeno una chiave o scegli un provider primario.",
@@ -358,7 +361,7 @@
     "linkedinSaved": "URL LinkedIn salvato. L'IA lo userà nelle analisi future.",
     "manualAdded": "Offerta manuale aggiunta e analizzata.",
     "csvExported": "CSV esportato: {file}",
-    "formFilled": "Form compilato, clicca 'Avvia Scansione' nelle impostazioni",
+    "formFilled": "Form di ricerca compilato — vai su Cerca Lavoro e avvia la scansione.",
     "appMarked": "Candidatura segnata come inviata.",
     "openJobFirst": "Apri prima il dettaglio di un'offerta.",
     "generating": "Generazione in corso (potrebbe richiedere qualche secondo)...",
@@ -404,7 +407,8 @@
     "chatDeleteFailed": "Impossibile eliminare la chat",
     "themeDark": "Tema scuro",
     "themeLight": "Tema chiaro",
-    "languageChanged": "Lingua aggiornata"
+    "languageChanged": "Lingua aggiornata",
+    "exportError": "Esportazione fallita"
   },
   "update": {
     "title": "Nuova versione disponibile",
@@ -455,7 +459,8 @@
     "confirmDeleteSession": "Eliminare questa chat?",
     "unpin": "Rimuovi",
     "pinned": "Fissato nella chat",
-    "pinFailed": "Pin fallito"
+    "pinFailed": "Pin fallito",
+    "noResponse": "Nessuna risposta disponibile."
   },
   "common": {
     "close": "Chiudi",

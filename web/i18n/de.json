@@ -154,7 +154,9 @@
     "locationUnavailable": "Ort k.A.",
     "emptyNoJobs": "Noch keine Jobs — starte deinen ersten Scan.",
     "emptyFiltered": "Keine Jobs für diese Filter.",
-    "loadError": "Jobs konnten nicht geladen werden. Erneut versuchen."
+    "loadError": "Jobs konnten nicht geladen werden. Erneut versuchen.",
+    "exportEmpty": "Keine Jobs zum Exportieren.",
+    "deleteAllTitle": "Alle Jobs löschen"
   },
   "kanbanCols": {
     "open": "Offen",
@@ -349,7 +351,8 @@
         "remote": "Remote"
       },
       "advanced": "Erweiterte Filter"
-    }
+    },
+    "postScanRenderFailed": "Scan fertig (Zusammenfassung nicht darstellbar)."
   },
   "toast": {
     "enterKeyOrProvider": "Gib mindestens einen Schlüssel ein oder wähle einen primären Anbieter.",
@@ -358,7 +361,7 @@
     "linkedinSaved": "LinkedIn-URL gespeichert. KI nutzt sie bei zukünftigen Analysen.",
     "manualAdded": "Manueller Job hinzugefügt und analysiert.",
     "csvExported": "CSV exportiert: {file}",
-    "formFilled": "Formular ausgefüllt, klicke auf 'Scan starten' in den Einstellungen",
+    "formFilled": "Suchformular ausgefüllt — geh zu Jobsuche und starte den Scan.",
     "appMarked": "Bewerbung als gesendet markiert.",
     "openJobFirst": "Öffne zuerst ein Jobdetail.",
     "generating": "Wird generiert (kann einige Sekunden dauern)...",
@@ -404,7 +407,8 @@
     "chatDeleteFailed": "Löschen fehlgeschlagen",
     "themeDark": "Dunkles Design",
     "themeLight": "Helles Design",
-    "languageChanged": "Sprache aktualisiert"
+    "languageChanged": "Sprache aktualisiert",
+    "exportError": "Export fehlgeschlagen"
   },
   "update": {
     "title": "Neue Version verfügbar",
@@ -455,7 +459,8 @@
     "confirmDeleteSession": "Diesen Chat löschen?",
     "unpin": "Lösen",
     "pinned": "An Chat angeheftet",
-    "pinFailed": "Anheften fehlgeschlagen"
+    "pinFailed": "Anheften fehlgeschlagen",
+    "noResponse": "Keine Antwort verfügbar."
   },
   "common": {
     "close": "Schließen",

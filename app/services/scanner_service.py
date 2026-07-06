@@ -1,4 +1,5 @@
 import json
+import math
 import random
 import re
 import time
@@ -73,6 +74,53 @@ def _below_min_salary(max_amount: Any, min_salary: int) -> bool:
     except (TypeError, ValueError):
         return False
     return amount < min_salary
+
+
+def _is_nan(val: Any) -> bool:
+    return isinstance(val, float) and math.isnan(val)
+
+
+def _norm_remote(val: Any) -> bool | None:
+    """Normalize jobspy's ``is_remote`` (True/False/NaN/missing) to bool|None."""
+    if val is None or _is_nan(val):
+        return None
+    return bool(val)
+
+
+def _row_job_type_ok(row: Any, job_types: list[str]) -> bool:
+    """Keep a scraped row when its job_type matches a selected one.
+
+    jobspy takes a single ``job_type``, so multi-select is enforced here (the
+    kwarg only narrows for a single pick). Rows whose type jobspy didn't report
+    are kept — never over-drop on missing data.
+    """
+    selected = {j.lower() for j in job_types if j.lower() in _JOBSPY_JOB_TYPE}
+    if not selected:
+        return True
+    raw = row.get("job_type")
+    if raw is None or _is_nan(raw):
+        return True
+    types = {t.strip().lower() for t in re.split(r"[,\s]+", str(raw)) if t.strip()}
+    return not types or bool(types & selected)
+
+
+def _row_work_mode_ok(row: Any, work_types: list[str]) -> bool:
+    """Best-effort work-mode filter from jobspy's ``is_remote``.
+
+    'hybrid' isn't distinguishable in jobspy output, so any selection including
+    it (or both remote+onsite) keeps everything. Unknown is_remote is kept.
+    """
+    modes = {w.lower() for w in work_types}
+    if not modes or "hybrid" in modes or {"remote", "onsite"} <= modes:
+        return True
+    is_remote = _norm_remote(row.get("is_remote"))
+    if is_remote is None:
+        return True
+    if "remote" in modes:
+        return is_remote
+    if "onsite" in modes:
+        return not is_remote
+    return True
 
 
 def _augment_search_term(term: str, exp_levels: list[str], work_types: list[str]) -> str:
@@ -551,6 +599,15 @@ def run_scan(
                 continue
 
             if _below_min_salary(row.get("max_amount"), min_salary):
+                totale_scartati += 1
+                continue
+
+            # Post-scrape filters for selections jobspy can't honor natively
+            # (multiple job_types, on-site work mode). Missing fields are kept.
+            if not _row_job_type_ok(row, job_types):
+                totale_scartati += 1
+                continue
+            if not _row_work_mode_ok(row, work_types):
                 totale_scartati += 1
                 continue
 

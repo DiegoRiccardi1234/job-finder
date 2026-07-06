@@ -154,7 +154,9 @@
     "locationUnavailable": "Location N/A",
     "emptyNoJobs": "No jobs yet — run your first scan.",
     "emptyFiltered": "No jobs match these filters.",
-    "loadError": "Couldn't load jobs. Try again."
+    "loadError": "Couldn't load jobs. Try again.",
+    "exportEmpty": "No jobs to export.",
+    "deleteAllTitle": "Delete all jobs"
   },
   "kanbanCols": {
     "open": "Open",
@@ -349,7 +351,8 @@
         "remote": "Remote"
       },
       "advanced": "Advanced filters"
-    }
+    },
+    "postScanRenderFailed": "Scan complete (summary couldn't render)."
   },
   "toast": {
     "enterKeyOrProvider": "Enter at least one key or choose a primary provider.",
@@ -358,7 +361,7 @@
     "linkedinSaved": "LinkedIn URL saved. AI will use it in future analyses.",
     "manualAdded": "Manual job added and analyzed.",
     "csvExported": "CSV exported: {file}",
-    "formFilled": "Form filled, click 'Start Scan' in settings",
+    "formFilled": "Search form filled — go to Job Search and start the scan.",
     "appMarked": "Application marked as sent.",
     "openJobFirst": "Open a job detail first.",
     "generating": "Generating (may take a few seconds)...",
@@ -404,7 +407,8 @@
     "chatDeleteFailed": "Could not delete chat",
     "themeDark": "Dark theme",
     "themeLight": "Light theme",
-    "languageChanged": "Language updated"
+    "languageChanged": "Language updated",
+    "exportError": "Export failed"
   },
   "update": {
     "title": "New version available",
@@ -455,7 +459,8 @@
     "confirmDeleteSession": "Delete this chat?",
     "unpin": "Unpin",
     "pinned": "Pinned to chat",
-    "pinFailed": "Pin failed"
+    "pinFailed": "Pin failed",
+    "noResponse": "No response available."
   },
   "common": {
     "close": "Close",

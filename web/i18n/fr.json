@@ -154,7 +154,9 @@
     "locationUnavailable": "Lieu N/D",
     "emptyNoJobs": "Aucune offre — lance ton premier scan.",
     "emptyFiltered": "Aucune offre pour ces filtres.",
-    "loadError": "Impossible de charger les offres. Réessaie."
+    "loadError": "Impossible de charger les offres. Réessaie.",
+    "exportEmpty": "Aucune offre à exporter.",
+    "deleteAllTitle": "Supprimer toutes les offres"
   },
   "kanbanCols": {
     "open": "Ouvert",
@@ -349,7 +351,8 @@
         "remote": "Télétravail"
       },
       "advanced": "Filtres avancés"
-    }
+    },
+    "postScanRenderFailed": "Scan terminé (résumé non affichable)."
   },
   "toast": {
     "enterKeyOrProvider": "Entrez au moins une clé ou choisissez un fournisseur principal.",
@@ -358,7 +361,7 @@
     "linkedinSaved": "URL LinkedIn enregistré. L'IA l'utilisera dans les analyses futures.",
     "manualAdded": "Emploi manuel ajouté et analysé.",
     "csvExported": "CSV exporté : {file}",
-    "formFilled": "Formulaire rempli, cliquez sur 'Lancer le Scan' dans les paramètres",
+    "formFilled": "Formulaire rempli — va sur Recherche d'emploi et lance le scan.",
     "appMarked": "Candidature marquée comme envoyée.",
     "openJobFirst": "Ouvrez d'abord le détail d'un emploi.",
     "generating": "Génération en cours (peut prendre quelques secondes)...",
@@ -404,7 +407,8 @@
     "chatDeleteFailed": "Suppression échouée",
     "themeDark": "Thème sombre",
     "themeLight": "Thème clair",
-    "languageChanged": "Langue mise à jour"
+    "languageChanged": "Langue mise à jour",
+    "exportError": "Échec de l'export"
   },
   "update": {
     "title": "Nouvelle version disponible",
@@ -455,7 +459,8 @@
     "confirmDeleteSession": "Supprimer ce chat ?",
     "unpin": "Détacher",
     "pinned": "Épinglé au chat",
-    "pinFailed": "Échec de l'épinglage"
+    "pinFailed": "Échec de l'épinglage",
+    "noResponse": "Aucune réponse disponible."
   },
   "common": {
     "close": "Fermer",

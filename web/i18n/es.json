@@ -154,7 +154,9 @@
     "locationUnavailable": "Ubicación N/D",
     "emptyNoJobs": "Aún no hay empleos — haz tu primer escaneo.",
     "emptyFiltered": "Ningún empleo coincide con estos filtros.",
-    "loadError": "No se pudieron cargar los empleos. Reinténtalo."
+    "loadError": "No se pudieron cargar los empleos. Reinténtalo.",
+    "exportEmpty": "No hay empleos para exportar.",
+    "deleteAllTitle": "Eliminar todos los empleos"
   },
   "kanbanCols": {
     "open": "Abierto",
@@ -349,7 +351,8 @@
         "remote": "Remoto"
       },
       "advanced": "Filtros avanzados"
-    }
+    },
+    "postScanRenderFailed": "Escaneo completo (resumen no disponible)."
   },
   "toast": {
     "enterKeyOrProvider": "Introduce al menos una clave o elige un proveedor primario.",
@@ -358,7 +361,7 @@
     "linkedinSaved": "URL de LinkedIn guardado. La IA lo usará en futuros análisis.",
     "manualAdded": "Empleo manual añadido y analizado.",
     "csvExported": "CSV exportado: {file}",
-    "formFilled": "Formulario completado, haz clic en 'Iniciar Escaneo' en ajustes",
+    "formFilled": "Formulario rellenado — ve a Buscar Empleo e inicia el escaneo.",
     "appMarked": "Candidatura marcada como enviada.",
     "openJobFirst": "Abre primero el detalle de un empleo.",
     "generating": "Generando (puede tardar unos segundos)...",
@@ -404,7 +407,8 @@
     "chatDeleteFailed": "No se pudo eliminar",
     "themeDark": "Tema oscuro",
     "themeLight": "Tema claro",
-    "languageChanged": "Idioma actualizado"
+    "languageChanged": "Idioma actualizado",
+    "exportError": "Error de exportación"
   },
   "update": {
     "title": "Nueva versión disponible",
@@ -455,7 +459,8 @@
     "confirmDeleteSession": "¿Eliminar este chat?",
     "unpin": "Quitar",
     "pinned": "Fijado al chat",
-    "pinFailed": "Fallo al fijar"
+    "pinFailed": "Fallo al fijar",
+    "noResponse": "Sin respuesta disponible."
   },
   "common": {
     "close": "Cerrar",

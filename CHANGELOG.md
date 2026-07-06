@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-07-06
+
+Polish & fix pass: working scan filters, dark-mode fixes, dead-code cleanup, accessibility.
+
+### Fixed
+- **Scan filters now actually filter** — "On-site" work mode and multiple contract types were silently ignored (same class as the Remote-filter bug); results are filtered after scraping, keeping listings whose data the source didn't report. (Experience "Mid" stays a neutral no-narrow.)
+- **The Coach's "fill the scan form" action** now takes you to Job Search — where the form actually is — instead of Settings, and the message says so.
+- **Chat opened the wrong conversation on startup** — it now loads the last-active session, matching the dropdown, so replies go to the session you see.
+- **Chat suggestion chips** disappear once you send a message and reappear on a fresh or emptied chat.
+- **CSV export** shows an error toast instead of failing silently (e.g. when there are no jobs to export).
+- **Switching the active profile** now refreshes recommendations, analytics, and skill-gap instead of leaving stale data.
+- **Dark mode** — the Info tab, the post-scan summary, and the advanced-filters panel were hardcoded light and looked broken in dark theme; they now follow the theme. Brand purples, match-score colours, status pills, and destructive red were consolidated onto theme tokens so everything adapts in both light and dark.
+
+### Changed
+- **Accessibility** — visible keyboard-focus rings on all controls, `aria-label`s on icon-only buttons and the dashboard charts, press feedback, and a global uncaught-error handler.
+- **Dead code removed** — unused CSS blocks and variables, an orphaned "Save draft" button, and no-op JavaScript were deleted.
+
 ## [1.5.2] — 2026-07-06
 
 Adds a way to close the windowless app, and fixes how jobs are shown on the dashboard.

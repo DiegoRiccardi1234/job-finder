@@ -36,6 +36,10 @@ import {
   setProviderDeps,
 } from "./modules/providers.js";
 
+// Global safety nets: surface otherwise-silent async failures in the console.
+window.addEventListener("unhandledrejection", (e) => console.error("Unhandled promise rejection:", e.reason));
+window.addEventListener("error", (e) => console.error("Uncaught error:", e.error || e.message));
+
 initTheme();
 
 // Inject core refresh callbacks the provider module needs after a key save
@@ -128,6 +132,8 @@ async function addRolesToShortlist(keywords, label) {
 function appendChat(role, content, extras) {
   const box = document.getElementById("chatBox");
   if (!box) return;
+  // A real message means the empty-state suggestion chips must go.
+  clearChatEmptyState();
 
   const item = document.createElement("div");
   item.className = `chat-item ${role}`;
@@ -252,10 +258,6 @@ async function loadHealth() {
   setText("keysStatus", JSON.stringify(status, null, 2));
 }
 
-function setKeysSectionMode(_configured, _forceExpanded = false) {
-  /* no-op: provider cards manage their own state */
-}
-
 async function loadKeysStatus() {
   const payload = await api("/api/providers/keys/status");
   const keys = payload.keys || {};
@@ -265,10 +267,6 @@ async function loadKeysStatus() {
   updateProvidersMetadata(provider, keys.preferred_model || "");
   renderProviderCards(keys, provider);
   setText("keysStatus", JSON.stringify(status, null, 2));
-}
-
-async function saveKeys() {
-  /* legacy entry point — replaced by per-card onSaveProviderKey */
 }
 
 async function loadProfiles() {
@@ -294,6 +292,8 @@ async function activateProfile(profileId) {
   if (!profileId) return;
   await api(`/api/profiles/${profileId}/activate`, { method: "POST" });
   showToast(t("toast.profileActive", { id: profileId }), "info");
+  // Refresh the views that depend on the active profile so they don't go stale.
+  await Promise.allSettled([loadRecommendations(), loadAnalytics(), loadSkillGap()]);
 }
 
 let _matchRadarChart = null;
@@ -675,7 +675,7 @@ async function sendChatMessage(message) {
   if (chatBox) {
     pendingEl = document.createElement("div");
     pendingEl.className = "chat-item assistant pending";
-    pendingEl.innerHTML = '<div class="role">AI</div><div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+    pendingEl.innerHTML = `<div class="role">${roleLabel("assistant")}</div><div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
     chatBox.appendChild(pendingEl);
     chatBox.scrollTop = chatBox.scrollHeight;
   }
@@ -693,7 +693,7 @@ async function sendChatMessage(message) {
 
     maybeOfferPersistChatOverride(providerVal, modelVal);
     if (pendingEl && pendingEl.parentNode) pendingEl.parentNode.removeChild(pendingEl);
-    appendChat("assistant", result.answer || "No response available.", { suggested_roles: result.suggested_roles, degraded: result.degraded === true });
+    appendChat("assistant", result.answer || t("chat.noResponse"), { suggested_roles: result.suggested_roles, degraded: result.degraded === true });
     if (typeof refreshChatSessions === "function") {
       refreshChatSessions().then(renderChatSessionDropdown).catch(() => {});
     }
@@ -707,7 +707,7 @@ async function sendChatMessage(message) {
          const locTags = getLocations.addMultiple(result.action.locations || []);
          if (kwTags || locTags) {
            showToast(t("toast.formFilled"), "info");
-           activateView("settings");
+           activateView("job-search");
          }
       }
     }
@@ -1266,7 +1266,7 @@ document.getElementById("scanForm").addEventListener("submit", async (event) => 
             showPostScanModal(completeData, completeTops);
           } catch (err) {
             console.error("post-scan modal failed:", err);
-            showToast("Scan complete (post-scan summary failed to render)", "info");
+            showToast(t("scan.postScanRenderFailed"), "info");
           }
         }, 600);
         Promise.all([loadJobs(), loadRecommendations()]);
@@ -1522,8 +1522,14 @@ document.getElementById("profileSelect").addEventListener("change", async (event
 });
 
 document.getElementById("exportCsvBtn").addEventListener("click", async () => {
-  const result = await api("/api/export/csv", { method: "POST" });
-  showToast(t("toast.csvExported", { file: result.file }), "info");
+  try {
+    const result = await api("/api/export/csv", { method: "POST" });
+    showToast(t("toast.csvExported", { file: result.file }), "info");
+  } catch (error) {
+    const empty = /\b400\b|no jobs/i.test(error.message || "");
+    const msg = empty ? t("jobs.exportEmpty") : `${t("toast.exportError")}: ${error.message}`;
+    showToast(msg, "info");
+  }
 });
 
 document.getElementById("deleteAllJobsBtn").addEventListener("click", async () => {
@@ -1549,9 +1555,10 @@ async function bootstrap() {
   await loadSchedulerStatus();
   await loadChatPrompts();
   // i18n is ready here, so the session dropdown / empty-state get localised
-  // labels (no boot race). Sessions first: history loads the active one.
+  // labels (no boot race). Sessions first: history loads the ACTIVE one
+  // (not hardcoded "default"), so the panel matches the restored session.
   await initChatSessions().catch((e) => console.error("initChatSessions failed:", e));
-  await loadChatHistory();
+  await reloadChatHistoryForActive();
   // Shows only if the conversation is empty, with localised suggestion labels.
   renderChatEmptyState();
 }
@@ -1647,7 +1654,6 @@ function setupTagInput(containerId, inputId) {
 const getKeywords = setupTagInput('keywordsContainer', 'keywordsInput');
 const getLocations = setupTagInput('locationsContainer', 'locationsInput');
 window.getKeywords = getKeywords;
-window.getLocations = getLocations;
 
 async function loadRoleShortlist() {
   const roles = await _loadShortlistApi();
@@ -1690,14 +1696,6 @@ function clearChatEmptyState() {
   const box = document.getElementById('chatBox');
   const empty = box && box.querySelector('.chat-empty');
   if (empty) empty.remove();
-}
-
-const _origAppendChat = typeof appendChat === 'function' ? appendChat : null;
-if (_origAppendChat) {
-  window.appendChat = function (role, content) {
-    clearChatEmptyState();
-    return _origAppendChat(role, content);
-  };
 }
 
 async function showFirstTimeTutorial() {
@@ -1829,7 +1827,6 @@ window.addEventListener('load', () => {
   // Defer tutorial to let dashboard render first.
   setTimeout(showFirstTimeTutorial, 800);
   wirePostScanModal();
-  wireInfoTab();
   wireOnboardingPlaceholder();
   refreshOnboardingPlaceholder().catch(() => {});
   refreshPinnedStrip().catch(() => {});
@@ -1952,6 +1949,7 @@ function wireChatSessionUI() {
           renderChatSessionDropdown();
           const box = document.getElementById("chatBox");
           if (box) box.innerHTML = "";
+          renderChatEmptyState();
           await refreshPinnedStrip();
           showToast(t("toast.chatCreated") || "New chat created", "info");
         }
@@ -2039,19 +2037,6 @@ async function pinJobToActiveSession(jobId) {
     showToast(`${t("chat.pinFailed") || "Pin failed"}: ${err.message}`, "error");
   }
 }
-window.pinJobToActiveSession = pinJobToActiveSession;
-
-/* =============================================================== */
-/* v1.3.0: Info tab wiring                                          */
-/* =============================================================== */
-
-function wireInfoTab() {
-  document.querySelectorAll('[data-view="info"]').forEach((btn) => {
-    btn.addEventListener("click", () => {
-      try { activateView("info"); } catch (_) {}
-    });
-  });
-}
 
 /* =============================================================== */
 /* v1.3.0: Onboarding placeholder                                   */
@@ -2094,7 +2079,6 @@ async function ensureProviderConfigured() {
   } catch (_) {}
   return false;
 }
-window.ensureProviderConfigured = ensureProviderConfigured;
 
 function wireOnboardingPlaceholder() {
   document.querySelectorAll("#onboardingPlaceholder [data-onb-action]").forEach((btn) => {

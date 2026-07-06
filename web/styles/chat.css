@@ -355,7 +355,7 @@
 .progress-fill {
   height: 100%;
   width: 5%;
-  background: linear-gradient(90deg, var(--accent), #8b85ff);
+  background: linear-gradient(90deg, var(--accent), var(--accent));
   border-radius: 999px;
   transition: width 0.3s ease;
 }
@@ -436,11 +436,3 @@
   border-radius: 6px;
 }
 .no-key-banner-link--primary:hover { filter: brightness(1.1); }
-.no-key-banner-close {
-  background: transparent;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 18px;
-  padding: 0 4px;
-}
