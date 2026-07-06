@@ -77,6 +77,12 @@ class ChatResponse(BaseModel):
     updated_preferences: dict[str, Any] = Field(default_factory=dict)
     action: dict[str, Any] | None = None
     suggested_roles: list[dict[str, Any]] = Field(default_factory=list)
+    # ``chat_state`` (str from get_chat_state) and ``degraded`` (True when the
+    # answer is the rule-based fallback, not a real LLM reply) are returned by
+    # handle_chat_message; declare them so ChatResponse(**result) doesn't drop
+    # them and the frontend can render the "degraded" indicator.
+    chat_state: str = ""
+    degraded: bool = False
 
 
 class RoleShortlistRequest(BaseModel):

@@ -102,9 +102,13 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
         score += _weight(policy, "preview_penalty", -50)
 
     # OpenRouter free tier suffix: prefer ":free" so users can start without
-    # paying. Free variants share the same underlying weights but win ties.
+    # paying, but only as a tie-breaker among equivalent models — a +25 bonus
+    # used to hoist a rate-limited free model over a clearly better different
+    # one, feeding the 429 storms. +5 still wins genuine ties (same base model,
+    # free vs paid) without overriding a meaningfully stronger option; true
+    # de-ranking of a model after repeated 429s is handled by request failover.
     if name.endswith(":free"):
-        score += _weight(policy, "free_bonus", 25)
+        score += _weight(policy, "free_bonus", 5)
 
     max_cost_tier = str((policy or {}).get("max_cost_tier", "high")).lower()
     if max_cost_tier in {"low", "medium"} and size_b >= 70:

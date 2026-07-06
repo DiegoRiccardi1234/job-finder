@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-07-06
+
+Self-update reliability, a windowless build, per-request provider failover, and audit fixes.
+
+### Fixed
+- **Self-update no longer hangs at "Restart 95%"** — the bundle was built as a console app but relaunched by the updater with no console, so its first startup write hit a dead output handle and the new process died before it could serve, leaving the modal stuck forever. The app is now windowed and hardens its output streams on startup, so the relaunch always comes up. (Updating from 1.5.0 is unaffected: the new build also survives the already-installed old updater's relaunch.)
+- **The update modal had no way out on failure** — if the new version never answered it sat at 95% for 10 minutes, then printed an English "refresh the page" hint that couldn't help. It now times out sooner into an explicit error state with an "open logs" action and a translated "reopen Job Finder manually" message, and reloads correctly even on fast machines that finish the swap between health checks.
+- **The "reduced answer" chat indicator never rendered** — the `degraded` flag was dropped by the response model, so a canned fallback looked identical to a real LLM reply. It now reaches the UI.
+- **A CV upload could freeze the whole app for minutes** — parsing/OCR and the LLM summary ran on the event loop; they now run off it, and the summary no longer retries five times around an already-retrying call (worst case dropped from ~15 min to one bounded attempt).
+- **Broken secondary-text colour** — a dozen styles referenced an undefined CSS variable, rendering "muted" text at full strength; pointed at the real token.
+
+### Added
+- **No terminal window** — the app runs windowed; no console flashes on launch or auto-update.
+- **Per-request provider failover** — when the active provider is rate-limited or down, chat and analysis now try the other configured providers before falling back to the offline reply; a key that returns 401 mid-session is now flagged, not just at startup.
+
+### Changed
+- **Auto model selection de-emphasises the free tier** — the `:free` bonus is now a tie-breaker instead of a large boost, so a rate-limited free model is less likely to be auto-picked over a better one.
+- **Update lock TTL raised to 180s** so a slow download can't let a second updater start mid-update.
+
 ## [1.5.0] — 2026-07-03
 
 Major release: hardened LLM provider selection, four new providers, automatic cache-busting, a rewritten CV parser, smarter chat, and job-search + settings UX upgrades.

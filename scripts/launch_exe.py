@@ -19,6 +19,49 @@ PORT = int(os.environ.get("PORT", "8000"))
 URL = f"http://{HOST}:{PORT}"
 
 
+def _stream_ok(stream: object) -> bool:
+    """True when ``stream`` can be written to without raising.
+
+    ``None`` (a windowed build's streams) is not ok. A real stream whose OS
+    handle is dead — a ``console=True`` exe relaunched with ``DETACHED_PROCESS``
+    keeps a valid ``fileno()`` but its handle is invalid, so ``os.fstat`` fails —
+    is not ok. A stream with no OS ``fileno`` (``StringIO``, pytest capture) has
+    no handle to be invalid, so it is fine and must be left alone.
+    """
+    if stream is None:
+        return False
+    fileno = getattr(stream, "fileno", None)
+    if fileno is None:
+        return True
+    try:
+        fd = fileno()
+    except Exception:
+        return True
+    try:
+        os.fstat(fd)
+    except OSError:
+        return False
+    return True
+
+
+def _harden_stdio() -> None:
+    """Rebind broken stdout/stderr to os.devnull so a startup write can't crash.
+
+    The frozen JobFinder ships ``console=False`` (no terminal, ever). Launched
+    without a valid console — a windowed double-click yields ``None`` streams,
+    and any leftover console spawned ``DETACHED_PROCESS`` yields dead handles —
+    the first ``print``/uvicorn log write would raise ``OSError`` and kill the
+    process before uvicorn binds the port (the "Restart 95%" hang). Redirect to
+    devnull; real app events still reach ``data/logs/app.log`` via the file
+    handler in ``app.log.configure_logging``.
+    """
+    for name in ("stdout", "stderr"):
+        if not _stream_ok(getattr(sys, name, None)):
+            # Intentionally long-lived: this sink replaces the process stream for
+            # the whole run, so no context manager. noqa: SIM115.
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))  # noqa: SIM115
+
+
 def _resolve_workspace() -> Path:
     """Return the dir where the user's data/, .env, settings live.
 
@@ -43,6 +86,7 @@ def _open_browser_when_ready() -> None:
 
 
 def main() -> int:
+    _harden_stdio()
     workspace = _resolve_workspace()
     (workspace / "data").mkdir(parents=True, exist_ok=True)
 

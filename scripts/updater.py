@@ -212,14 +212,15 @@ def main() -> int:
             exe = install_dir / "JobFinder.exe"
             log(f"restarting {exe}")
             event("restart_spawned", exe=str(exe))
-            # Detach the new JobFinder.exe so it survives Updater.exe exit.
-            # Without DETACHED_PROCESS the child inherits Updater's console;
-            # when Updater returns the console closes and the just-spawned
-            # JobFinder dies with it, leaving the user with no app and a
-            # frontend modal stuck at "Restart 95%" forever.
+            # Relaunch the new JobFinder.exe with no window. It is built
+            # console=False (JobFinder.spec), so CREATE_NO_WINDOW gives it a
+            # valid (hidden) console — live stdio handles, no terminal, and a
+            # lifetime independent of this Updater. The old DETACHED_PROCESS
+            # left a console child with invalid stdout handles that died on its
+            # first startup write, hanging the frontend at "Restart 95%".
             restart_flags = 0
             if sys.platform == "win32":
-                restart_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                restart_flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
             subprocess.Popen(
                 [str(exe)],
                 cwd=str(install_dir),

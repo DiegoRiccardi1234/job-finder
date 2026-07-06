@@ -405,6 +405,20 @@
     },
     "modal": {
       "viewLogs": "Apri cartella log per dettagli"
+    },
+    "status": {
+      "spawned": "Updater avviato: {from} → {to}",
+      "elapsed": "Tempo trascorso: {sec}s",
+      "reachable": "Nuova app raggiungibile (v{version}). Ricaricamento…",
+      "devRunning": "Aggiornamento in corso (git pull + pip install)… attendere.",
+      "devRestartHint": "Riavvia l'app per caricare la nuova versione."
+    },
+    "error": {
+      "generic": "ERRORE: {message}",
+      "failedStart": "Avvio aggiornamento non riuscito: {message}",
+      "alreadyInProgress": "Aggiornamento già in corso (avviato {sec}s fa). Attendi, o riavvia Job Finder se sembra bloccato.",
+      "updaterError": "Errore updater: {message}",
+      "didNotStart": "Job Finder non si è ancora riavviato da solo. Se questa finestra resta qui, chiudila e riapri Job Finder manualmente, poi controlla la versione. Apri i log qui sotto se ti servono dettagli."
     }
   },
   "chat": {

@@ -100,7 +100,7 @@ async function runUpdate(info) {
 }
 
 async function runDevUpdate(log) {
-  log.textContent = "Running update (git pull + pip install)... please wait.\n";
+  log.textContent = t("update.status.devRunning") + "\n";
   try {
     const result = await api("/api/update", { method: "POST" });
     log.textContent = `${result.message}\n\n`;
@@ -108,10 +108,10 @@ async function runDevUpdate(log) {
       log.textContent += `=== ${step.step} (exit ${step.code}) ===\n${step.output}\n\n`;
     }
     if (result.ok) {
-      log.textContent += "\n→ Restart the app to load the new version.";
+      log.textContent += "\n→ " + t("update.status.devRestartHint");
     }
   } catch (err) {
-    log.textContent += `\nFAILED: ${err.message}`;
+    log.textContent += "\n" + t("update.error.generic", { message: err.message });
   }
 }
 
@@ -154,6 +154,7 @@ function setUpdateStep(stepName, state, percent) {
 async function runBundleUpdate(log) {
   setUpdateStep("download", "active");
   log.textContent = "";
+  let targetVersion = "";
   try {
     const r = await fetch("/api/update/start", { method: "POST" });
     if (!r.ok) {
@@ -161,19 +162,21 @@ async function runBundleUpdate(log) {
       const detail = err.detail;
       let msg;
       if (detail && typeof detail === "object" && detail.code === "update_already_in_progress") {
-        msg = `Update already in progress (started ${detail.lock_age_s}s ago). Wait or restart Job Finder if it seems stuck.`;
+        msg = t("update.error.alreadyInProgress", { sec: detail.lock_age_s });
       } else {
         msg = typeof detail === "string" ? detail : JSON.stringify(detail || r.status);
       }
-      log.textContent = `FAILED to start update: ${msg}`;
+      log.textContent = t("update.error.failedStart", { message: msg });
       setUpdateStep("download", "error");
       localStorage.removeItem("updateInProgress");
       return;
     }
     const data = await r.json();
-    log.textContent = `Updater spawned: ${data.from_version} → ${data.next_version}\n`;
+    targetVersion = data.next_version || "";
+    log.textContent =
+      t("update.status.spawned", { from: data.from_version, to: data.next_version }) + "\n";
   } catch (err) {
-    log.textContent = `FAILED: ${err.message}`;
+    log.textContent = t("update.error.generic", { message: err.message });
     setUpdateStep("download", "error");
     return;
   }
@@ -194,7 +197,8 @@ async function runBundleUpdate(log) {
       }
       if (p.step === "error") {
         setUpdateStep("download", "error");
-        log.textContent += `\nUpdater error: ${(p.details && p.details.message) || "unknown"}`;
+        log.textContent +=
+          "\n" + t("update.error.updaterError", { message: (p.details && p.details.message) || "unknown" });
         return;
       }
       if (p.step) setUpdateStep(p.step, "active", p.percent);
@@ -204,12 +208,14 @@ async function runBundleUpdate(log) {
   }
   setUpdateStep("restart", "active", 95);
 
-  // Poll /api/health until the new process is up. Expect a window
-  // (~5–60 s) where the request fails because the app is being replaced.
-  // Deadline 10 min covers slow GitHub downloads (175 MB at 1 MB/s = ~3 min)
-  // plus extract + sync + restart on cold Windows machines.
+  // Poll /api/health until the new process is up. Expect a window where the
+  // request fails because the old app exited and the new one isn't serving yet
+  // (download + extract + sync + relaunch). We can't tell "still downloading"
+  // from "relaunch crashed" while nothing serves HTTP, so the deadline stays
+  // generous (5 min covers a slow ~175 MB download) but on expiry we surface an
+  // honest error state + the open-logs link instead of hanging forever.
   const startedAt = Date.now();
-  const deadline = startedAt + 600_000;
+  const deadline = startedAt + 300_000;
   let outageObserved = false;
   let elapsedLine = "";
   while (Date.now() < deadline) {
@@ -218,17 +224,22 @@ async function runBundleUpdate(log) {
     if (elapsedLine) {
       log.textContent = log.textContent.slice(0, -elapsedLine.length);
     }
-    elapsedLine = `Elapsed: ${elapsedSec}s`;
+    elapsedLine = t("update.status.elapsed", { sec: elapsedSec });
     log.textContent += elapsedLine;
     try {
       const h = await fetch("/api/health", { cache: "no-store" });
       if (!h.ok) throw new Error(String(h.status));
       const json = await h.json();
       const ver = (json.version_info && json.version_info.current) || (json.version || "");
-      if (outageObserved) {
+      // Reload when the app is back after an observed outage, OR when it already
+      // reports the target version — a fast machine can finish the swap between
+      // two polls without a single failed request (outageObserved stays false).
+      const reachedTarget =
+        ver && targetVersion && normalizeVer(ver) === normalizeVer(targetVersion);
+      if (outageObserved || reachedTarget) {
         setUpdateStep("restart", "done", 100);
         log.textContent = log.textContent.slice(0, -elapsedLine.length);
-        log.textContent += `New app reachable (v${ver}). Reloading...`;
+        log.textContent += t("update.status.reachable", { version: ver });
         localStorage.removeItem("updateInProgress");
         setTimeout(() => window.location.reload(), 1500);
         return;
@@ -238,7 +249,13 @@ async function runBundleUpdate(log) {
       outageObserved = true;
     }
   }
-  log.textContent += "\nTimed out waiting for the new version. Try refreshing this page in a minute.";
+  // Timed out with no server back. Flip to an explicit error (this also surfaces
+  // the open-logs link via setUpdateStep) and hide the "will auto-reload" hint
+  // so we stop telling the user to keep waiting.
+  setUpdateStep("restart", "error");
+  const hint = document.getElementById("updateModalHint");
+  if (hint) hint.classList.add("hidden");
+  log.textContent += "\n\n" + t("update.error.didNotStart");
   localStorage.removeItem("updateInProgress");
 }
 
@@ -321,6 +338,13 @@ export function showPostScanModal(summary, topJobs) {
     }
   }
   modal.classList.remove("hidden");
+}
+
+function normalizeVer(s) {
+  // "v1.5.0" and "1.5.0" compare equal; trims stray whitespace.
+  return String(s || "")
+    .replace(/^v/i, "")
+    .trim();
 }
 
 function escapeHtmlSafe(s) {

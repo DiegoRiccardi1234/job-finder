@@ -361,3 +361,26 @@ def test_llm_summary_language_defaults_to_english() -> None:
     assert "in English" in manager.prompt
     summarize_profile_with_llm(_JUNIOR_CV, manager, language="xx")
     assert "in English" in manager.prompt
+
+
+class _FailingManager:
+    """complete_json always raises — simulates a provider that keeps 429ing."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def complete_json(self, prompt: str, max_tokens: int = 600) -> dict:
+        self.calls += 1
+        raise Exception("429 rate limit")
+
+
+def test_llm_summary_calls_provider_once_then_heuristic(monkeypatch) -> None:
+    """No outer retry amplification: complete_json (which now retries and fails
+    over internally) is called exactly once; on failure we fall back to the
+    heuristic instead of looping 5x with long sleeps."""
+    monkeypatch.setattr("time.sleep", lambda *_a, **_k: None)
+    mgr = _FailingManager()
+    result = summarize_profile_with_llm(_JUNIOR_CV, mgr)
+    assert mgr.calls == 1
+    assert isinstance(result, dict)
+    assert result.get("experience_level")

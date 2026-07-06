@@ -405,6 +405,20 @@
     },
     "modal": {
       "viewLogs": "Open logs folder for details"
+    },
+    "status": {
+      "spawned": "Updater spawned: {from} → {to}",
+      "elapsed": "Elapsed: {sec}s",
+      "reachable": "New app reachable (v{version}). Reloading…",
+      "devRunning": "Running update (git pull + pip install)… please wait.",
+      "devRestartHint": "Restart the app to load the new version."
+    },
+    "error": {
+      "generic": "FAILED: {message}",
+      "failedStart": "Failed to start update: {message}",
+      "alreadyInProgress": "Update already in progress (started {sec}s ago). Wait, or restart Job Finder if it seems stuck.",
+      "updaterError": "Updater error: {message}",
+      "didNotStart": "Job Finder hasn't restarted on its own yet. If this window stays here, close it and reopen Job Finder manually, then check the version. Open the logs below if you need details."
     }
   },
   "chat": {

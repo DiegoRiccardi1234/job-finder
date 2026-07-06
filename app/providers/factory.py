@@ -1,3 +1,4 @@
+import functools
 import os as _os
 import random as _random
 import threading
@@ -8,7 +9,7 @@ from typing import Any, TypeVar
 from app.config import AppSettings
 from app.log import get_logger
 from app.providers.anthropic_provider import AnthropicProvider
-from app.providers.base import LLMProvider
+from app.providers.base import LLMProvider, is_unauthorized
 from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
@@ -259,6 +260,97 @@ class ProviderManager:
         except Exception as exc:
             log.debug("usage record skipped: %s", exc)
 
+    def _model_for(self, provider: LLMProvider) -> str:
+        """A model to use on a failover provider (cheap, no commit to active_*)."""
+        try:
+            return provider.select_model(preferred_model=self.settings.preferred_model)
+        except Exception:
+            return self.settings.preferred_model or self.active_model
+
+    def _failover_candidates(
+        self, explicit_provider: str | None, explicit_model: str | None
+    ) -> list[tuple[LLMProvider, str]]:
+        """Ordered ``[(provider, model)]`` to attempt for one request.
+
+        An explicit provider request is honored as-is (no failover). Otherwise
+        the active provider goes first, then the remaining available,
+        non-``key_invalid`` providers in ``llm_provider_order`` — so a
+        rate-limited or down primary fails over to a working key instead of
+        dropping straight to the canned fallback.
+        """
+        if explicit_provider:
+            provider = self.providers.get(explicit_provider)
+            if provider is None:
+                return []
+            return [(provider, explicit_model or self.active_model)]
+
+        candidates: list[tuple[LLMProvider, str]] = []
+        seen: set[str] = set()
+        if self.active_provider is not None:
+            candidates.append((self.active_provider, explicit_model or self.active_model))
+            seen.add(self.active_provider.name)
+        for name in self.settings.llm_provider_order:
+            if name in seen:
+                continue
+            provider = self.providers.get(name)
+            if provider is None:
+                continue
+            try:
+                usable = provider.is_available() and not getattr(provider, "key_invalid", False)
+            except Exception:
+                usable = False
+            if not usable:
+                continue
+            candidates.append((provider, self._model_for(provider)))
+            seen.add(name)
+        return candidates
+
+    def _maybe_flag_key_invalid(self, provider: LLMProvider, exc: Exception) -> None:
+        """Flag a provider whose key just 401'd during a live call.
+
+        Previously only ``list_models`` set this, so a key that went bad after
+        startup kept the provider "healthy" in the UI while every chat silently
+        degraded. Flagging here makes the invalid-key warning surface and lets
+        failover skip it next time.
+        """
+        if is_unauthorized(exc) and not getattr(provider, "key_invalid", False):
+            provider.key_invalid = True
+            log.warning("Provider %s key marked invalid (401) during live call.", provider.name)
+
+    def _run_with_failover(
+        self,
+        *,
+        endpoint: str,
+        explicit_provider: str | None,
+        explicit_model: str | None,
+        call: Callable[[LLMProvider, str], _RetryT],
+    ) -> _RetryT:
+        candidates = self._failover_candidates(explicit_provider, explicit_model)
+        if not candidates:
+            raise RuntimeError("No LLM provider available")
+        last_exc: Exception | None = None
+        for idx, (provider, model) in enumerate(candidates):
+            try:
+                result = _with_retry(
+                    functools.partial(call, provider, model),
+                    provider_label=provider.name,
+                )
+            except Exception as exc:
+                last_exc = exc
+                self._maybe_flag_key_invalid(provider, exc)
+                self._record_call(provider, model, endpoint, False, type(exc).__name__)
+                if idx < len(candidates) - 1:
+                    log.warning(
+                        "Provider %s failed (%s); failing over to next provider.",
+                        provider.name,
+                        exc.__class__.__name__,
+                    )
+                continue
+            self._record_call(provider, model, endpoint, True)
+            return result
+        assert last_exc is not None
+        raise last_exc
+
     def complete_json(
         self,
         prompt: str,
@@ -266,22 +358,12 @@ class ProviderManager:
         provider_name: str | None = None,
         model_name: str | None = None,
     ) -> dict[str, Any]:
-        provider = self.providers.get(provider_name) if provider_name else self.active_provider
-        active_model = model_name if model_name else self.active_model
-        if not provider:
-            raise RuntimeError("No LLM provider available")
-        try:
-            result = _with_retry(
-                lambda: provider.complete_json(
-                    prompt=prompt, model=active_model, max_tokens=max_tokens
-                ),
-                provider_label=provider_name or self.active_provider_name or "unknown",
-            )
-        except Exception as exc:
-            self._record_call(provider, active_model, "complete_json", False, type(exc).__name__)
-            raise
-        self._record_call(provider, active_model, "complete_json", True)
-        return result
+        return self._run_with_failover(
+            endpoint="complete_json",
+            explicit_provider=provider_name,
+            explicit_model=model_name,
+            call=lambda p, m: p.complete_json(prompt=prompt, model=m, max_tokens=max_tokens),
+        )
 
     def chat(
         self,
@@ -290,20 +372,12 @@ class ProviderManager:
         provider_name: str | None = None,
         model_name: str | None = None,
     ) -> str:
-        provider = self.providers.get(provider_name) if provider_name else self.active_provider
-        active_model = model_name if model_name else self.active_model
-        if not provider:
-            raise RuntimeError("No LLM provider available")
-        try:
-            result = _with_retry(
-                lambda: provider.chat(messages=messages, model=active_model, max_tokens=max_tokens),
-                provider_label=provider_name or self.active_provider_name or "unknown",
-            )
-        except Exception as exc:
-            self._record_call(provider, active_model, "chat", False, type(exc).__name__)
-            raise
-        self._record_call(provider, active_model, "chat", True)
-        return result
+        return self._run_with_failover(
+            endpoint="chat",
+            explicit_provider=provider_name,
+            explicit_model=model_name,
+            call=lambda p, m: p.chat(messages=messages, model=m, max_tokens=max_tokens),
+        )
 
 
 # ─── Retry helper ──────────────────────────────────────────────

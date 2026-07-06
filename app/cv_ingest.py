@@ -668,9 +668,10 @@ def summarize_profile_with_llm(
 
     ``language`` is the UI locale code (en/it/es/fr/de): narrative fields
     (summary, strengths, industries, education) are written in that language.
-    Retries up to 5 times with longer waits (3s, 5s, 7s, 9s) on transient
-    errors like 429 rate-limits. Calls ``on_retry(attempt, wait_seconds, exc)``
-    between attempts, if provided, so the caller can stream progress events.
+    Makes a single ``complete_json`` call — that method already owns
+    transient-error retry (429/5xx) and cross-provider failover, so no outer
+    retry loop here (the old 5x loop could balloon one upload to ~15 min).
+    ``on_retry`` is accepted for backward compatibility but no longer fires.
     """
     language_name = _SUMMARY_LANGUAGES.get((language or "en").lower()[:2], "English")
     prompt = (
@@ -698,44 +699,20 @@ def summarize_profile_with_llm(
         "technology names or job titles).\n\n"
         f"CV Content:\n{markdown_text[:3000]}"
     )
-    import time as _time
-
-    delays = [3.0, 5.0, 7.0, 9.0]
-    last_exc: Exception | None = None
-    for attempt in range(1, 1 + len(delays) + 1):
-        try:
-            result = provider_manager.complete_json(prompt=prompt, max_tokens=600)
-            if isinstance(result, dict):
-                heuristic = summarize_profile(markdown_text)
-                # Merge LLM output with heuristic-derived fields so years_experience
-                # and experience_level always have a sensible fallback.
-                heuristic.update({k: v for k, v in result.items() if v not in (None, "", [])})
-                # Re-apply the recent-graduate bias after the merge: the LLM may
-                # answer "entry", but a graduate reads as "junior" on both paths.
-                if heuristic.get("experience_level") == "entry" and _DEGREE_LINE_RE.search(
-                    markdown_text
-                ):
-                    heuristic["experience_level"] = "junior"
-                return heuristic
-        except Exception as exc:
-            last_exc = exc
-            if attempt > len(delays):
-                break
-            wait = delays[attempt - 1]
-            log.warning(
-                "LLM CV summarization attempt %d/%d failed (%s); retrying in %.1fs",
-                attempt,
-                len(delays) + 1,
-                exc.__class__.__name__,
-                wait,
-            )
-            if callable(on_retry):
-                import contextlib
-
-                with contextlib.suppress(Exception):
-                    on_retry(attempt, wait, exc)
-            _time.sleep(wait)
-
-    if last_exc is not None:
-        log.warning("LLM CV summarization gave up after retries; using heuristic: %s", last_exc)
+    try:
+        result = provider_manager.complete_json(prompt=prompt, max_tokens=600)
+        if isinstance(result, dict):
+            heuristic = summarize_profile(markdown_text)
+            # Merge LLM output with heuristic-derived fields so years_experience
+            # and experience_level always have a sensible fallback.
+            heuristic.update({k: v for k, v in result.items() if v not in (None, "", [])})
+            # Re-apply the recent-graduate bias after the merge: the LLM may
+            # answer "entry", but a graduate reads as "junior" on both paths.
+            if heuristic.get("experience_level") == "entry" and _DEGREE_LINE_RE.search(
+                markdown_text
+            ):
+                heuristic["experience_level"] = "junior"
+            return heuristic
+    except Exception as exc:
+        log.warning("LLM CV summarization failed; using heuristic: %s", exc)
     return summarize_profile(markdown_text)

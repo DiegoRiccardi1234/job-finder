@@ -101,7 +101,12 @@ exe_main = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    # Windowed: no terminal window ever (manual double-click OR updater
+    # relaunch). This also removes the self-update crash — a console exe
+    # relaunched DETACHED had invalid stdout handles and died on the first
+    # startup write. With console=False the streams are None and launch_exe
+    # hardens them; see scripts/launch_exe.py:_harden_stdio.
+    console=False,
     icon=None,
 )
 

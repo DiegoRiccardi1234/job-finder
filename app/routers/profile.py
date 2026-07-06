@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app import rate_limit
 from app.cv_ingest import (
@@ -63,7 +64,9 @@ def build_router(container: AppContainer) -> APIRouter:
             raise HTTPException(status_code=413, detail="CV file too large (max 5 MB)")
         if not data:
             raise HTTPException(status_code=400, detail="Empty CV file")
-        markdown = extract_markdown_from_upload(filename, data)
+        # OCR / PDF parsing is blocking (CPU + subprocess); run it off the event
+        # loop so a heavy upload can't freeze every other request.
+        markdown = await run_in_threadpool(extract_markdown_from_upload, filename, data)
         try:
             validate_cv_content(markdown)
         except InvalidCVContent as exc:
@@ -90,15 +93,20 @@ def build_router(container: AppContainer) -> APIRouter:
             retry_count = attempt
 
         try:
-            summary = summarize_profile_with_llm(
-                markdown, container.providers, on_retry=_track_retry, language=lang
+            # Blocking too (retry sleeps + sync HTTP to the LLM); offload it.
+            summary = await run_in_threadpool(
+                summarize_profile_with_llm,
+                markdown,
+                container.providers,
+                on_retry=_track_retry,
+                language=lang,
             )
             # If the result is structurally richer than the heuristic, mark as llm.
             if any(k in summary for k in ("strengths", "industries", "summary")):
                 summary_method = "llm"
         except Exception as exc:
             container.log.warning("LLM CV summarization failed, using heuristic: %s", exc)
-            summary = summarize_profile(markdown)
+            summary = await run_in_threadpool(summarize_profile, markdown)
         candidate_name = summary.get("name") if isinstance(summary, dict) else None
         if not candidate_name:
             candidate_name = extract_candidate_name(markdown)

@@ -405,6 +405,20 @@
     },
     "modal": {
       "viewLogs": "Ouvrir le dossier des journaux pour les détails"
+    },
+    "status": {
+      "spawned": "Updater lancé : {from} → {to}",
+      "elapsed": "Temps écoulé : {sec}s",
+      "reachable": "Nouvelle app accessible (v{version}). Rechargement…",
+      "devRunning": "Mise à jour en cours (git pull + pip install)… patiente.",
+      "devRestartHint": "Redémarre l'app pour charger la nouvelle version."
+    },
+    "error": {
+      "generic": "ÉCHEC : {message}",
+      "failedStart": "Impossible de lancer la mise à jour : {message}",
+      "alreadyInProgress": "Mise à jour déjà en cours (démarrée il y a {sec}s). Attends, ou redémarre Job Finder s'il semble bloqué.",
+      "updaterError": "Erreur de l'updater : {message}",
+      "didNotStart": "Job Finder n'a pas encore redémarré tout seul. Si cette fenêtre reste ici, ferme-la et rouvre Job Finder manuellement, puis vérifie la version. Ouvre les logs ci-dessous si tu as besoin de détails."
     }
   },
   "chat": {

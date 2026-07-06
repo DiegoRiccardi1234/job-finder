@@ -98,7 +98,10 @@ def build_router(container: AppContainer) -> APIRouter:
         # The double-click race shipped two parallel Updater.exe processes
         # both racing on JobFinder.exe and producing PermissionError.
         lock_path = container.workspace_dir / "data" / "update.lock"
-        lock_ttl_seconds = 60
+        # Must exceed the updater's worst-case runtime so the lock never goes
+        # "stale" mid-update and lets a second Updater.exe spawn: download
+        # (urlopen timeout 120s) + 3s grace + copy-retry backoff (~31s) ≈ 150s+.
+        lock_ttl_seconds = 180
         if lock_path.exists():
             try:
                 age = time.time() - lock_path.stat().st_mtime
