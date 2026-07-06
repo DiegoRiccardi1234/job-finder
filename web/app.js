@@ -59,6 +59,19 @@ if (langSelect) {
   });
 }
 
+// Quit button — the windowless build has no terminal to close, so this is how
+// the user stops the app. Confirm, then ask the server to shut down; the server
+// dies mid-request so the fetch aborts (ignored), and we show a "closed" screen.
+const quitBtn = document.getElementById("quitApp");
+if (quitBtn) {
+  quitBtn.addEventListener("click", () => {
+    if (!confirm(t("quit.confirm") || "Close Job Finder?")) return;
+    fetch("/api/system/shutdown", { method: "POST" }).catch(() => {});
+    const overlay = document.getElementById("appClosedOverlay");
+    if (overlay) overlay.classList.remove("hidden");
+  });
+}
+
 
 function activateView(viewName) {
   // v1.3.0: navigation is no longer gated by provider configuration. The
@@ -347,14 +360,15 @@ async function showJobDetail(jobId) {
   const analysis = job.analysis || {};
   appState.selectedJobId = job.id || null;
 
-  setText("detailStatus", `Stato: ${job.status || "open"}`);
-  setText("detailTitle", job.titolo || "Title unavailable");
-  setText("detailCompany", job.azienda || "Company unavailable");
+  setText("detailStatus", `${t("jobs.statusLabel")}: ${t("jobs.status." + normalizeJobStatus(job.status))}`);
+  setText("detailTitle", job.titolo || t("jobs.titleUnavailable"));
+  setText("detailCompany", job.azienda || t("jobs.companyUnavailable"));
   // Build the meta line from distinct parts: legacy data sometimes stored the
   // city in ``modalita`` too, which produced "Torino | Score | Torino".
   const sede = (job.sede || "").trim();
   const modalita = (job.modalita || "").trim();
-  const metaParts = [sede || "Sede N/D", `Score ${job.punteggio_ai || 0}/10`];
+  const detailScore = scoreCell(job.punteggio_ai);
+  const metaParts = [sede || t("jobs.locationUnavailable"), `${t("jobs.score")}: ${detailScore.text}`];
   if (modalita && modalita.toLowerCase() !== sede.toLowerCase()) {
     metaParts.push(modalita);
   }
@@ -451,7 +465,7 @@ async function showJobDetail(jobId) {
 
   const container = document.getElementById("jobDetailContainer");
   if (container) {
-    const score = job.punteggio_ai || 0;
+    const sc = scoreCell(job.punteggio_ai);
     let ralSpan = "";
     if (analysis && analysis.ral_stimata && analysis.ral_stimata !== "Non stimabile") {
       ralSpan = `<div class="info-tag"><strong>RAL:</strong> ${escapeHtml(analysis.ral_stimata)}</div>`;
@@ -462,7 +476,7 @@ async function showJobDetail(jobId) {
         <div class="modern-detail-grid">
           <div class="info-card highlight" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
             <h4>${t("offcanvas.matchScore")}</h4>
-            <div class="score-xl">${score}/10</div>
+            <div class="score-xl ${sc.cls}">${sc.text}</div>
             <div class="text-sm mt-8 text-center">${escapeHtml((analysis ? analysis.consiglio : null) || job.consiglio || "")}</div>
           </div>
           <div class="info-card">
@@ -497,7 +511,7 @@ async function showJobDetail(jobId) {
         ${pinBtnRow}
         <div class="mt-16">
           <h4>${t("offcanvas.listingMeta")}</h4>
-          <p class="text-sm text-dim">${t("offcanvas.search")}: ${escapeHtml(job.ricerca_usata)} | ${t("jobs.source")}: ${escapeHtml(job.fonte || "App")} | ${t("offcanvas.found")}: ${escapeHtml(job.first_seen_at || "")} | ${t("offcanvas.companyRep")}: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
+          <p class="text-sm text-dim">${t("offcanvas.search")}: ${escapeHtml(job.ricerca_usata)} | ${t("jobs.source")}: ${escapeHtml(job.fonte || "App")} | ${t("offcanvas.found")}: ${fmtDate(job.first_seen_at)} | ${t("offcanvas.companyRep")}: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
         </div>
       </div>
     `;
@@ -550,20 +564,20 @@ async function toggleFavorite(jobId, isFavorite) {
 }
 
 function recommendationCardHtml(job) {
-  const score = Number(job.punteggio_ai || 0);
+  const sc = scoreCell(job.punteggio_ai);
   const consiglio = escapeHtml(job.consiglio || "Evaluate match");
   const title = escapeHtml(job.titolo || t("jobs.titleUnavailable"));
   const company = escapeHtml(job.azienda || t("jobs.companyUnavailable"));
   const newTag = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
   const favoriteText = job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite");
   const nextFavorite = job.is_favorite ? "0" : "1";
-  const linkHtml = job.link ? `<div style="margin-top: 4px"><a href="${job.link}" target="_blank" rel="noopener">🔗 ${t("jobs.linkToOffer")}</a></div>` : "";
+  const linkHtml = job.link ? `<div style="margin-top: 4px"><a href="${escapeHtml(job.link)}" target="_blank" rel="noopener">🔗 ${t("jobs.linkToOffer")}</a></div>` : "";
 
   return `
     <article class="rec-card" data-rec-id="${job.id}">
       <div class="rec-head">
         <div class="rec-title">${title}</div>
-        <span class="rec-score">${score}/10</span>
+        <span class="rec-score ${sc.cls}">${sc.text}</span>
       </div>
       <div class="rec-company">${company} ${newTag}</div>
       <div>${consiglio}</div>
@@ -713,9 +727,33 @@ async function sendChatMessage(message) {
   }
 }
 
+// ── Shared job-display helpers ────────────────────────────────────────────
+function scoreClass(score) {
+  const n = Number(score);
+  return n >= 7 ? "score-high" : n >= 4 ? "score-mid" : "score-low";
+}
+// AI score cell: null/undefined/"" => "not scored" (unscored is NOT a 0/10 match).
+function scoreCell(score) {
+  if (score === null || score === undefined || score === "") {
+    return { text: t("jobs.notScored") || "—", cls: "score-none" };
+  }
+  return { text: `${score}/10`, cls: scoreClass(score) };
+}
+function statusPillHtml(status) {
+  const s = normalizeJobStatus(status);
+  const label = t(`jobs.status.${s}`) || s;
+  return `<span class="status-pill status-${s}">${escapeHtml(label)}</span>`;
+}
+function fmtDate(s) {
+  if (!s) return "";
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? escapeHtml(s) : d.toLocaleDateString(getCurrentLang());
+}
+
 async function loadJobs() {
   const onlyNew = document.getElementById("onlyNew").checked;
   const onlyFavorites = document.getElementById("onlyFavorites").checked;
+  const remoteOnly = document.getElementById("remoteOnly").checked;
   const searchText = document.getElementById("searchText").value.trim();
   const status = document.getElementById("statusFilter").value;
   const minScoreRaw = document.getElementById("minScore").value.trim();
@@ -726,20 +764,46 @@ async function loadJobs() {
     only_favorites: onlyFavorites ? "true" : "false",
     limit: "250",
   });
+  if (remoteOnly) query.set("remote_only", "true");
   if (searchText) query.set("search_text", searchText);
   if (status) query.set("status", status);
   if (minScoreRaw) query.set("min_score", minScoreRaw);
   if (maxAgeRaw) query.set("max_age_days", maxAgeRaw);
 
-  const { jobs } = await api(`/api/jobs?${query.toString()}`);
+  const COLS = 9;
   const body = document.getElementById("jobsTableBody");
+  const fullRow = (cls, msg) => `<tr><td colspan="${COLS}" class="${cls}">${msg}</td></tr>`;
+  body.innerHTML = fullRow("table-empty", "…");
+
+  let jobs;
+  try {
+    ({ jobs } = await api(`/api/jobs?${query.toString()}`));
+  } catch (err) {
+    console.error("loadJobs failed", err);
+    body.innerHTML = fullRow("table-empty table-error", t("jobs.loadError") || "Couldn't load jobs.");
+    return;
+  }
+
   body.innerHTML = "";
+  if (!jobs.length) {
+    const filtered =
+      onlyNew || onlyFavorites || remoteOnly || searchText || status || minScoreRaw || maxAgeRaw;
+    body.innerHTML = fullRow(
+      "table-empty",
+      filtered ? t("jobs.emptyFiltered") || "No jobs match these filters."
+               : t("jobs.emptyNoJobs") || "No jobs yet — run your first scan.",
+    );
+    renderKanban(jobs);
+    return;
+  }
 
   for (const job of jobs) {
     const newBadge = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
+    const sc = scoreCell(job.punteggio_ai);
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${job.punteggio_ai || 0}/10 ${newBadge}</td>
+      <td><span class="${sc.cls}">${sc.text}</span> ${newBadge}</td>
+      <td>${statusPillHtml(job.status)}</td>
       <td>${truncate(job.titolo || "")}</td>
       <td>${truncate(job.azienda || "")}</td>
       <td>${truncate(job.sede || "")}</td>
@@ -747,7 +811,7 @@ async function loadJobs() {
       <td>${truncate(job.consiglio || "")}</td>
       <td>
         <button data-detail-id="${job.id}" class="secondary">${t("jobs.details")}</button>
-        ${job.link ? `<a href="${job.link}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ""}
+        ${job.link ? `<a href="${escapeHtml(job.link)}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ""}
       </td>
       <td>
         <div class="mini">
@@ -841,12 +905,13 @@ function renderKanban(jobs) {
     if (!(status in columns) || !columns[status]) continue;
 
     counts[status] += 1;
+    const sc = scoreCell(job.punteggio_ai);
     const card = document.createElement("article");
     card.className = "kanban-card";
     card.innerHTML = `
       <strong>${escapeHtml(job.titolo || t("jobs.titleUnavailable"))}</strong>
       <div class="micro">${escapeHtml(job.azienda || t("jobs.companyUnavailable"))}</div>
-      <div class="micro">Score: ${job.punteggio_ai || 0}/10</div>
+      <div class="micro">${t("jobs.score")}: <span class="${sc.cls}">${sc.text}</span></div>
       <div class="mini" style="margin-top:8px;">
         <button class="secondary" data-k-detail-id="${job.id}">${t("jobs.details")}</button>
         <button class="apply-btn" data-k-action="${status === "open" ? "applied" : "reopened"}" data-id="${job.id}">

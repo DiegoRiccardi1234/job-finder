@@ -4,7 +4,8 @@
     "jobSearch": "Buscar Empleo",
     "profile": "Perfil",
     "settings": "Ajustes",
-    "info": "Info"
+    "info": "Info",
+    "quit": "Salir"
   },
   "profile": {
     "title": "Tu Perfil",
@@ -89,7 +90,8 @@
     "appStatus": "Estado de Candidaturas",
     "scoreDist": "Distribución de Puntuaciones IA",
     "matchScore": "Puntuación",
-    "topCompanies": "Empresas frecuentes"
+    "topCompanies": "Empresas frecuentes",
+    "noData": "Sin datos aún"
   },
   "recommendations": {
     "title": "Mejores para Ti",
@@ -138,7 +140,21 @@
     "deleteConfirm": "¿Eliminar este trabajo?",
     "deleteAllConfirm": "¿Eliminar TODOS los trabajos? Esta acción no se puede deshacer.",
     "deleted": "Trabajo eliminado",
-    "deletedAll": "{count} trabajos eliminados"
+    "deletedAll": "{count} trabajos eliminados",
+    "status": {
+      "open": "Abierto",
+      "applied": "Postulado",
+      "interviewing": "Entrevista",
+      "rejected": "Descartado",
+      "archived": "Archivado"
+    },
+    "statusLabel": "Estado",
+    "colStatus": "Estado",
+    "notScored": "Sin evaluar",
+    "locationUnavailable": "Ubicación N/D",
+    "emptyNoJobs": "Aún no hay empleos — haz tu primer escaneo.",
+    "emptyFiltered": "Ningún empleo coincide con estos filtros.",
+    "loadError": "No se pudieron cargar los empleos. Reinténtalo."
   },
   "kanbanCols": {
     "open": "Abierto",
@@ -562,5 +578,9 @@
   "autoscan": {
     "bannerText": "El escaneo automático encontró {count} nuevos empleos con puntuación {threshold}+.",
     "view": "Ver"
+  },
+  "quit": {
+    "confirm": "¿Cerrar Job Finder?",
+    "closed": "Job Finder está cerrado. Puedes cerrar esta pestaña."
   }
 }

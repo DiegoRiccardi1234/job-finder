@@ -4,7 +4,8 @@
     "jobSearch": "Jobsuche",
     "profile": "Profil",
     "settings": "Einstellungen",
-    "info": "Info"
+    "info": "Info",
+    "quit": "Beenden"
   },
   "profile": {
     "title": "Dein Profil",
@@ -88,8 +89,9 @@
     "title": "Analysen",
     "appStatus": "Bewerbungsstatus",
     "scoreDist": "KI-Score-Verteilung",
-    "matchScore": "Punktzahl",
-    "topCompanies": "Häufigste Unternehmen"
+    "matchScore": "Match-Score",
+    "topCompanies": "Häufigste Unternehmen",
+    "noData": "Noch keine Daten"
   },
   "recommendations": {
     "title": "Beste für Dich",
@@ -138,7 +140,21 @@
     "deleteConfirm": "Diesen Job löschen?",
     "deleteAllConfirm": "ALLE Jobs löschen? Diese Aktion ist unwiderruflich.",
     "deleted": "Job gelöscht",
-    "deletedAll": "{count} Jobs gelöscht"
+    "deletedAll": "{count} Jobs gelöscht",
+    "status": {
+      "open": "Offen",
+      "applied": "Beworben",
+      "interviewing": "Gespräch",
+      "rejected": "Abgelehnt",
+      "archived": "Archiviert"
+    },
+    "statusLabel": "Status",
+    "colStatus": "Status",
+    "notScored": "Nicht bewertet",
+    "locationUnavailable": "Ort k.A.",
+    "emptyNoJobs": "Noch keine Jobs — starte deinen ersten Scan.",
+    "emptyFiltered": "Keine Jobs für diese Filter.",
+    "loadError": "Jobs konnten nicht geladen werden. Erneut versuchen."
   },
   "kanbanCols": {
     "open": "Offen",
@@ -562,5 +578,9 @@
   "autoscan": {
     "bannerText": "Der Auto-Scan fand {count} neue Jobs mit Bewertung {threshold}+.",
     "view": "Ansehen"
+  },
+  "quit": {
+    "confirm": "Job Finder schließen?",
+    "closed": "Job Finder ist geschlossen. Du kannst diesen Tab schließen."
   }
 }

@@ -6,6 +6,10 @@ python-multipart
 pypdf
 python-docx
 
+# System-tray icon (Open / Quit) for the windowless Windows build. Uses Pillow
+# (below) for the icon image; the Win32 backend needs no extra native deps.
+pystray>=0.19.0
+
 # OCR for scanned PDFs and image CVs (JPG/PNG/AVIF/TIFF/BMP/WEBP).
 # Tesseract binary must be installed separately (winget install UB-Mannheim.TesseractOCR
 # on Windows, or apt-get install tesseract-ocr on Linux). The standalone bundle

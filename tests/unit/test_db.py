@@ -38,6 +38,25 @@ def test_upsert_and_get_job(tmp_path: Path) -> None:
         db.close()
 
 
+def test_list_jobs_remote_only_filters_by_modalita(tmp_path: Path) -> None:
+    """remote_only keeps jobs whose free-text modalita mentions 'remot'."""
+    db = Database(tmp_path / "s.db")
+    try:
+        db.upsert_job(
+            {"titolo": "Dev", "azienda": "Acme", "link": "https://ex.com/r", "modalita": "Full Remote"}
+        )
+        db.upsert_job(
+            {"titolo": "Dev", "azienda": "Beta", "link": "https://ex.com/o", "modalita": "In sede"}
+        )
+
+        assert len(db.list_jobs(limit=100)) == 2
+        remote = db.list_jobs(remote_only=True, limit=100)
+        assert len(remote) == 1
+        assert remote[0]["azienda"] == "Acme"
+    finally:
+        db.close()
+
+
 def test_preferences_round_trip(tmp_path: Path) -> None:
     db = Database(tmp_path / "s.db")
     try:

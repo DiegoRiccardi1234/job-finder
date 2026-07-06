@@ -62,9 +62,17 @@
         <option value="de">DE</option>
       </select>
       <button type="button" id="themeToggle" class="icon-btn" title="Toggle Theme" style="background:none;border:none;cursor:pointer;color:inherit;"><span class="material-symbols-outlined">light_mode</span></button>
+      <button type="button" id="quitApp" class="icon-btn" title="Quit" data-i18n-title="topbar.quit" style="background:none;border:none;cursor:pointer;color:inherit;"><span class="material-symbols-outlined">power_settings_new</span></button>
       <div class="avatar">D</div>
     </div>
   </header>
+
+  <div id="appClosedOverlay" class="app-closed-overlay hidden">
+    <div class="app-closed-card">
+      <span class="material-symbols-outlined app-closed-icon">power_settings_new</span>
+      <p data-i18n="quit.closed">Job Finder is closed. You can close this tab.</p>
+    </div>
+  </div>
 
   <main class="page-grid">
     <section id="view-dashboard" class="view is-active">
@@ -268,6 +276,7 @@
             <thead>
               <tr>
                 <th data-i18n="jobs.score">Score</th>
+                <th data-i18n="jobs.colStatus">Status</th>
                 <th data-i18n="jobs.title">Title</th>
                 <th data-i18n="jobs.company">Company</th>
                 <th data-i18n="jobs.location">Location</th>

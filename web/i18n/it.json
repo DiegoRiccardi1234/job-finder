@@ -4,7 +4,8 @@
     "jobSearch": "Cerca Lavoro",
     "profile": "Profilo",
     "settings": "Impostazioni",
-    "info": "Info"
+    "info": "Info",
+    "quit": "Esci"
   },
   "profile": {
     "title": "Il tuo Profilo",
@@ -88,8 +89,9 @@
     "title": "Analisi",
     "appStatus": "Stato Candidature",
     "scoreDist": "Distribuzione Punteggi IA",
-    "matchScore": "Punteggio",
-    "topCompanies": "Aziende più frequenti"
+    "matchScore": "Punteggio match",
+    "topCompanies": "Aziende più frequenti",
+    "noData": "Ancora nessun dato"
   },
   "recommendations": {
     "title": "Migliori per Te",
@@ -138,7 +140,21 @@
     "deleteConfirm": "Eliminare questo lavoro?",
     "deleteAllConfirm": "Eliminare TUTTI i lavori? L'azione è irreversibile.",
     "deleted": "Lavoro eliminato",
-    "deletedAll": "Eliminati {count} lavori"
+    "deletedAll": "Eliminati {count} lavori",
+    "status": {
+      "open": "Aperto",
+      "applied": "Candidato",
+      "interviewing": "Colloquio",
+      "rejected": "Scartato",
+      "archived": "Archiviato"
+    },
+    "statusLabel": "Stato",
+    "colStatus": "Stato",
+    "notScored": "Non valutato",
+    "locationUnavailable": "Sede N/D",
+    "emptyNoJobs": "Ancora nessun lavoro — fai la prima scansione.",
+    "emptyFiltered": "Nessun lavoro con questi filtri.",
+    "loadError": "Impossibile caricare i lavori. Riprova."
   },
   "kanbanCols": {
     "open": "Aperto",
@@ -562,5 +578,9 @@
   "autoscan": {
     "bannerText": "L'auto-scan ha trovato {count} nuovi lavori con punteggio {threshold}+.",
     "view": "Vedi"
+  },
+  "quit": {
+    "confirm": "Chiudere Job Finder?",
+    "closed": "Job Finder è chiuso. Puoi chiudere questa scheda."
   }
 }

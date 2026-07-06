@@ -25,7 +25,12 @@ hiddenimports += [
     "pdf2image",
     "PIL",
     "PIL.Image",
+    "PIL.ImageDraw",
     "pillow_avif",
+    # System-tray icon. The Win32 backend is imported lazily by platform, so
+    # PyInstaller needs it named explicitly.
+    "pystray",
+    "pystray._win32",
 ]
 
 datas: list[tuple[str, str]] = [

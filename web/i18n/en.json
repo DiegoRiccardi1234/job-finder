@@ -4,7 +4,8 @@
     "jobSearch": "Job Search",
     "profile": "Profile",
     "settings": "Settings",
-    "info": "Info"
+    "info": "Info",
+    "quit": "Quit"
   },
   "profile": {
     "title": "Your Profile",
@@ -89,7 +90,8 @@
     "appStatus": "Application Status",
     "scoreDist": "AI Score Distribution",
     "matchScore": "Match Score",
-    "topCompanies": "Top Companies"
+    "topCompanies": "Top Companies",
+    "noData": "No data yet"
   },
   "recommendations": {
     "title": "Top Picks for You",
@@ -138,7 +140,21 @@
     "deleteConfirm": "Delete this job?",
     "deleteAllConfirm": "Delete ALL jobs? This cannot be undone.",
     "deleted": "Job deleted",
-    "deletedAll": "Deleted {count} jobs"
+    "deletedAll": "Deleted {count} jobs",
+    "status": {
+      "open": "Open",
+      "applied": "Applied",
+      "interviewing": "Interviewing",
+      "rejected": "Rejected",
+      "archived": "Archived"
+    },
+    "statusLabel": "Status",
+    "colStatus": "Status",
+    "notScored": "Not scored",
+    "locationUnavailable": "Location N/A",
+    "emptyNoJobs": "No jobs yet — run your first scan.",
+    "emptyFiltered": "No jobs match these filters.",
+    "loadError": "Couldn't load jobs. Try again."
   },
   "kanbanCols": {
     "open": "Open",
@@ -562,5 +578,9 @@
   "autoscan": {
     "bannerText": "Auto-scan found {count} new job(s) scoring {threshold}+.",
     "view": "View"
+  },
+  "quit": {
+    "confirm": "Close Job Finder?",
+    "closed": "Job Finder is closed. You can close this tab."
   }
 }

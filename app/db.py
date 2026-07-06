@@ -257,6 +257,7 @@ class Database:
         status: str | None = None,
         only_favorites: bool = False,
         only_new: bool = False,
+        remote_only: bool = False,
         search_text: str | None = None,
         min_score: int | None = None,
         max_age_days: int | None = None,
@@ -272,6 +273,10 @@ class Database:
             query += " AND is_favorite = 1"
         if only_new:
             query += " AND is_new = 1"
+        if remote_only:
+            # ``modalita`` is free text ("Remoto" / "Remote" / "Da remoto" …);
+            # matching '%remot%' covers the common remote variants across locales.
+            query += " AND LOWER(COALESCE(modalita, '')) LIKE '%remot%'"
         if search_text:
             query += (
                 " AND (LOWER(titolo) LIKE ? OR LOWER(azienda) LIKE ? OR LOWER(descrizione) LIKE ?)"

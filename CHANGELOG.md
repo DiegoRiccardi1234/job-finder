@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-07-06
+
+Adds a way to close the windowless app, and fixes how jobs are shown on the dashboard.
+
+### Added
+- **Quit the app** — a Quit button in the header (with a confirm) and a system-tray icon (Open / Quit). The windowless build had no terminal to close; now there's an explicit exit that stops the server cleanly.
+- **Status column** in the jobs table, with a coloured pill per state (open / applied / interviewing / rejected).
+
+### Fixed
+- **Unscored jobs no longer read as "0/10"** — a job that hasn't been AI-scored yet shows "—" (not scored) instead of the worst possible score, everywhere jobs are listed.
+- **Match scores are now colour-coded** (green / amber / red) in the table, kanban, recommendations, and detail panel — strong matches stand out at a glance.
+- **The "Remote" filter now works** — it filtered nothing before; it now returns only jobs whose work mode is remote.
+- **The jobs table has empty / loading / error states** instead of a silently blank grid.
+- **The detail panel and dashboard charts are fully translated** — status labels, "location N/A", and chart labels no longer leak raw keys or mix Italian and English.
+- Job links are HTML-escaped, dates are locale-formatted, and dead CSS was removed.
+
 ## [1.5.1] — 2026-07-06
 
 Self-update reliability, a windowless build, per-request provider failover, and audit fixes.

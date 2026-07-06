@@ -181,6 +181,24 @@ def build_router(container: AppContainer) -> APIRouter:
             return {"ok": True, "path": str(log_dir)}
         raise HTTPException(status_code=501, detail="open_logs_unsupported_on_platform")
 
+    @router.post("/api/system/shutdown", status_code=202)
+    def shutdown_app() -> dict[str, Any]:
+        """Stop the app cleanly — the windowless build has no terminal to close.
+
+        Returns 202, then hard-exits on a short Timer (so the HTTP response
+        flushes first), stopping autoscan + closing the DB via
+        ``container.shutdown()`` beforehand — ``os._exit`` bypasses the FastAPI
+        lifespan teardown otherwise.
+        """
+
+        def _stop() -> None:
+            with contextlib.suppress(Exception):
+                container.shutdown()
+            os._exit(0)
+
+        threading.Timer(0.5, _stop).start()
+        return {"status": "shutting_down"}
+
     @router.delete("/api/update/lock")
     def clear_update_lock() -> dict[str, Any]:
         """Force-clear the update lockfile.

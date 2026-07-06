@@ -85,6 +85,43 @@ def _open_browser_when_ready() -> None:
     print(f"Server slow to come up. Open {URL} manually in your browser.")
 
 
+def _run_tray() -> None:
+    """Show a system-tray icon (Open / Quit); blocks the main thread until Quit.
+
+    pystray owns the main thread's Win32 message loop, so uvicorn runs on a
+    daemon thread. If pystray/Pillow can't load, block forever instead so the
+    server keeps serving and the in-app Quit button still works.
+    """
+    try:
+        import pystray
+        from PIL import Image, ImageDraw
+    except Exception:
+        threading.Event().wait()
+        return
+
+    def _image() -> Image.Image:
+        # Indigo briefcase, matching web/favicon.svg.
+        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([10, 22, 54, 52], radius=6, fill=(99, 102, 241, 255))
+        d.rectangle([26, 16, 38, 24], outline=(99, 102, 241, 255), width=4)
+        d.rectangle([10, 33, 54, 37], fill=(255, 255, 255, 110))
+        return img
+
+    def _open(_icon: object, _item: object) -> None:
+        webbrowser.open(URL)
+
+    def _quit(icon: object, _item: object) -> None:
+        icon.stop()
+        os._exit(0)
+
+    menu = pystray.Menu(
+        pystray.MenuItem("Open Job Finder", _open, default=True),
+        pystray.MenuItem("Quit", _quit),
+    )
+    pystray.Icon("JobFinder", _image(), "Job Finder", menu).run()
+
+
 def main() -> int:
     _harden_stdio()
     workspace = _resolve_workspace()
@@ -97,9 +134,18 @@ def main() -> int:
 
     from app.main import app
 
-    print(f"Job Finder — http://{HOST}:{PORT} (workspace: {workspace})")
+    print(f"Job Finder — {URL} (workspace: {workspace})")
     threading.Thread(target=_open_browser_when_ready, daemon=True).start()
-    uvicorn.run(app, host=HOST, port=PORT, log_level="info")
+
+    # Frozen Windows build is windowless (console=False) — no terminal to close.
+    # Run uvicorn on a daemon thread and give the main thread to a tray icon
+    # (Open / Quit). Dev/source runs keep the simple blocking server (no tray).
+    if getattr(sys, "frozen", False) and sys.platform == "win32":
+        server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="info"))
+        threading.Thread(target=server.run, name="uvicorn", daemon=True).start()
+        _run_tray()
+    else:
+        uvicorn.run(app, host=HOST, port=PORT, log_level="info")
     return 0
 
 
