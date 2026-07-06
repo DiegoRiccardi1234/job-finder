@@ -74,6 +74,26 @@
     </div>
   </div>
 
+  <div id="manualJobModal" class="mini-modal hidden" role="dialog" aria-modal="true">
+    <div class="mini-modal-card">
+      <div class="mini-modal-head">
+        <h3 data-i18n="manualJob.title">Add a job</h3>
+        <button type="button" class="icon-btn" data-close-manual aria-label="Close"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <form id="manualJobForm" class="mini-modal-form">
+        <input id="mjTitolo" type="text" required data-i18n-placeholder="manualJob.role" placeholder="Role / title *" />
+        <input id="mjAzienda" type="text" required data-i18n-placeholder="manualJob.company" placeholder="Company *" />
+        <input id="mjSede" type="text" data-i18n-placeholder="manualJob.location" placeholder="Location" />
+        <input id="mjLink" type="url" data-i18n-placeholder="manualJob.link" placeholder="Link (optional)" />
+        <textarea id="mjDescrizione" rows="4" data-i18n-placeholder="manualJob.desc" placeholder="Description — helps the AI score it"></textarea>
+        <div class="mini-modal-actions">
+          <button type="button" class="ghost-btn" data-close-manual data-i18n="common.close">Close</button>
+          <button type="submit" class="action-main" id="mjSubmit" data-i18n="manualJob.add">Add job</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <main class="page-grid">
     <section id="view-dashboard" class="view is-active">
 
@@ -177,6 +197,18 @@
             <h4><span class="material-symbols-outlined">apartment</span> <span data-i18n="analytics.topCompanies">Top Companies</span></h4>
             <canvas id="topCompaniesChart" role="img" aria-label="Top companies chart"></canvas>
           </div>
+          <div class="analytics-card" id="usageCard">
+            <h4 class="usage-head">
+              <span><span class="material-symbols-outlined">data_usage</span> <span data-i18n="usage.title">AI Usage</span></span>
+              <select id="usageRange" class="usage-range" aria-label="Usage range">
+                <option value="today" data-i18n="usage.today">Today</option>
+                <option value="week" data-i18n="usage.week">7 days</option>
+                <option value="month" data-i18n="usage.month">30 days</option>
+                <option value="all" data-i18n="usage.all">All time</option>
+              </select>
+            </h4>
+            <div id="usageBody" class="usage-body"></div>
+          </div>
         </div>
       </section>
 
@@ -264,6 +296,7 @@
           </select>
           <button id="refreshJobsBtn" type="button" class="ghost-btn" aria-label="Refresh jobs"><span class="material-symbols-outlined">refresh</span></button>
           <button id="exportCsvBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">download</span> <span data-i18n="jobs.csv">CSV</span></button>
+          <button id="addManualJobBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">add</span> <span data-i18n="manualJob.addShort">Add job</span></button>
           <button id="deleteAllJobsBtn" type="button" class="ghost-btn danger" title="Delete all jobs" data-i18n-title="jobs.deleteAllTitle"><span class="material-symbols-outlined">delete_sweep</span> <span data-i18n="jobs.deleteAll">Delete all</span></button>
         </div>
 
@@ -557,6 +590,7 @@
           <div class="autoscan-block">
             <label class="feature-toggle"><input type="checkbox" id="autoscanEnabled" /> <span data-i18n="settings.features.autoscan">Scheduled auto-scan</span></label>
             <p class="micro" data-i18n="settings.features.autoscanHint">Re-runs your last search periodically while the app is open, and flags new high-scoring jobs.</p>
+            <label class="feature-toggle"><input type="checkbox" id="autoscanNotify" /> <span data-i18n="settings.features.notify">Desktop notification for new high-scoring jobs</span></label>
             <div class="autoscan-config">
               <label class="micro autoscan-field"><span data-i18n="settings.features.every">Every</span> <input type="number" id="autoscanInterval" min="1" max="168" value="12" class="autoscan-num" /> <span data-i18n="settings.features.hours">hours</span></label>
               <label class="micro autoscan-field"><span data-i18n="settings.features.minScore">Min score</span> <input type="number" id="autoscanThreshold" min="0" max="10" value="7" class="autoscan-num" /></label>

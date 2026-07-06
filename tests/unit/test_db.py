@@ -57,6 +57,23 @@ def test_list_jobs_remote_only_filters_by_modalita(tmp_path: Path) -> None:
         db.close()
 
 
+def test_job_actions_timeline_and_note_keeps_status(tmp_path: Path) -> None:
+    """A 'note' action records a timeline entry WITHOUT changing the job status."""
+    db = Database(tmp_path / "s.db")
+    try:
+        jid, _, _ = db.upsert_job({"titolo": "QA", "azienda": "Acme", "link": "https://ex/1"})
+        db.set_job_action(jid, "applied", "sent CV")
+        db.set_job_action(jid, "note", "recruiter replied")
+
+        assert db.get_job(jid)["status"] == "applied"  # note must NOT reset status
+        actions = db.list_job_actions(jid)
+        assert [a["action"] for a in actions] == ["applied", "note"]
+        assert actions[0]["notes"] == "sent CV"
+        assert actions[1]["notes"] == "recruiter replied"
+    finally:
+        db.close()
+
+
 def test_preferences_round_trip(tmp_path: Path) -> None:
     db = Database(tmp_path / "s.db")
     try:

@@ -246,7 +246,8 @@
       "hours": "hours",
       "minScore": "Min score",
       "runNow": "Run now",
-      "autoscanStarted": "Auto-scan started"
+      "autoscanStarted": "Auto-scan started",
+      "notify": "Desktop notification for new high-scoring jobs"
     }
   },
   "coach": {
@@ -582,10 +583,42 @@
   },
   "autoscan": {
     "bannerText": "Auto-scan found {count} new job(s) scoring {threshold}+.",
-    "view": "View"
+    "view": "View",
+    "notifyTitle": "New matching jobs"
   },
   "quit": {
     "confirm": "Close Job Finder?",
     "closed": "Job Finder is closed. You can close this tab."
+  },
+  "usage": {
+    "title": "AI Usage",
+    "today": "Today",
+    "week": "7 days",
+    "month": "30 days",
+    "all": "All time",
+    "noData": "No usage yet",
+    "tokens": "Tokens",
+    "calls": "Calls"
+  },
+  "manualJob": {
+    "title": "Add a job",
+    "role": "Role / title *",
+    "company": "Company *",
+    "location": "Location",
+    "link": "Link (optional)",
+    "desc": "Description — helps the AI score it",
+    "add": "Add job",
+    "addShort": "Add job",
+    "adding": "Adding…",
+    "added": "Job added",
+    "addError": "Couldn't add the job"
+  },
+  "timeline": {
+    "title": "History",
+    "empty": "No activity yet",
+    "note": "Note",
+    "notePlaceholder": "Add a note…",
+    "addNote": "Add note",
+    "noteError": "Couldn't save the note"
   }
 }

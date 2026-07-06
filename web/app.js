@@ -4,7 +4,7 @@ import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistAp
 import { initI18n, t, loadLanguage, getCurrentLang, onLanguageChange } from "./modules/i18n.js";
 import { loadProfile as loadProfileView, bindProfileEvents, addRolesToProfile } from "./modules/profile.js";
 import { appState } from "./modules/state.js";
-import { loadAnalytics } from "./modules/analytics.js";
+import { loadAnalytics, loadUsage } from "./modules/analytics.js";
 import {
   readFeatureFlags,
   syncFeatureToggles,
@@ -354,6 +354,32 @@ function renderMatchRadar(axes) {
   });
 }
 
+async function renderTimeline(jobId) {
+  const el = document.getElementById("detailTimeline");
+  if (!el) return;
+  let actions = [];
+  try {
+    ({ actions } = await api(`/api/jobs/${jobId}/timeline`));
+  } catch {
+    actions = [];
+  }
+  if (!actions || !actions.length) {
+    el.innerHTML = `<p class="micro">${t("timeline.empty")}</p>`;
+    return;
+  }
+  el.innerHTML = actions
+    .slice()
+    .reverse()
+    .map((a) => {
+      const isNote = a.action === "note";
+      const statusKey = a.action === "reopened" ? "open" : a.action;
+      const label = isNote ? t("timeline.note") : t(`jobs.status.${statusKey}`) || a.action;
+      const icon = isNote ? "sticky_note_2" : "flag";
+      return `<div class="tl-item"><span class="material-symbols-outlined tl-icon">${icon}</span><div class="tl-body"><div class="tl-head"><strong>${escapeHtml(label)}</strong><span class="tl-date">${fmtDate(a.created_at)}</span></div>${a.notes ? `<div class="tl-note">${escapeHtml(a.notes)}</div>` : ""}</div></div>`;
+    })
+    .join("");
+}
+
 async function showJobDetail(jobId) {
   const payload = await api(`/api/jobs/${jobId}`);
   const job = payload.job || {};
@@ -513,6 +539,14 @@ async function showJobDetail(jobId) {
           <h4>${t("offcanvas.listingMeta")}</h4>
           <p class="text-sm text-dim">${t("offcanvas.search")}: ${escapeHtml(job.ricerca_usata)} | ${t("jobs.source")}: ${escapeHtml(job.fonte || "App")} | ${t("offcanvas.found")}: ${fmtDate(job.first_seen_at)} | ${t("offcanvas.companyRep")}: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
         </div>
+        <div class="mt-16 info-card">
+          <h4>${t("timeline.title")}</h4>
+          <div id="detailTimeline" class="detail-timeline"></div>
+          <div class="note-add">
+            <textarea id="detailNoteInput" rows="2" data-i18n-placeholder="timeline.notePlaceholder" placeholder="Add a note…"></textarea>
+            <button type="button" id="detailNoteBtn" class="ghost-btn small">${t("timeline.addNote")}</button>
+          </div>
+        </div>
       </div>
     `;
     renderMatchRadar(analysis && analysis.match_axes);
@@ -521,6 +555,26 @@ async function showJobDetail(jobId) {
       pinBtn.addEventListener("click", () => {
         if (appState.selectedJobId && typeof pinJobToActiveSession === "function") {
           pinJobToActiveSession(appState.selectedJobId);
+        }
+      });
+    }
+
+    renderTimeline(job.id);
+    const noteBtn = document.getElementById("detailNoteBtn");
+    const noteInput = document.getElementById("detailNoteInput");
+    if (noteBtn && noteInput) {
+      noteBtn.addEventListener("click", async () => {
+        const notes = noteInput.value.trim();
+        if (!notes) return;
+        noteBtn.disabled = true;
+        try {
+          await api(`/api/jobs/${job.id}/note`, { method: "POST", body: JSON.stringify({ notes }) });
+          noteInput.value = "";
+          await renderTimeline(job.id);
+        } catch (err) {
+          showToast(`${t("timeline.noteError")}: ${err.message}`, "info");
+        } finally {
+          noteBtn.disabled = false;
         }
       });
     }
@@ -1517,6 +1571,10 @@ document.getElementById("searchText").addEventListener("change", loadJobs);
 document.getElementById("minScore").addEventListener("change", loadJobs);
 document.getElementById("maxAgeDays").addEventListener("change", loadJobs);
 document.getElementById("statusFilter").addEventListener("change", loadJobs);
+{
+  const usageRangeSel = document.getElementById("usageRange");
+  if (usageRangeSel) usageRangeSel.addEventListener("change", () => loadUsage());
+}
 document.getElementById("profileSelect").addEventListener("change", async (event) => {
   await activateProfile(event.target.value);
 });
@@ -1543,6 +1601,51 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
   }
 });
 
+// F5 — manually add a job (referrals, career-page finds). POSTs to the existing
+// /api/jobs/manual, which also AI-scores it against the active profile.
+{
+  const openBtn = document.getElementById("addManualJobBtn");
+  const modal = document.getElementById("manualJobModal");
+  const form = document.getElementById("manualJobForm");
+  if (openBtn && modal && form) {
+    const close = () => modal.classList.add("hidden");
+    openBtn.addEventListener("click", () => {
+      form.reset();
+      modal.classList.remove("hidden");
+      document.getElementById("mjTitolo").focus();
+    });
+    modal.querySelectorAll("[data-close-manual]").forEach((b) => b.addEventListener("click", close));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submit = document.getElementById("mjSubmit");
+      const payload = {
+        titolo: document.getElementById("mjTitolo").value.trim(),
+        azienda: document.getElementById("mjAzienda").value.trim(),
+        sede: document.getElementById("mjSede").value.trim(),
+        link: document.getElementById("mjLink").value.trim(),
+        descrizione: document.getElementById("mjDescrizione").value.trim(),
+      };
+      if (!payload.titolo || !payload.azienda) return;
+      const orig = submit.textContent;
+      submit.disabled = true;
+      submit.textContent = t("manualJob.adding");
+      try {
+        await api("/api/jobs/manual", { method: "POST", body: JSON.stringify(payload) });
+        showToast(t("manualJob.added"), "info");
+        close();
+        await Promise.all([loadJobs(), loadRecommendations()]);
+      } catch (err) {
+        showToast(`${t("manualJob.addError")}: ${err.message}`, "info");
+        // The job may have been inserted before scoring failed — reflect it.
+        await loadJobs().catch(() => {});
+      } finally {
+        submit.disabled = false;
+        submit.textContent = orig;
+      }
+    });
+  }
+}
+
 async function bootstrap() {
   await initI18n();
   activateView("dashboard");
@@ -1551,6 +1654,7 @@ async function bootstrap() {
   await loadProfiles();
   await Promise.all([loadJobs(), loadRecommendations()]);
   await loadAnalytics();
+  await loadUsage();
   await loadSkillGap();
   await loadSchedulerStatus();
   await loadChatPrompts();

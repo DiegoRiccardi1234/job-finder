@@ -24,6 +24,10 @@ class JobActionRequest(BaseModel):
     notes: str = ""
 
 
+class JobNoteRequest(BaseModel):
+    notes: str = ""
+
+
 class FavoriteRequest(BaseModel):
     is_favorite: bool = True
 

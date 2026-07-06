@@ -74,6 +74,10 @@ def _resolve_workspace() -> Path:
 
 
 def _open_browser_when_ready() -> None:
+    # Automated tests launch the exe just to probe /api/health and then kill it;
+    # opening the default browser leaves a dead tab. Let them opt out.
+    if os.environ.get("JOBFINDER_NO_BROWSER"):
+        return
     deadline = time.time() + 30
     while time.time() < deadline:
         try:

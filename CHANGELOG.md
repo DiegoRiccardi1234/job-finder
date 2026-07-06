@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.5.4] — 2026-07-06
+
+Four features that surface data the app already had, plus a quieter test build.
+
+### Added
+- **AI usage panel** on the dashboard — tokens and calls per provider, over Today / 7 days / 30 days / all time. The app already recorded this on every LLM call; now you can see it.
+- **Add a job manually** — a "+ Add job" button in Job Search opens a short form for referrals or roles found off LinkedIn/Indeed; the job is AI-scored against your CV just like a scanned one.
+- **Per-job history + notes** — the job detail panel now shows a timeline of status changes and lets you attach free-text notes.
+- **Desktop notifications** (opt-in, in Settings) when the scheduled auto-scan finds new jobs above your score threshold — so you don't have to be watching the app.
+
+### Fixed
+- The bundled app no longer opens a browser tab when it is launched only for an automated health check (`JOBFINDER_NO_BROWSER`).
+
 ## [1.5.3] — 2026-07-06
 
 Polish & fix pass: working scan filters, dark-mode fixes, dead-code cleanup, accessibility.

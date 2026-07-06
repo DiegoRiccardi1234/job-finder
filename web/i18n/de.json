@@ -246,7 +246,8 @@
       "hours": "Stunden",
       "minScore": "Mindestscore",
       "runNow": "Jetzt ausführen",
-      "autoscanStarted": "Auto-Scan gestartet"
+      "autoscanStarted": "Auto-Scan gestartet",
+      "notify": "Desktop-Benachrichtigung für neue Top-Jobs"
     }
   },
   "coach": {
@@ -582,10 +583,42 @@
   },
   "autoscan": {
     "bannerText": "Der Auto-Scan fand {count} neue Jobs mit Bewertung {threshold}+.",
-    "view": "Ansehen"
+    "view": "Ansehen",
+    "notifyTitle": "Neue passende Jobs"
   },
   "quit": {
     "confirm": "Job Finder schließen?",
     "closed": "Job Finder ist geschlossen. Du kannst diesen Tab schließen."
+  },
+  "usage": {
+    "title": "KI-Nutzung",
+    "today": "Heute",
+    "week": "7 Tage",
+    "month": "30 Tage",
+    "all": "Gesamt",
+    "noData": "Noch keine Nutzung",
+    "tokens": "Tokens",
+    "calls": "Aufrufe"
+  },
+  "manualJob": {
+    "title": "Job hinzufügen",
+    "role": "Rolle / Titel *",
+    "company": "Unternehmen *",
+    "location": "Ort",
+    "link": "Link (optional)",
+    "desc": "Beschreibung — hilft der KI bei der Bewertung",
+    "add": "Hinzufügen",
+    "addShort": "Job hinzufügen",
+    "adding": "Wird hinzugefügt…",
+    "added": "Job hinzugefügt",
+    "addError": "Job konnte nicht hinzugefügt werden"
+  },
+  "timeline": {
+    "title": "Verlauf",
+    "empty": "Noch keine Aktivität",
+    "note": "Notiz",
+    "notePlaceholder": "Notiz hinzufügen…",
+    "addNote": "Notiz hinzufügen",
+    "noteError": "Notiz konnte nicht gespeichert werden"
   }
 }

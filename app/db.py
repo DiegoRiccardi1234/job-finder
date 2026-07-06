@@ -212,25 +212,34 @@ class Database:
 
     @_synchronized
     def set_job_action(self, job_id: int, action: str, notes: str = "") -> None:
-        new_status = "open"
-        if action == "applied":
-            new_status = "applied"
-        elif action == "interviewing":
-            new_status = "interviewing"
-        elif action == "rejected":
-            new_status = "rejected"
-        elif action == "reopened":
-            new_status = "open"
-
-        self.conn.execute(
-            "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
-            (new_status, now_iso(), job_id),
-        )
+        # Only status-changing actions touch jobs.status; others (e.g. "note")
+        # are recorded on the timeline without altering the job's state.
+        status_map = {
+            "applied": "applied",
+            "interviewing": "interviewing",
+            "rejected": "rejected",
+            "reopened": "open",
+        }
+        if action in status_map:
+            self.conn.execute(
+                "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
+                (status_map[action], now_iso(), job_id),
+            )
         self.conn.execute(
             "INSERT INTO job_actions(job_id, action, notes, created_at) VALUES (?, ?, ?, ?)",
             (job_id, action, notes, now_iso()),
         )
         self.conn.commit()
+
+    @_synchronized
+    def list_job_actions(self, job_id: int) -> list[dict[str, Any]]:
+        """Chronological timeline of actions/notes for a job (oldest first)."""
+        cur = self.conn.execute(
+            "SELECT action, notes, created_at FROM job_actions "
+            "WHERE job_id = ? ORDER BY created_at ASC, id ASC",
+            (job_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]
 
     @_synchronized
     def set_favorite(self, job_id: int, is_favorite: bool) -> None:

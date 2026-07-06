@@ -2,7 +2,7 @@
 // instances and re-renders them from /api/analytics. Each card shows a
 // "no data yet" note instead of an empty/broken canvas when its series is empty.
 import { api } from "./helpers.js";
-import { t } from "./i18n.js";
+import { getCurrentLang, t } from "./i18n.js";
 
 let statusChart = null;
 let scoreChart = null;
@@ -121,4 +121,39 @@ export async function loadAnalytics() {
   } catch (e) {
     console.error("Failed to load analytics", e);
   }
+}
+
+// F1 — AI usage panel. Reads the token pipeline that's recorded on every LLM
+// call (GET /api/usage/stats) and shows totals + a per-provider breakdown.
+export async function loadUsage(range) {
+  const body = document.getElementById("usageBody");
+  if (!body) return;
+  const sel = document.getElementById("usageRange");
+  const r = range || (sel && sel.value) || "today";
+  let data;
+  try {
+    data = await api(`/api/usage/stats?range=${encodeURIComponent(r)}`);
+  } catch {
+    body.innerHTML = `<p class="analytics-empty">${t("usage.noData")}</p>`;
+    return;
+  }
+  if (!data.total_calls) {
+    body.innerHTML = `<p class="analytics-empty">${t("usage.noData")}</p>`;
+    return;
+  }
+  const fmt = (n) => Number(n || 0).toLocaleString(getCurrentLang());
+  const esc = (s) =>
+    String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const rows = (data.by_provider || [])
+    .map(
+      (p) =>
+        `<div class="usage-row"><span class="usage-prov">${esc(p.provider)}</span><span class="usage-tok">${fmt(p.total_tokens)}</span></div>`,
+    )
+    .join("");
+  body.innerHTML = `
+    <div class="usage-totals">
+      <div class="usage-stat"><span class="usage-num">${fmt(data.total_tokens)}</span><span class="usage-lbl">${t("usage.tokens")}</span></div>
+      <div class="usage-stat"><span class="usage-num">${fmt(data.total_calls)}</span><span class="usage-lbl">${t("usage.calls")}</span></div>
+    </div>
+    <div class="usage-list">${rows}</div>`;
 }

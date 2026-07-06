@@ -1773,6 +1773,39 @@ pre {
 .status-rejected { background: var(--danger-soft); color: var(--danger); }
 .status-archived { background: var(--surface-2); color: var(--text-muted); }
 .table-empty { text-align: center; color: var(--text-muted); padding: var(--space-6) var(--space-4); }
+
+/* F1 — AI usage panel (4th analytics card). */
+.usage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.usage-range { font-size: var(--fs-xs); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.usage-body { padding-top: var(--space-2); }
+.usage-totals { display: flex; gap: var(--space-5); margin-bottom: var(--space-3); }
+.usage-stat { display: flex; flex-direction: column; }
+.usage-num { font-size: 1.5rem; font-weight: 700; color: var(--text); font-family: var(--font-mono, monospace); line-height: 1.1; }
+.usage-lbl { font-size: var(--fs-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.usage-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: var(--fs-sm); border-top: 1px solid var(--border); }
+.usage-prov { color: var(--text-secondary); }
+.usage-tok { color: var(--text); font-family: var(--font-mono, monospace); }
+
+/* F5 — generic mini modal (manual job form). Theme-aware; .hidden (!important) wins. */
+.mini-modal { position: fixed; inset: 0; z-index: 9998; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5); padding: var(--space-4); }
+.mini-modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); width: min(480px, 100%); max-height: 90vh; overflow: auto; padding: var(--space-5); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); }
+.mini-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+.mini-modal-head h3 { margin: 0; }
+.mini-modal-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.mini-modal-form input, .mini-modal-form textarea { width: 100%; }
+.mini-modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* F3 — job timeline + notes (detail panel). */
+.detail-timeline { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.tl-item { display: flex; gap: var(--space-2); align-items: flex-start; }
+.tl-icon { font-size: 18px; color: var(--accent); margin-top: 1px; }
+.tl-body { flex: 1; min-width: 0; }
+.tl-head { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-sm); }
+.tl-date { color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
+.tl-note { font-size: var(--fs-sm); color: var(--text-secondary); margin-top: 2px; white-space: pre-wrap; }
+.note-add { display: flex; flex-direction: column; gap: var(--space-2); }
+.note-add textarea { width: 100%; }
+.note-add button { align-self: flex-end; }
 .table-error { color: #dc2626; }
 .analytics-empty { color: var(--text-muted); text-align: center; padding: var(--space-4); margin: 0; }
 .cv-dropzone.has-file .cv-dropzone-text { color: var(--accent); }

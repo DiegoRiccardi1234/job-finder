@@ -121,8 +121,26 @@ function renderAutoscanBanner(pending) {
       t("autoscan.bannerText", { count: pending.count, threshold: pending.threshold }),
     );
     banner.classList.remove("hidden");
+    _maybeNotify(pending);
   } else {
     banner.classList.add("hidden");
+  }
+}
+
+// F2 — fire ONE desktop notification per new auto-scan batch, when the user
+// opted in and granted permission. Signature-guarded so a reload doesn't repeat.
+function _maybeNotify(pending) {
+  if (localStorage.getItem("autoscanNotify") !== "1") return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const sig = JSON.stringify(pending);
+  if (localStorage.getItem("autoscanNotifiedSig") === sig) return;
+  localStorage.setItem("autoscanNotifiedSig", sig);
+  try {
+    new Notification(t("autoscan.notifyTitle"), {
+      body: t("autoscan.bannerText", { count: pending.count, threshold: pending.threshold }),
+    });
+  } catch {
+    /* notifications unavailable */
   }
 }
 
@@ -253,5 +271,28 @@ export function initFeatures({ loadJobs }) {
       const jobsSection = document.querySelector(".jobs-section");
       if (jobsSection) jobsSection.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  const autoscanNotifyEl = document.getElementById("autoscanNotify");
+  if (autoscanNotifyEl) {
+    autoscanNotifyEl.checked = localStorage.getItem("autoscanNotify") === "1";
+    autoscanNotifyEl.addEventListener("change", () => {
+      if (autoscanNotifyEl.checked) {
+        localStorage.setItem("autoscanNotify", "1");
+        if (typeof Notification !== "undefined" && Notification.permission === "default") {
+          Notification.requestPermission();
+        }
+      } else {
+        localStorage.removeItem("autoscanNotify");
+      }
+    });
+  }
+
+  // Re-poll the scheduler periodically so new auto-scan results surface (and
+  // notify) while the app stays open — no manual refresh needed.
+  if (!window._autoscanPoll) {
+    window._autoscanPoll = setInterval(() => {
+      loadSchedulerStatus().catch(() => {});
+    }, 120000);
   }
 }

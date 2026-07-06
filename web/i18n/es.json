@@ -246,7 +246,8 @@
       "hours": "horas",
       "minScore": "Puntuación mín.",
       "runNow": "Ejecutar ahora",
-      "autoscanStarted": "Escaneo iniciado"
+      "autoscanStarted": "Escaneo iniciado",
+      "notify": "Notificación de escritorio para nuevos empleos con alta puntuación"
     }
   },
   "coach": {
@@ -582,10 +583,42 @@
   },
   "autoscan": {
     "bannerText": "El escaneo automático encontró {count} nuevos empleos con puntuación {threshold}+.",
-    "view": "Ver"
+    "view": "Ver",
+    "notifyTitle": "Nuevos empleos compatibles"
   },
   "quit": {
     "confirm": "¿Cerrar Job Finder?",
     "closed": "Job Finder está cerrado. Puedes cerrar esta pestaña."
+  },
+  "usage": {
+    "title": "Uso de IA",
+    "today": "Hoy",
+    "week": "7 días",
+    "month": "30 días",
+    "all": "Todo",
+    "noData": "Sin uso aún",
+    "tokens": "Tokens",
+    "calls": "Llamadas"
+  },
+  "manualJob": {
+    "title": "Añadir un empleo",
+    "role": "Puesto / título *",
+    "company": "Empresa *",
+    "location": "Ubicación",
+    "link": "Enlace (opcional)",
+    "desc": "Descripción — ayuda a la IA a evaluarlo",
+    "add": "Añadir",
+    "addShort": "Añadir",
+    "adding": "Añadiendo…",
+    "added": "Empleo añadido",
+    "addError": "No se pudo añadir el empleo"
+  },
+  "timeline": {
+    "title": "Historial",
+    "empty": "Sin actividad aún",
+    "note": "Nota",
+    "notePlaceholder": "Añade una nota…",
+    "addNote": "Añadir nota",
+    "noteError": "No se pudo guardar la nota"
   }
 }

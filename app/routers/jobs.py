@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from app.models import FavoriteRequest, JobActionRequest, ManualJobCreateRequest
+from app.models import (
+    FavoriteRequest,
+    JobActionRequest,
+    JobNoteRequest,
+    ManualJobCreateRequest,
+)
 from app.services.generation import generate_with_profile
 from app.services.scanner_service import analyze_offer
 from app.services.skill_gap import compute_skill_gap
@@ -209,6 +214,22 @@ def build_router(container: AppContainer) -> APIRouter:
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         container.db.set_job_action(job_id=job_id, action=payload.action.value, notes=payload.notes)
+        return {"ok": True}
+
+    @router.get("/api/jobs/{job_id}/timeline")
+    def job_timeline(job_id: int) -> dict[str, Any]:
+        """Chronological status changes + notes for a job (F3)."""
+        return {"actions": container.db.list_job_actions(job_id)}
+
+    @router.post("/api/jobs/{job_id}/note")
+    def add_job_note(job_id: int, payload: JobNoteRequest) -> dict[str, Any]:
+        """Record a free-text note on the job's timeline without changing status."""
+        note = payload.notes.strip()
+        if not note:
+            raise HTTPException(status_code=400, detail="empty_note")
+        if not container.db.get_job(job_id):
+            raise HTTPException(status_code=404, detail="Job not found")
+        container.db.set_job_action(job_id=job_id, action="note", notes=note)
         return {"ok": True}
 
     @router.post("/api/jobs/{job_id}/favorite")
