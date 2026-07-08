@@ -128,6 +128,38 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
     return score
 
 
+def _penalized_key(x: str, policy: dict[str, Any] | None, penalized: set[str] | None) -> int:
+    penalty = 10_000 if penalized and x in penalized else 0
+    return score_model_name(x, policy=policy) - penalty
+
+
+def rank_models(
+    models: list[str],
+    preferred_model: str | None = None,
+    policy: dict[str, Any] | None = None,
+    *,
+    penalized: set[str] | None = None,
+    limit: int | None = None,
+) -> list[str]:
+    """Return chat-capable models ordered best-first.
+
+    Hard-avoid models (embeddings/TTS/… score <= -500) are excluded. ``penalized``
+    (e.g. models seen 429ing recently) are pushed to the bottom via a large
+    penalty but kept in the list. An explicit ``preferred_model`` (a user choice)
+    is hoisted to the front. ``limit`` truncates the result. Used both for the
+    "recommended" default and for per-request intra-provider failover.
+    """
+    viable = [m for m in models if score_model_name(m, policy=policy) > -500]
+    ranked = sorted(viable, key=lambda x: _penalized_key(x, policy, penalized), reverse=True)
+    if preferred_model:
+        pref = next((m for m in models if m.lower() == preferred_model.lower()), None)
+        if pref is not None:
+            ranked = [pref] + [m for m in ranked if m != pref]
+    if limit is not None:
+        ranked = ranked[: max(0, limit)]
+    return ranked
+
+
 def choose_best_model(
     models: list[str],
     preferred_model: str | None = None,
@@ -147,12 +179,11 @@ def choose_best_model(
     if not models:
         raise RuntimeError("Nessun modello disponibile")
 
-    def _key(x: str) -> int:
-        penalty = 10_000 if penalized and x in penalized else 0
-        return score_model_name(x, policy=policy) - penalty
-
-    ranked = sorted(models, key=_key, reverse=True)
-    return ranked[0]
+    ranked = rank_models(models, policy=policy, penalized=penalized)
+    if ranked:
+        return ranked[0]
+    # Every model is hard-avoid: never exclude everything — return the best of them.
+    return sorted(models, key=lambda x: _penalized_key(x, policy, penalized), reverse=True)[0]
 
 
 def pick_default_model(

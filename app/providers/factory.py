@@ -13,7 +13,7 @@ from app.providers.base import LLMProvider, is_unauthorized
 from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
-from app.providers.model_selector import choose_best_model
+from app.providers.model_selector import choose_best_model, rank_models
 from app.providers.openai_compat import (
     DeepSeekProvider,
     GLMProvider,
@@ -306,52 +306,80 @@ class ProviderManager:
         except Exception as exc:
             log.debug("usage record skipped: %s", exc)
 
-    def _model_for(self, provider: LLMProvider) -> str:
-        """A model to use on a failover provider (cheap, no commit to active_*)."""
+    def _ranked_models_for(self, provider: LLMProvider, limit: int) -> list[str]:
+        """Up to ``limit`` models to try on ``provider``, best-first.
+
+        Recent-429 models are de-ranked (sunk to the bottom) so a single request
+        rotates onto a fresh model of the SAME provider before failing over to
+        another provider. Uses the 5-min cached catalog (``get_models``) so this
+        adds no per-request network call on the happy path. Falls back to a
+        single best-effort model when no live catalog is available.
+        """
+        models = self.get_models(provider.name).get("models") or []
+        if models:
+            ranked = rank_models(
+                models,
+                preferred_model=self.settings.preferred_model,
+                policy=self.settings.model_selection_policy,
+                penalized=self._recent_429_models(),
+                limit=limit,
+            )
+            if ranked:
+                return ranked
         try:
-            model = provider.select_model(preferred_model=self.settings.preferred_model)
+            return [provider.select_model(preferred_model=self.settings.preferred_model)]
         except Exception:
-            return self.settings.preferred_model or self.active_model
-        # If the picked model has been 429ing, re-pick among the provider's
-        # models with it de-ranked (only when there's a real alternative).
-        penalized = self._recent_429_models()
-        if model in penalized:
-            try:
-                models = provider.list_models()
-                if len(models) > 1:
-                    model = choose_best_model(
-                        models,
-                        preferred_model=self.settings.preferred_model,
-                        penalized=penalized,
-                    )
-            except Exception:
-                pass
-        return model
+            fallback = (
+                self.settings.preferred_model
+                or self.active_model
+                or str(getattr(provider, "default_model", ""))
+            )
+            return [fallback]
+
+    # Max models to try on a single provider within one request before failing
+    # over to the next provider. Bounds total attempts (K on the active/chosen
+    # provider, 1 on each other) so a persistent 429 rotates quickly.
+    _INTRA_PROVIDER_MODELS = 3
 
     def _failover_candidates(
         self, explicit_provider: str | None, explicit_model: str | None
     ) -> list[tuple[LLMProvider, str]]:
         """Ordered ``[(provider, model)]`` to attempt for one request.
 
-        An explicit provider request is honored as-is (no failover). Otherwise
-        the active provider goes first, then the remaining available,
-        non-``key_invalid`` providers in ``llm_provider_order`` — so a
-        rate-limited or down primary fails over to a working key instead of
-        dropping straight to the canned fallback.
+        Within a provider we now try up to ``_INTRA_PROVIDER_MODELS`` models
+        (best-first, recent-429 de-ranked) BEFORE failing over to the next
+        provider — so a single OpenRouter :free model going 429 rotates onto
+        another OpenRouter model instead of dropping to the canned fallback when
+        no other provider key is configured. An explicit provider+model is
+        honored as-is (the user chose it). Cross-provider failover (active first,
+        then the rest of ``llm_provider_order``) is preserved.
         """
+        K = self._INTRA_PROVIDER_MODELS
         if explicit_provider:
             provider = self.providers.get(explicit_provider)
             if provider is None:
                 return []
-            return [(provider, explicit_model or self.active_model)]
+            if explicit_model:
+                return [(provider, explicit_model)]
+            return [(provider, m) for m in self._ranked_models_for(provider, K)]
 
         candidates: list[tuple[LLMProvider, str]] = []
-        seen: set[str] = set()
+        seen_pairs: set[tuple[str, str]] = set()
+        seen_providers: set[str] = set()
+
+        def add(provider: LLMProvider, model: str) -> None:
+            pair = (provider.name, model)
+            if model and pair not in seen_pairs:
+                candidates.append((provider, model))
+                seen_pairs.add(pair)
+
         if self.active_provider is not None:
-            candidates.append((self.active_provider, explicit_model or self.active_model))
-            seen.add(self.active_provider.name)
+            for model in self._ranked_models_for(self.active_provider, K):
+                add(self.active_provider, model)
+            seen_providers.add(self.active_provider.name)
+
         for name in self.settings.llm_provider_order:
-            if name in seen:
+            if name in seen_providers:
                 continue
             provider = self.providers.get(name)
             if provider is None:
@@ -364,8 +392,9 @@ class ProviderManager:
                 usable = False
             if not usable:
                 continue
-            candidates.append((provider, self._model_for(provider)))
-            seen.add(name)
+            for model in self._ranked_models_for(provider, 1):
+                add(provider, model)
+            seen_providers.add(name)
         return candidates
 
     def _maybe_flag_key_invalid(self, provider: LLMProvider, exc: Exception) -> None:
@@ -524,7 +553,10 @@ def _with_retry(fn: Callable[[], _RetryT], provider_label: str) -> _RetryT:
             return _call_with_timeout(fn, timeout)
         except Exception as exc:
             last_exc = exc
-            if attempt >= max_attempts or not _is_retryable(exc):
+            # Fail fast on 429: don't hammer the same rate-limited model — let
+            # _run_with_failover rotate to the next model/provider immediately.
+            # (5xx/timeout still retry with backoff.)
+            if attempt >= max_attempts or not _is_retryable(exc) or _is_rate_limited(exc):
                 raise
             delay = base * (2 ** (attempt - 1))
             jitter = delay * 0.3 * (2 * _random.random() - 1)

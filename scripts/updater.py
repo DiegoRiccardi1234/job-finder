@@ -221,11 +221,16 @@ def main() -> int:
             restart_flags = 0
             if sys.platform == "win32":
                 restart_flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            # JOBFINDER_UPDATED=1 tells the relaunched launch_exe to skip its
+            # update-lock guard, so it starts even if we haven't cleared the
+            # lockfile yet (avoids a relaunch race where the new exe would see a
+            # still-fresh lock and defer to a non-existent updater).
             subprocess.Popen(
                 [str(exe)],
                 cwd=str(install_dir),
                 close_fds=True,
                 creationflags=restart_flags,
+                env={**os.environ, "JOBFINDER_UPDATED": "1"},
             )
             # Best-effort lockfile cleanup so the next update isn't blocked
             # by a stale lock. The backend TTL covers crash cases.

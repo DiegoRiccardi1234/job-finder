@@ -9,10 +9,14 @@ import { appState } from "./state.js";
 
 export function readFeatureFlags(prefs) {
   const off = (v) => v === "0" || v === "false" || v === "off";
+  // Every flag defaults ON: a missing pref is undefined, off(undefined) is false,
+  // so !off(...) is true. privacy_mode ships ON by design.
   return {
     interview_prep: !off(prefs.feature_interview_prep),
     resume_tailoring: !off(prefs.feature_resume_tailoring),
     skill_gap: !off(prefs.feature_skill_gap),
+    cv_review: !off(prefs.feature_cv_review),
+    privacy_mode: !off(prefs.feature_privacy_mode),
   };
 }
 
@@ -57,10 +61,16 @@ function renderSkillGap(data) {
 }
 
 export function syncFeatureToggles() {
-  document.querySelectorAll("#featureToggleList input[data-feature]").forEach((cb) => {
+  // Global selector: toggles live in both the Settings card and the Profile card.
+  document.querySelectorAll("input[data-feature]").forEach((cb) => {
     const key = cb.dataset.feature;
     if (key in appState.featureFlags) cb.checked = appState.featureFlags[key] !== false;
   });
+  const cvReviewBtn = document.getElementById("cvReviewBtn");
+  if (cvReviewBtn) {
+    cvReviewBtn.style.display =
+      appState.featureFlags.cv_review === false ? "none" : "inline-block";
+  }
 }
 
 export function setupGenerationButton({ btnId, boxId, outId, enabled, saved }) {
@@ -175,27 +185,34 @@ export function initFeatures({ loadJobs }) {
     });
   }
 
-  const featureToggleList = document.getElementById("featureToggleList");
-  if (featureToggleList) {
-    featureToggleList.addEventListener("change", async (event) => {
-      const cb = event.target.closest("input[data-feature]");
-      if (!cb) return;
-      const key = cb.dataset.feature;
-      appState.featureFlags[key] = cb.checked;
-      try {
-        await api("/api/preferences", {
-          method: "POST",
-          body: JSON.stringify({ key: `feature_${key}`, value: cb.checked ? "1" : "0" }),
-        });
-        showToast(t("settings.features.saved") || "Saved", "info");
-        if (key === "skill_gap") loadSkillGap();
-      } catch (error) {
-        cb.checked = !cb.checked;
-        appState.featureFlags[key] = cb.checked;
-        showToast(`${t("toast.actionError")}: ${error.message}`, "error");
+  // Shared toggle handler, attached to both the Settings and Profile feature
+  // lists so a toggle saves regardless of which card it lives in.
+  const onFeatureToggle = async (event) => {
+    const cb = event.target.closest("input[data-feature]");
+    if (!cb) return;
+    const key = cb.dataset.feature;
+    appState.featureFlags[key] = cb.checked;
+    try {
+      await api("/api/preferences", {
+        method: "POST",
+        body: JSON.stringify({ key: `feature_${key}`, value: cb.checked ? "1" : "0" }),
+      });
+      showToast(t("settings.features.saved") || "Saved", "info");
+      if (key === "skill_gap") loadSkillGap();
+      if (key === "cv_review") {
+        const b = document.getElementById("cvReviewBtn");
+        if (b) b.style.display = cb.checked ? "inline-block" : "none";
       }
-    });
-  }
+    } catch (error) {
+      cb.checked = !cb.checked;
+      appState.featureFlags[key] = cb.checked;
+      showToast(`${t("toast.actionError")}: ${error.message}`, "error");
+    }
+  };
+  ["featureToggleList", "profileFeatureToggleList"].forEach((id) => {
+    const list = document.getElementById(id);
+    if (list) list.addEventListener("change", onFeatureToggle);
+  });
 
   const refreshSkillGapBtn = document.getElementById("refreshSkillGapBtn");
   if (refreshSkillGapBtn) {

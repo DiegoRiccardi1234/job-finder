@@ -18,6 +18,58 @@ HOST = "127.0.0.1"
 PORT = int(os.environ.get("PORT", "8000"))
 URL = f"http://{HOST}:{PORT}"
 
+# Held for the whole process lifetime so the single-instance mutex stays owned;
+# Windows releases it automatically when the process exits.
+_SINGLE_INSTANCE_HANDLE: object = None
+
+
+def _update_in_progress(workspace: Path) -> bool:
+    """True when a fresh ``data/update.lock`` shows an updater is mid-flight.
+
+    During a self-update the running app exits so the updater can overwrite
+    ``JobFinder.exe``. If the user relaunches the exe in that window, the new
+    process re-locks the running image and the updater's file copy fails with
+    ``PermissionError`` (the real "stuck at 95%" update seen in updater.log).
+    The backend writes ``update.lock`` at update start and the updater clears it
+    around the swap, so a fresh lock means: don't start — let the updater finish
+    and relaunch the new version itself. That relaunch carries
+    ``JOBFINDER_UPDATED=1`` and skips this check (avoids a relaunch race).
+    """
+    if os.environ.get("JOBFINDER_UPDATED"):
+        return False
+    lock = workspace / "data" / "update.lock"
+    try:
+        age = time.time() - lock.stat().st_mtime
+    except OSError:
+        return False
+    # Generous window: a ~185 MB download on a slow line can exceed the backend's
+    # 180 s double-spawn TTL (measured ~210 s), so bound wider here. Older than
+    # this = the updater almost certainly died; start anyway rather than lock the
+    # user out.
+    return age < 900
+
+
+def _acquire_single_instance() -> bool:
+    """Windows named-mutex guard. True when we are the first/only instance.
+
+    A second live ``JobFinder.exe`` holds a section lock on the running image;
+    launching one while an update stages breaks the updater's copy. The owning
+    process keeps the handle for its lifetime; a duplicate returns fast so it can
+    exit and release its lock. Never blocks startup on a guard failure.
+    """
+    global _SINGLE_INSTANCE_HANDLE
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.CreateMutexW(None, False, "Global\\JobFinder_singleton")
+        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            return False
+        _SINGLE_INSTANCE_HANDLE = handle  # keep alive; released on process exit
+        return True
+    except Exception:
+        return True
+
 
 def _stream_ok(stream: object) -> bool:
     """True when ``stream`` can be written to without raising.
@@ -170,6 +222,19 @@ def main() -> int:
     _harden_stdio()
     workspace = _resolve_workspace()
     (workspace / "data").mkdir(parents=True, exist_ok=True)
+
+    if getattr(sys, "frozen", False) and sys.platform == "win32":
+        # Don't fight an in-progress self-update: a relaunched exe here would
+        # re-lock JobFinder.exe and break the updater's file copy. The updater
+        # relaunches the new version itself when it finishes.
+        if _update_in_progress(workspace):
+            return 0
+        # Single-instance: focus the existing window (reopen the browser) and
+        # exit fast so this process doesn't hold a second lock on the exe image.
+        if not _acquire_single_instance():
+            if not os.environ.get("JOBFINDER_NO_BROWSER"):
+                webbrowser.open(URL)
+            return 0
 
     # Tell app.main to mount itself against this workspace before we import it.
     os.environ["JOBFINDER_WORKSPACE"] = str(workspace)

@@ -41,7 +41,35 @@
     "confirmDelete": "Eliminare questo CV dalla cronologia? Operazione non annullabile.",
     "deleted": "Profilo eliminato",
     "deleteFailed": "Eliminazione fallita",
-    "chipSaved": "Salvato"
+    "chipSaved": "Salvato",
+    "cvUpload": "Carica CV",
+    "uploadCv": "Carica CV",
+    "linkedinProfile": "Profilo LinkedIn",
+    "linkedinSub": "Migliora il contesto per l'IA e il matching",
+    "saveUrl": "Salva URL",
+    "cvReviewBtn": "Rivedi il mio CV",
+    "onboarding": {
+      "title": "Obiettivi di ricerca",
+      "subtitle": "Usati per calibrare punteggi e consigli sul CV su ciò che cerchi.",
+      "sector": "Settore target (es. fintech)",
+      "goal": "Obiettivo di carriera",
+      "seniority": "Seniority cercata (es. junior)",
+      "workMode": "Modalità preferita (remoto/ibrido)",
+      "save": "Salva obiettivi",
+      "saved": "Obiettivi salvati"
+    },
+    "features": {
+      "title": "Strumenti CV e privacy",
+      "groupCv": "Strumenti CV",
+      "groupPrivacy": "Privacy",
+      "cvReview": "Consigli per migliorare il CV",
+      "cvReviewDesc": "Aggiunge un pulsante \"Rivedi il mio CV\" con suggerimenti pratici.",
+      "interviewPrepDesc": "Probabili domande di colloquio per ogni offerta, con spunti dal CV.",
+      "resumeTailoringDesc": "Una versione del CV adattata a una specifica offerta.",
+      "skillGapDesc": "Skill che ricorrono nelle offerte ma mancano nel tuo CV.",
+      "privacyMode": "Modalità Privacy",
+      "privacyModeDesc": "Rimuove nome, email, telefono e indirizzo dal CV prima di inviarlo all'IA. Attivo di default."
+    }
   },
   "jobSearch": {
     "title": "Cerca",
@@ -168,12 +196,7 @@
     "title": "Profilo",
     "titleEm": "Impostazioni",
     "subtitle": "Gestisci CV, scansioni e chiavi API — nessun terminale necessario.",
-    "cvUpload": "Carica CV",
-    "uploadCv": "Carica CV",
-    "linkedinProfile": "Profilo LinkedIn",
-    "linkedinSub": "Migliora il contesto IA per un matching più preciso",
     "linkedinPlaceholder": "https://linkedin.com/in/...",
-    "saveUrl": "Salva URL",
     "llmKeys": "Chiavi Provider LLM",
     "editKeys": "Modifica Chiavi",
     "primaryProvider": "Provider Primario",
@@ -234,8 +257,8 @@
       "setPrimaryFirst": "Imposta questo provider come primario per usare questo modello."
     },
     "features": {
-      "title": "Funzionalità",
-      "subtitle": "Attiva o disattiva le funzionalità opzionali. Quelle disattivate vengono nascoste nell'app.",
+      "title": "Automazione",
+      "subtitle": "Scansioni programmate e notifiche desktop. Gli interruttori delle funzionalità ora sono nel tuo Profilo.",
       "interviewPrep": "Generatore prep colloquio",
       "resumeTailoring": "Adattamento del CV",
       "saved": "Salvato",
@@ -262,7 +285,12 @@
     "settings": "Impostazioni",
     "expand": "Ingrandisci chat",
     "collapse": "Riduci chat",
-    "savedToShortlist": "Ruolo aggiunto alla tua ricerca"
+    "savedToShortlist": "Ruolo aggiunto alla tua ricerca",
+    "modelPicker": "Provider e modello",
+    "pickProvider": "Provider",
+    "pickModel": "Modello",
+    "badgeFree": "gratis",
+    "badgePaid": "pag."
   },
   "offcanvas": {
     "details": "Dettagli",
@@ -611,7 +639,16 @@
     "addShort": "Aggiungi",
     "adding": "Aggiungo…",
     "added": "Lavoro aggiunto",
-    "addError": "Impossibile aggiungere il lavoro"
+    "addError": "Impossibile aggiungere il lavoro",
+    "orImport": "— oppure importa da un link —",
+    "importUrl": "URL dell'annuncio",
+    "pasteText": "…oppure incolla il testo dell'annuncio (usato se il link non è scaricabile)",
+    "importBtn": "Importa e valuta",
+    "importing": "Importazione…",
+    "importedFromText": "Importato dal testo incollato (il link non era scaricabile)",
+    "importNeedInput": "Inserisci un URL o incolla il testo dell'annuncio",
+    "importFetchFailed": "Impossibile scaricare il link — incolla il testo dell'annuncio",
+    "importExtractFailed": "Impossibile ricavare l'offerta da quel contenuto"
   },
   "timeline": {
     "title": "Cronologia",

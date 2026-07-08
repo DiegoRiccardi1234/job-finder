@@ -43,6 +43,14 @@ class ManualJobCreateRequest(BaseModel):
     modalita: str = "Manuale"
 
 
+class JobImportRequest(BaseModel):
+    """Import a posting from a URL, with pasted text as fallback when the fetch
+    is blocked (LinkedIn) or yields too little. At least one must be non-empty."""
+
+    url: str = ""
+    text: str = ""
+
+
 class ScanRequest(BaseModel):
     search_terms: list[str] = Field(default_factory=list)
     location: str | None = None

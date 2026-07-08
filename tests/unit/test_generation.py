@@ -48,6 +48,13 @@ def test_build_prompt_extra_block_and_empty_description() -> None:
     assert "Descrizione:" not in prompt  # omitted when empty
 
 
+def test_build_prompt_omits_offer_without_job() -> None:
+    # CV review passes an empty job_info; the OFFERTA block must be dropped.
+    prompt = build_prompt("cv_review", "# Diego\nPython", {})
+    assert "OFFERTA:" not in prompt
+    assert "Python" in prompt
+
+
 def test_generate_with_profile_returns_content() -> None:
     fake = FakeProviderManager(json_response={"content": "Generated body"})
     out = generate_with_profile(fake, "interview_prep", "CV", {"titolo": "T"})
@@ -61,11 +68,44 @@ def test_generate_with_profile_falls_back_to_first_value() -> None:
     assert out == "Legacy key"
 
 
-def test_generate_with_profile_propagates_errors() -> None:
-    fake = FakeProviderManager(raise_on_json=True)
+def test_generate_with_profile_falls_back_to_prose_on_no_json() -> None:
+    # Weak/free models sometimes answer in prose with no JSON envelope; instead
+    # of failing (502) generation retries once as a plain-text chat call.
+    class PM:
+        def __init__(self) -> None:
+            self.chat_calls = 0
+
+        def complete_json(self, prompt: str, max_tokens: int = 700, **_: Any) -> dict[str, Any]:
+            raise ValueError("Nessun JSON trovato")
+
+        def chat(self, messages: list[dict[str, str]], max_tokens: int = 700, **_: Any) -> str:
+            self.chat_calls += 1
+            return "Plain markdown advice"
+
+    pm = PM()
+    out = generate_with_profile(pm, "cv_review", "CV", {})
+    assert out == "Plain markdown advice"
+    assert pm.chat_calls == 1
+
+
+def test_build_prompt_plain_text_variant_has_no_json_instruction() -> None:
+    prompt = build_prompt("cv_review", "CV", {}, json_output=False)
+    assert '"content"' not in prompt
+    assert "testo semplice" in prompt
+
+
+def test_generate_with_profile_propagates_when_fallback_also_fails() -> None:
+    # A genuine failure (no provider / network) still surfaces: both paths raise.
+    class PM:
+        def complete_json(self, prompt: str, max_tokens: int = 700, **_: Any) -> dict[str, Any]:
+            raise RuntimeError("no provider")
+
+        def chat(self, messages: list[dict[str, str]], max_tokens: int = 700, **_: Any) -> str:
+            raise RuntimeError("no provider")
+
     try:
-        generate_with_profile(fake, "cover_letter", "CV", {"titolo": "T"})
+        generate_with_profile(PM(), "cover_letter", "CV", {"titolo": "T"})
     except RuntimeError as exc:
-        assert "fake provider json failure" in str(exc)
+        assert "no provider" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("expected RuntimeError to propagate")

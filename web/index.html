@@ -91,6 +91,12 @@
           <button type="submit" class="action-main" id="mjSubmit" data-i18n="manualJob.add">Add job</button>
         </div>
       </form>
+      <div class="mini-modal-sep" data-i18n="manualJob.orImport">— or import from a link —</div>
+      <div class="mini-modal-import">
+        <input id="mjImportUrl" type="url" data-i18n-placeholder="manualJob.importUrl" placeholder="Job posting URL" />
+        <textarea id="mjPasteText" rows="4" data-i18n-placeholder="manualJob.pasteText" placeholder="…or paste the posting text (used if the link can't be fetched)"></textarea>
+        <button type="button" class="action-main" id="mjImportBtn" data-i18n="manualJob.importBtn">Import &amp; score</button>
+      </div>
     </div>
   </div>
 
@@ -446,7 +452,7 @@
 
       <div class="profile-actions">
         <article class="profile-action-card">
-          <h3><span class="material-symbols-outlined">description</span> <span data-i18n="settings.cvUpload">CV Upload</span></h3>
+          <h3><span class="material-symbols-outlined">description</span> <span data-i18n="profile.cvUpload">CV Upload</span></h3>
           <form id="cvForm" class="column">
             <label id="cvDropzone" class="cv-dropzone" for="cvFile">
               <span class="material-symbols-outlined">upload_file</span>
@@ -454,19 +460,55 @@
               <small class="cv-dropzone-hint">PDF · DOCX · MD · TXT · IMG (JPG/PNG/AVIF)</small>
             </label>
             <input id="cvFile" type="file" accept=".md,.txt,.pdf,.docx,.jpg,.jpeg,.png,.webp,.avif,.tiff,.bmp,.svg" required hidden />
-            <button type="submit" class="secondary" data-i18n="settings.uploadCv">Upload CV</button>
+            <button type="submit" class="secondary" data-i18n="profile.uploadCv">Upload CV</button>
           </form>
           <pre id="cvSummary" class="output hidden"></pre>
+          <button type="button" class="secondary" id="cvReviewBtn" data-i18n="profile.cvReviewBtn">Review my CV</button>
+          <pre id="cvReviewOutput" class="output hidden"></pre>
         </article>
 
         <article class="profile-action-card">
-          <h3><span class="material-symbols-outlined">link</span> <span data-i18n="settings.linkedinProfile">LinkedIn Profile</span></h3>
-          <p class="micro" data-i18n="settings.linkedinSub">Enhances AI context for better matching</p>
+          <h3><span class="material-symbols-outlined">link</span> <span data-i18n="profile.linkedinProfile">LinkedIn Profile</span></h3>
+          <p class="micro" data-i18n="profile.linkedinSub">Enhances AI context for better matching</p>
           <form id="linkedinForm" class="column">
             <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." required />
-            <button type="submit" class="secondary" data-i18n="settings.saveUrl">Save URL</button>
+            <button type="submit" class="secondary" data-i18n="profile.saveUrl">Save URL</button>
           </form>
           <pre id="linkedinStatus" class="output hidden"></pre>
+        </article>
+
+        <article class="profile-action-card">
+          <h3><span class="material-symbols-outlined">flag</span> <span data-i18n="profile.onboarding.title">Search goals</span></h3>
+          <p class="micro" data-i18n="profile.onboarding.subtitle">Used to tailor scoring and CV advice to what you're looking for.</p>
+          <form id="onboardingForm" class="column">
+            <input id="obSector" type="text" data-i18n-placeholder="profile.onboarding.sector" placeholder="Target sector (e.g. fintech)" />
+            <input id="obGoal" type="text" data-i18n-placeholder="profile.onboarding.goal" placeholder="Career goal" />
+            <input id="obSeniority" type="text" data-i18n-placeholder="profile.onboarding.seniority" placeholder="Seniority sought (e.g. junior)" />
+            <input id="obWorkMode" type="text" data-i18n-placeholder="profile.onboarding.workMode" placeholder="Preferred work mode (remote/hybrid)" />
+            <button type="submit" class="secondary" data-i18n="profile.onboarding.save">Save goals</button>
+          </form>
+        </article>
+
+        <article class="profile-action-card profile-features">
+          <h3><span class="material-symbols-outlined">toggle_on</span> <span data-i18n="profile.features.title">CV tools &amp; privacy</span></h3>
+          <div id="profileFeatureToggleList" class="feature-toggle-list">
+            <div class="feature-group">
+              <span class="feature-group-title" data-i18n="profile.features.groupCv">CV tools</span>
+              <label class="feature-toggle"><input type="checkbox" data-feature="cv_review" /> <span data-i18n="profile.features.cvReview">CV improvement advice</span></label>
+              <small class="feature-desc" data-i18n="profile.features.cvReviewDesc">Adds a "Review my CV" button with actionable suggestions.</small>
+              <label class="feature-toggle"><input type="checkbox" data-feature="interview_prep" /> <span data-i18n="settings.features.interviewPrep">Interview prep generator</span></label>
+              <small class="feature-desc" data-i18n="profile.features.interviewPrepDesc">Likely interview questions per job, with tips from your CV.</small>
+              <label class="feature-toggle"><input type="checkbox" data-feature="resume_tailoring" /> <span data-i18n="settings.features.resumeTailoring">Resume tailoring</span></label>
+              <small class="feature-desc" data-i18n="profile.features.resumeTailoringDesc">A version of your CV tuned to a specific job.</small>
+              <label class="feature-toggle"><input type="checkbox" data-feature="skill_gap" /> <span data-i18n="settings.features.skillGap">Skill-gap analysis</span></label>
+              <small class="feature-desc" data-i18n="profile.features.skillGapDesc">Skills that recur in jobs but are missing from your CV.</small>
+            </div>
+            <div class="feature-group">
+              <span class="feature-group-title" data-i18n="profile.features.groupPrivacy">Privacy</span>
+              <label class="feature-toggle"><input type="checkbox" data-feature="privacy_mode" /> <span data-i18n="profile.features.privacyMode">Privacy Mode</span></label>
+              <small class="feature-desc" data-i18n="profile.features.privacyModeDesc">Removes name, email, phone and address from the CV before it's sent to the AI. On by default.</small>
+            </div>
+          </div>
         </article>
       </div>
 
@@ -579,13 +621,8 @@
         </article>
 
         <article class="card-block card-block--wide features-card">
-          <h3><span class="material-symbols-outlined">toggle_on</span> <span data-i18n="settings.features.title">Features</span></h3>
-          <p class="micro" data-i18n="settings.features.subtitle">Turn optional features on or off. Disabled features are hidden across the app.</p>
-          <div id="featureToggleList" class="feature-toggle-list">
-            <label class="feature-toggle"><input type="checkbox" data-feature="interview_prep" /> <span data-i18n="settings.features.interviewPrep">Interview prep generator</span></label>
-            <label class="feature-toggle"><input type="checkbox" data-feature="resume_tailoring" /> <span data-i18n="settings.features.resumeTailoring">Resume tailoring</span></label>
-            <label class="feature-toggle"><input type="checkbox" data-feature="skill_gap" /> <span data-i18n="settings.features.skillGap">Skill-gap analysis</span></label>
-          </div>
+          <h3><span class="material-symbols-outlined">schedule</span> <span data-i18n="settings.features.title">Automation</span></h3>
+          <p class="micro" data-i18n="settings.features.subtitle">Scheduled scans and desktop notifications. Optional feature toggles now live in your Profile.</p>
 
           <div class="autoscan-block">
             <label class="feature-toggle"><input type="checkbox" id="autoscanEnabled" /> <span data-i18n="settings.features.autoscan">Scheduled auto-scan</span></label>
@@ -617,13 +654,30 @@
       <div class="coach-panel rail-chat" id="coachPanel">
         <div class="coach-head">
           <h3><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="coach.aiCareerCoach">AI Career Coach</span></h3>
-          <select id="chatModelSelector" class="mini-select" title="Override provider">
-            <!-- Provider options are populated from PROVIDER_CATALOG in providers.js -->
+          <!-- Hidden state: the unified popover (#modelPickerBtn) mirrors these two
+               native selects and writes back into them; app.js reads their values
+               on send and providers.js keeps them populated. -->
+          <select id="chatModelSelector" class="mini-select" title="Override provider" hidden aria-hidden="true">
             <option value="" data-i18n="coach.autoApi">Auto API</option>
           </select>
-          <select id="chatModelSelectorModel" class="mini-select" title="Override model" disabled>
+          <select id="chatModelSelectorModel" class="mini-select" title="Override model" hidden aria-hidden="true" disabled>
             <option value="" data-i18n="chat.modelAuto">Auto model</option>
           </select>
+          <button type="button" id="modelPickerBtn" class="model-picker-btn" aria-haspopup="dialog" aria-expanded="false" data-i18n-title="coach.modelPicker" title="Provider & model">
+            <span class="material-symbols-outlined">tune</span>
+            <span class="model-picker-label">Auto</span>
+            <span class="material-symbols-outlined mp-chevron">expand_more</span>
+          </button>
+          <div id="modelPickerPop" class="model-picker-pop hidden" role="dialog" aria-label="Provider &amp; model">
+            <div class="mp-col">
+              <div class="mp-col-title" data-i18n="coach.pickProvider">Provider</div>
+              <div id="mpProviders" class="mp-list"></div>
+            </div>
+            <div class="mp-col">
+              <div class="mp-col-title" data-i18n="coach.pickModel">Model</div>
+              <div id="mpModels" class="mp-list"></div>
+            </div>
+          </div>
         </div>
         <div class="chat-session-bar">
           <select id="chatSessionSelect" class="mini-select" title="Switch chat"></select>

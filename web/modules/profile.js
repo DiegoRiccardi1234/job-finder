@@ -1,3 +1,4 @@
+import { syncFeatureToggles } from "./features.js";
 import { api, escapeHtml, showToast } from "./helpers.js";
 import { t } from "./i18n.js";
 
@@ -228,10 +229,65 @@ function _updateAvatar(profile) {
   }
 }
 
+async function _runCvReview() {
+  const btn = document.getElementById("cvReviewBtn");
+  const out = document.getElementById("cvReviewOutput");
+  if (!btn || !out) return;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = t("toast.generating");
+  out.classList.remove("hidden");
+  out.textContent = t("toast.generating");
+  try {
+    const res = await api("/api/profile/cv-review", { method: "POST" });
+    out.textContent = res.cv_review || t("toast.noResult");
+  } catch (err) {
+    out.textContent = `${t("toast.genError")}: ${err.message}`;
+    showToast(`${t("toast.genError")}: ${err.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+const _ONBOARDING_FIELDS = [
+  ["obSector", "onboarding_sector"],
+  ["obGoal", "onboarding_goal"],
+  ["obSeniority", "onboarding_seniority"],
+  ["obWorkMode", "onboarding_work_mode"],
+];
+
+async function _prefillOnboarding() {
+  try {
+    const health = await api("/api/health");
+    const prefs = health.preferences || {};
+    for (const [id, key] of _ONBOARDING_FIELDS) {
+      const el = document.getElementById(id);
+      if (el && prefs[key]) el.value = prefs[key];
+    }
+  } catch {
+    /* best-effort prefill */
+  }
+}
+
+async function _saveOnboarding() {
+  for (const [id, key] of _ONBOARDING_FIELDS) {
+    const el = document.getElementById(id);
+    const value = (el?.value || "").trim();
+    try {
+      await api("/api/preferences", { method: "POST", body: JSON.stringify({ key, value }) });
+    } catch {
+      /* per-key best-effort */
+    }
+  }
+  showToast(t("profile.onboarding.saved") || "Saved", "info");
+}
+
 export async function loadProfile() {
   try {
     const payload = await api("/api/profile");
     _state.profile = payload.profile;
+    syncFeatureToggles();
     const empty = document.getElementById("profileEmpty");
     const content = document.getElementById("profileContent");
     if (!_state.profile) {
@@ -345,6 +401,10 @@ export function bindProfileEvents() {
     const target = event.target.closest("button");
     if (!target) return;
 
+    if (target.id === "cvReviewBtn") {
+      await _runCvReview();
+      return;
+    }
     if (target.classList.contains("chip-remove")) {
       const field = target.dataset.field;
       const idx = parseInt(target.dataset.idx || "-1", 10);
@@ -387,4 +447,13 @@ export function bindProfileEvents() {
     const btn = row?.querySelector(".profile-add-btn");
     if (btn) btn.click();
   });
+
+  const onboardingForm = document.getElementById("onboardingForm");
+  if (onboardingForm) {
+    onboardingForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      _saveOnboarding();
+    });
+  }
+  _prefillOnboarding();
 }

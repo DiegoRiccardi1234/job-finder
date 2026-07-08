@@ -169,6 +169,60 @@ def test_429_records_model_for_derank(tmp_path: Any) -> None:
     assert "model-x" in mgr._recent_429_models()
 
 
+class _MultiModelProvider(LLMProvider):
+    """Provider with several models; a chosen ``bad_model`` always 429s."""
+
+    def __init__(self, name: str, models: list[str], bad_model: str) -> None:
+        self.name = name
+        self._models = models
+        self._bad = bad_model
+        self.key_invalid = False
+        self.calls: list[str | None] = []
+
+    def is_available(self) -> bool:
+        return not self.key_invalid
+
+    def list_models(self) -> list[str]:
+        return list(self._models)
+
+    def select_model(self, preferred_model: str | None = None) -> str:
+        return self._models[0]
+
+    def complete_text(self, prompt: str, model: str | None = None, max_tokens: int = 700) -> str:
+        return ""
+
+    def chat(
+        self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700
+    ) -> str:
+        self.calls.append(model)
+        if model == self._bad:
+            raise Exception("429 rate limit")
+        return f"ok:{model}"
+
+    def complete_json(
+        self, prompt: str, model: str | None = None, max_tokens: int = 700
+    ) -> dict[str, Any]:
+        self.calls.append(model)
+        if model == self._bad:
+            raise Exception("429 rate limit")
+        return {"answer": f"ok:{model}"}
+
+
+def test_intra_provider_model_failover(tmp_path: Any) -> None:
+    """The top model 429s → rotate to another model of the SAME provider, even
+    when no other provider is configured (the real single-OpenRouter case)."""
+    p = _MultiModelProvider(
+        "openrouter",
+        ["gpt-oss-120b:free", "llama-3.3-70b:free"],
+        bad_model="gpt-oss-120b:free",
+    )
+    mgr = _mgr(tmp_path, {"openrouter": p}, ["openrouter"], "openrouter")
+
+    out = mgr.chat(messages=[{"role": "user", "content": "hi"}])
+    assert out == "ok:llama-3.3-70b:free"  # rotated off the 429ing top model
+    assert p.calls[0] == "gpt-oss-120b:free" and len(p.calls) >= 2
+
+
 def test_explicit_provider_is_not_failed_over(tmp_path: Any) -> None:
     """An explicit provider request is honored — no silent switch to another."""
     bad = _StubProvider("cerebras", exc=Exception("boom"))

@@ -50,7 +50,7 @@ def test_retry_succeeds_after_transient_failures(monkeypatch) -> None:
     def flaky():
         calls["n"] += 1
         if calls["n"] < 3:
-            raise Exception("429 queue_exceeded")
+            raise _HttpError("server overloaded", status_code=503)
         return "ok"
 
     result = _with_retry(flaky, provider_label="test")
@@ -88,11 +88,33 @@ def test_retry_respects_max_attempts(monkeypatch) -> None:
 
     calls = {"n": 0}
 
+    def always_503():
+        calls["n"] += 1
+        raise _HttpError("service unavailable", status_code=503)
+
+    with pytest.raises(Exception):
+        _with_retry(always_503, provider_label="test")
+
+    assert calls["n"] == 2
+
+
+def test_retry_fails_fast_on_429(monkeypatch) -> None:
+    # 429 is fail-fast: don't hammer a rate-limited model — one attempt, then
+    # _run_with_failover rotates to the next model/provider.
+    monkeypatch.setenv("LLM_MAX_RETRIES", "5")
+    monkeypatch.setenv("LLM_RETRY_BASE_SECONDS", "0")
+
+    from app.providers import factory as _mod
+
+    monkeypatch.setattr(_mod._time, "sleep", lambda _: None)
+
+    calls = {"n": 0}
+
     def always_429():
         calls["n"] += 1
-        raise Exception("429 too many requests")
+        raise _HttpError("too many requests", status_code=429)
 
     with pytest.raises(Exception):
         _with_retry(always_429, provider_label="test")
 
-    assert calls["n"] == 2
+    assert calls["n"] == 1

@@ -99,7 +99,7 @@ export function applyTranslations(root = document) {
 
 export async function loadLanguage(lang) {
   try {
-    const res = await fetch(`/web/i18n/${lang}.json`);
+    const res = await fetch(`/web/i18n/${lang}.json?v={{VERSION}}`);
     if (!res.ok) throw new Error(res.status);
     _i18nStrings = await res.json();
   } catch {
@@ -128,7 +128,7 @@ export async function loadLanguage(lang) {
 
 export async function initI18n() {
   try {
-    const res = await fetch("/web/i18n/en.json");
+    const res = await fetch("/web/i18n/en.json?v={{VERSION}}");
     _i18nFallback = await res.json();
   } catch {
     _i18nFallback = {};

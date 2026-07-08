@@ -41,7 +41,35 @@
     "confirmDelete": "Diesen Lebenslauf aus dem Verlauf löschen? Aktion nicht rückgängig.",
     "deleted": "Profil gelöscht",
     "deleteFailed": "Löschen fehlgeschlagen",
-    "chipSaved": "Gespeichert"
+    "chipSaved": "Gespeichert",
+    "cvUpload": "CV hochladen",
+    "uploadCv": "CV hochladen",
+    "linkedinProfile": "LinkedIn-Profil",
+    "linkedinSub": "Verbessert den KI-Kontext für besseres Matching",
+    "saveUrl": "URL speichern",
+    "cvReviewBtn": "Meinen Lebenslauf prüfen",
+    "onboarding": {
+      "title": "Suchziele",
+      "subtitle": "Werden genutzt, um Bewertung und CV-Tipps auf deine Suche abzustimmen.",
+      "sector": "Zielbranche (z. B. Fintech)",
+      "goal": "Karriereziel",
+      "seniority": "Gesuchte Seniorität (z. B. Junior)",
+      "workMode": "Bevorzugte Arbeitsweise (Remote/Hybrid)",
+      "save": "Ziele speichern",
+      "saved": "Ziele gespeichert"
+    },
+    "features": {
+      "title": "CV-Tools & Datenschutz",
+      "groupCv": "CV-Tools",
+      "groupPrivacy": "Datenschutz",
+      "cvReview": "CV-Verbesserungstipps",
+      "cvReviewDesc": "Fügt einen Button \"Meinen Lebenslauf prüfen\" mit konkreten Vorschlägen hinzu.",
+      "interviewPrepDesc": "Wahrscheinliche Interviewfragen je Stelle, mit Tipps aus deinem CV.",
+      "resumeTailoringDesc": "Eine auf eine bestimmte Stelle zugeschnittene CV-Version.",
+      "skillGapDesc": "Skills, die in Stellen oft vorkommen, aber in deinem CV fehlen.",
+      "privacyMode": "Datenschutzmodus",
+      "privacyModeDesc": "Entfernt Name, E-Mail, Telefon und Adresse aus dem CV, bevor es an die KI geht. Standardmäßig aktiv."
+    }
   },
   "jobSearch": {
     "title": "Job",
@@ -168,12 +196,7 @@
     "title": "Profil",
     "titleEm": "Einstellungen",
     "subtitle": "Verwalte deinen Lebenslauf, Scans und API-Schlüssel — kein Terminal nötig.",
-    "cvUpload": "Lebenslauf hochladen",
-    "uploadCv": "Lebenslauf hochladen",
-    "linkedinProfile": "LinkedIn-Profil",
-    "linkedinSub": "Verbessert den KI-Kontext für besseres Matching",
     "linkedinPlaceholder": "https://linkedin.com/in/...",
-    "saveUrl": "URL speichern",
     "llmKeys": "LLM-Anbieter-Schlüssel",
     "editKeys": "Schlüssel bearbeiten",
     "primaryProvider": "Primärer Anbieter",
@@ -234,8 +257,8 @@
       "setPrimaryFirst": "Lege diesen Anbieter als primär fest, um dieses Modell zu verwenden."
     },
     "features": {
-      "title": "Funktionen",
-      "subtitle": "Optionale Funktionen ein- oder ausschalten. Deaktivierte werden in der App ausgeblendet.",
+      "title": "Automatisierung",
+      "subtitle": "Geplante Scans und Desktop-Benachrichtigungen. Die Funktions-Schalter sind jetzt in deinem Profil.",
       "interviewPrep": "Interview-Prep-Generator",
       "resumeTailoring": "Lebenslauf-Anpassung",
       "saved": "Gespeichert",
@@ -262,7 +285,12 @@
     "settings": "Einstellungen",
     "expand": "Chat vergrößern",
     "collapse": "Chat verkleinern",
-    "savedToShortlist": "Rolle zu deiner Suche hinzugefügt"
+    "savedToShortlist": "Rolle zu deiner Suche hinzugefügt",
+    "modelPicker": "Anbieter & Modell",
+    "pickProvider": "Anbieter",
+    "pickModel": "Modell",
+    "badgeFree": "gratis",
+    "badgePaid": "bezahlt"
   },
   "offcanvas": {
     "details": "Details",
@@ -611,7 +639,16 @@
     "addShort": "Job hinzufügen",
     "adding": "Wird hinzugefügt…",
     "added": "Job hinzugefügt",
-    "addError": "Job konnte nicht hinzugefügt werden"
+    "addError": "Job konnte nicht hinzugefügt werden",
+    "orImport": "— oder aus einem Link importieren —",
+    "importUrl": "URL der Stellenanzeige",
+    "pasteText": "…oder füge den Anzeigentext ein (wird genutzt, wenn der Link nicht abrufbar ist)",
+    "importBtn": "Importieren & bewerten",
+    "importing": "Import läuft…",
+    "importedFromText": "Aus dem eingefügten Text importiert (der Link war nicht abrufbar)",
+    "importNeedInput": "Gib eine URL ein oder füge den Anzeigentext ein",
+    "importFetchFailed": "Link konnte nicht geladen werden — füge den Anzeigentext ein",
+    "importExtractFailed": "Die Stelle konnte aus diesem Inhalt nicht gelesen werden"
   },
   "timeline": {
     "title": "Verlauf",

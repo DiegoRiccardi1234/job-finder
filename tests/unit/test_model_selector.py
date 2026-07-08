@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.providers.model_selector import (
     choose_best_model,
     pick_default_model,
+    rank_models,
     score_model_name,
 )
 
@@ -78,3 +79,30 @@ def test_choose_best_prefers_known_new_family_over_unknown() -> None:
 def test_new_family_models_are_default_pickable() -> None:
     assert pick_default_model("deepseek", ["deepseek-chat", "deepseek-coder"]) is not None
     assert pick_default_model("xai", ["grok-3", "grok-3-mini"]) is not None
+
+
+def test_rank_models_excludes_hard_avoid_and_limits() -> None:
+    models = ["gpt-4o", "text-embedding-3-large", "llama-3-8b-instruct"]
+    ranked = rank_models(models, limit=2)
+    assert "text-embedding-3-large" not in ranked  # hard-avoid dropped
+    assert len(ranked) == 2
+    # best-first, ordered by the shared scorer
+    expected = sorted(
+        [m for m in models if m != "text-embedding-3-large"],
+        key=score_model_name,
+        reverse=True,
+    )
+    assert ranked == expected
+
+
+def test_rank_models_penalized_sinks_but_stays() -> None:
+    models = ["llama-3.3-70b-instruct", "llama-3.1-70b-instruct"]
+    top = rank_models(models)[0]
+    ranked = rank_models(models, penalized={top})
+    assert ranked[-1] == top  # de-ranked to the bottom
+    assert set(ranked) == set(models)  # but still present
+
+
+def test_rank_models_preferred_hoisted_to_front() -> None:
+    models = ["gpt-4o", "llama-3-8b-instruct"]
+    assert rank_models(models, preferred_model="llama-3-8b-instruct")[0] == "llama-3-8b-instruct"
