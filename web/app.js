@@ -35,6 +35,7 @@ import {
   maybeOfferPersistChatOverride,
   setProviderDeps,
 } from "./modules/providers.js";
+import { initModelPicker, refreshModelPickerLabel } from "./modules/model_picker.js";
 
 // Global safety nets: surface otherwise-silent async failures in the console.
 window.addEventListener("unhandledrejection", (e) => console.error("Unhandled promise rejection:", e.reason));
@@ -51,6 +52,7 @@ onLanguageChange(() => {
   if (typeof loadChatPrompts === "function") {
     loadChatPrompts().catch(() => {});
   }
+  refreshModelPickerLabel();
 });
 
 // Language selector
@@ -1439,6 +1441,8 @@ if (_chatProviderEl) {
   _chatProviderEl.addEventListener("change", () => {
     populateChatModelSelector(_chatProviderEl.value);
   });
+  // Unified popover that mirrors the (now hidden) provider/model selects.
+  initModelPicker();
 }
 
 // ─── Job Search ──────────────────────────────────────────
@@ -1611,6 +1615,10 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
     const close = () => modal.classList.add("hidden");
     openBtn.addEventListener("click", () => {
       form.reset();
+      const iu = document.getElementById("mjImportUrl");
+      const pt = document.getElementById("mjPasteText");
+      if (iu) iu.value = "";
+      if (pt) pt.value = "";
       modal.classList.remove("hidden");
       document.getElementById("mjTitolo").focus();
     });
@@ -1643,11 +1651,46 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
         submit.textContent = orig;
       }
     });
+
+    // Import from a URL (with pasted-text fallback) → LLM extracts the fields
+    // → same /api scoring path as a manual add.
+    const importBtn = document.getElementById("mjImportBtn");
+    if (importBtn) {
+      importBtn.addEventListener("click", async () => {
+        const url = (document.getElementById("mjImportUrl").value || "").trim();
+        const text = (document.getElementById("mjPasteText").value || "").trim();
+        if (!url && !text) {
+          showToast(t("manualJob.importNeedInput"), "info");
+          return;
+        }
+        const orig = importBtn.textContent;
+        importBtn.disabled = true;
+        importBtn.textContent = t("manualJob.importing");
+        try {
+          const res = await api("/api/jobs/import", {
+            method: "POST",
+            body: JSON.stringify({ url, text }),
+          });
+          showToast(res.used_fallback ? t("manualJob.importedFromText") : t("manualJob.added"), "info");
+          close();
+          await Promise.all([loadJobs(), loadRecommendations()]);
+        } catch (err) {
+          // 422 fetch_failed → nudge the user to paste the posting text instead.
+          showToast(`${t("manualJob.addError")}: ${err.message}`, "info");
+          const ta = document.getElementById("mjPasteText");
+          if (ta) ta.focus();
+        } finally {
+          importBtn.disabled = false;
+          importBtn.textContent = orig;
+        }
+      });
+    }
   }
 }
 
 async function bootstrap() {
   await initI18n();
+  refreshModelPickerLabel();
   activateView("dashboard");
   await loadHealth();
   await loadKeysStatus();

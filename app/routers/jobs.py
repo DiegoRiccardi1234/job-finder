@@ -10,10 +10,13 @@ from fastapi.responses import StreamingResponse
 from app.models import (
     FavoriteRequest,
     JobActionRequest,
+    JobImportRequest,
     JobNoteRequest,
     ManualJobCreateRequest,
 )
 from app.services.generation import generate_with_profile
+from app.services.job_import import extract_job_fields, fetch_page_text
+from app.services.onboarding import onboarding_context
 from app.services.scanner_service import analyze_offer
 from app.services.skill_gap import compute_skill_gap
 
@@ -100,6 +103,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 "(es. 'Gentile {nome},') e fai un breve riferimento al suo ruolo."
             )
 
+        candidate_name = profile.get("name") if profile else None
         try:
             cover_letter = generate_with_profile(
                 container.providers,
@@ -107,6 +111,8 @@ def build_router(container: AppContainer) -> APIRouter:
                 profile_markdown,
                 {"titolo": titolo, "azienda": azienda, "descrizione": descrizione},
                 extra_block=recruiter_block,
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=candidate_name,
             )
             container.db.save_cover_letter(job_id, cover_letter)
         except Exception as e:
@@ -114,31 +120,39 @@ def build_router(container: AppContainer) -> APIRouter:
 
         return {"cover_letter": cover_letter}
 
-    def _job_generation_context(job_id: int) -> tuple[dict[str, Any], str]:
-        """Resolve (job_info, profile_markdown) for a generation endpoint.
+    def _job_generation_context(job_id: int) -> tuple[dict[str, Any], str, str | None]:
+        """Resolve (job_info, profile_markdown, candidate_name) for a generation
+        endpoint.
 
         Raises 404 if the job is missing. Shared by interview-prep and
-        resume-tailoring.
+        resume-tailoring. ``candidate_name`` lets Privacy Mode restore the real
+        name in the generated text.
         """
         job = container.db.get_job_with_analysis(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         profile = container.db.get_active_candidate_profile()
         profile_markdown = profile["markdown"] if profile else "CV non disponibile."
+        candidate_name = profile.get("name") if profile else None
         job_info = {
             "titolo": job.get("titolo", "N/A"),
             "azienda": job.get("azienda", "N/A"),
             "descrizione": job.get("descrizione", ""),
         }
-        return job_info, profile_markdown
+        return job_info, profile_markdown, candidate_name
 
     @router.post("/api/jobs/{job_id}/interview-prep")
     def generate_interview_prep(job_id: int) -> dict[str, Any]:
         container.require_feature("interview_prep")
-        job_info, profile_markdown = _job_generation_context(job_id)
+        job_info, profile_markdown, candidate_name = _job_generation_context(job_id)
         try:
             content = generate_with_profile(
-                container.providers, "interview_prep", profile_markdown, job_info
+                container.providers,
+                "interview_prep",
+                profile_markdown,
+                job_info,
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=candidate_name,
             )
             container.db.save_job_analysis_field(job_id, "interview_prep", content)
         except Exception as e:
@@ -150,10 +164,15 @@ def build_router(container: AppContainer) -> APIRouter:
     @router.post("/api/jobs/{job_id}/tailored-resume")
     def generate_tailored_resume(job_id: int) -> dict[str, Any]:
         container.require_feature("resume_tailoring")
-        job_info, profile_markdown = _job_generation_context(job_id)
+        job_info, profile_markdown, candidate_name = _job_generation_context(job_id)
         try:
             content = generate_with_profile(
-                container.providers, "resume_tailoring", profile_markdown, job_info
+                container.providers,
+                "resume_tailoring",
+                profile_markdown,
+                job_info,
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=candidate_name,
             )
             container.db.save_job_analysis_field(job_id, "tailored_resume", content)
         except Exception as e:
@@ -204,9 +223,89 @@ def build_router(container: AppContainer) -> APIRouter:
             titolo=payload.titolo,
             azienda=payload.azienda,
             descrizione=payload.descrizione,
+            privacy=container.feature_enabled("privacy_mode", True),
+            extra_context=onboarding_context(container.db),
+            candidate_name=(profile.get("name") if profile else None),
         )
         container.db.update_job_analysis(job_id=job_id, analysis=analysis)
         return {"job_id": job_id, "analysis": analysis}
+
+    @router.post("/api/jobs/import")
+    def import_job(payload: JobImportRequest) -> dict[str, Any]:
+        """Import a posting from a URL (fallback: pasted text), LLM-extract its
+        fields, store it and AI-score it via the same path as a manual add."""
+        container.require_provider()
+        url = (payload.url or "").strip()
+        text = (payload.text or "").strip()
+
+        fetch_ok = False
+        used_fallback = False
+        if url:
+            page = fetch_page_text(url)
+            if page and len(page) >= 400:
+                raw, fetch_ok = page, True
+            elif text:
+                raw, used_fallback = text, True
+            else:
+                # Fetch blocked/thin (LinkedIn) and nothing pasted to fall back to.
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "fetch_failed",
+                        "message_key": "manualJob.importFetchFailed",
+                    },
+                )
+        elif text:
+            raw = text
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "no_input", "message_key": "manualJob.importNeedInput"},
+            )
+
+        fields = extract_job_fields(container.providers, raw)
+        if not fields.get("titolo") and not fields.get("azienda"):
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "extract_failed", "message_key": "manualJob.importExtractFailed"},
+            )
+
+        row = {
+            "titolo": fields.get("titolo") or "Imported job",
+            "azienda": fields.get("azienda") or "N/A",
+            "descrizione": fields.get("descrizione", ""),
+            "sede": "",
+            "fonte": "import",
+            "link": url,
+            "ricerca_usata": "import",
+            "modalita": "Import",
+        }
+        job_id = container.db.add_manual_job(row)
+
+        profile = container.db.get_active_candidate_profile()
+        profile_markdown = profile["markdown"] if profile else "Profile not loaded"
+        linkedin_url = container.db.get_preference("linkedin_url", "")
+        if linkedin_url:
+            profile_markdown += f"\n\nProfilo LinkedIn: {linkedin_url}"
+
+        analysis = analyze_offer(
+            provider_manager=container.providers,
+            profile_markdown=profile_markdown,
+            titolo=row["titolo"],
+            azienda=row["azienda"],
+            descrizione=row["descrizione"],
+            privacy=container.feature_enabled("privacy_mode", True),
+            extra_context=onboarding_context(container.db),
+            candidate_name=(profile.get("name") if profile else None),
+        )
+        container.db.update_job_analysis(job_id=job_id, analysis=analysis)
+        return {
+            "job_id": job_id,
+            "analysis": analysis,
+            "fields": fields,
+            "fetch_ok": fetch_ok,
+            "used_fallback": used_fallback,
+        }
 
     @router.post("/api/jobs/{job_id}/action")
     def set_job_action(job_id: int, payload: JobActionRequest) -> dict[str, Any]:

@@ -663,6 +663,7 @@ def summarize_profile_with_llm(
     provider_manager: "Any",
     on_retry: Any = None,
     language: str | None = None,
+    privacy: bool = False,
 ) -> dict[str, Any]:
     """Rich profile summary using LLM. Falls back to keyword-based if LLM fails.
 
@@ -674,11 +675,22 @@ def summarize_profile_with_llm(
     ``on_retry`` is accepted for backward compatibility but no longer fires.
     """
     language_name = _SUMMARY_LANGUAGES.get((language or "en").lower()[:2], "English")
+    content = markdown_text
+    name_bullet = (
+        "- name: the candidate's full name as written on the CV (string, e.g. 'Mario Rossi'). "
+        "Use null if you cannot determine it confidently.\n"
+    )
+    if privacy:
+        # Privacy Mode: never send the name/contacts to the LLM. The real name is
+        # recovered locally by extract_candidate_name in the upload handler.
+        from app.services.pii import redact_pii
+
+        content, _ = redact_pii(markdown_text, extract_candidate_name(markdown_text))
+        name_bullet = ""
     prompt = (
         "You are an expert career advisor. Analyze this CV/resume and extract a structured profile.\n"
         "Return a JSON object with these fields:\n"
-        "- name: the candidate's full name as written on the CV (string, e.g. 'Mario Rossi'). "
-        "Use null if you cannot determine it confidently.\n"
+        f"{name_bullet}"
         "- skills: list of technical and soft skills found\n"
         "- preferred_roles: list of 3-5 job titles that best match this candidate\n"
         "- experience_level: one of 'entry' | 'junior' | 'mid' | 'senior', based ONLY on "
@@ -697,7 +709,7 @@ def summarize_profile_with_llm(
         f"{language_name}, regardless of the CV's language. Keep 'skills' and "
         "'preferred_roles' as commonly written in job postings (do not translate "
         "technology names or job titles).\n\n"
-        f"CV Content:\n{markdown_text[:3000]}"
+        f"CV Content:\n{content[:3000]}"
     )
     try:
         result = provider_manager.complete_json(prompt=prompt, max_tokens=600)

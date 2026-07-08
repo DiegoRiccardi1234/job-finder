@@ -5,7 +5,37 @@
 import { api, renderCoachMarkdown } from "./helpers.js";
 import { t } from "./i18n.js";
 
+async function _reconcileStuckUpdate() {
+  // A detached updater that failed (PermissionError on a locked exe), or a page
+  // killed mid-update, leaves localStorage.updateInProgress set. On the next
+  // load that dead-locks the "Update now" button — its click guard early-returns
+  // while the flag matches the latest version. Clear it when no updater is
+  // actually running so the user can retry.
+  if (!localStorage.getItem("updateInProgress")) return;
+  const unstick = () => {
+    localStorage.removeItem("updateInProgress");
+    const runBtn = document.getElementById("updateBannerRun");
+    if (runBtn) runBtn.disabled = false;
+  };
+  try {
+    const pr = await fetch("/api/update/progress", { cache: "no-store" });
+    const p = pr.ok ? await pr.json() : { step: "idle" };
+    // "idle"/"error" = nothing live (or last run failed) → safe to unstick and
+    // release the backend lock. download/verify/replace/restart = a real update
+    // is in flight (e.g. another tab) → leave it alone.
+    if (p.step === "idle" || p.step === "error") {
+      unstick();
+      fetch("/api/update/lock", { method: "DELETE" }).catch(() => {});
+    }
+  } catch {
+    // Progress unreachable → assume nothing running; unstick so we don't strand
+    // the button forever.
+    unstick();
+  }
+}
+
 export async function checkForUpdate(opts) {
+  await _reconcileStuckUpdate();
   const forceRefresh = !!(opts && opts.forceRefresh);
   const banner = document.getElementById("updateBanner");
   const url = forceRefresh ? "/api/version?refresh=true" : "/api/version";

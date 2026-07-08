@@ -41,7 +41,35 @@
     "confirmDelete": "¿Eliminar este CV del historial? No se puede deshacer.",
     "deleted": "Perfil eliminado",
     "deleteFailed": "Error al eliminar",
-    "chipSaved": "Guardado"
+    "chipSaved": "Guardado",
+    "cvUpload": "Subir CV",
+    "uploadCv": "Subir CV",
+    "linkedinProfile": "Perfil de LinkedIn",
+    "linkedinSub": "Mejora el contexto de la IA para un mejor emparejamiento",
+    "saveUrl": "Guardar URL",
+    "cvReviewBtn": "Revisar mi CV",
+    "onboarding": {
+      "title": "Objetivos de búsqueda",
+      "subtitle": "Se usan para ajustar la puntuación y los consejos del CV a lo que buscas.",
+      "sector": "Sector objetivo (p. ej. fintech)",
+      "goal": "Objetivo profesional",
+      "seniority": "Nivel buscado (p. ej. junior)",
+      "workMode": "Modalidad preferida (remoto/híbrido)",
+      "save": "Guardar objetivos",
+      "saved": "Objetivos guardados"
+    },
+    "features": {
+      "title": "Herramientas de CV y privacidad",
+      "groupCv": "Herramientas de CV",
+      "groupPrivacy": "Privacidad",
+      "cvReview": "Consejos para mejorar el CV",
+      "cvReviewDesc": "Añade un botón \"Revisar mi CV\" con sugerencias prácticas.",
+      "interviewPrepDesc": "Preguntas de entrevista probables por oferta, con pistas de tu CV.",
+      "resumeTailoringDesc": "Una versión de tu CV adaptada a una oferta concreta.",
+      "skillGapDesc": "Habilidades que se repiten en las ofertas pero faltan en tu CV.",
+      "privacyMode": "Modo privacidad",
+      "privacyModeDesc": "Elimina nombre, correo, teléfono y dirección del CV antes de enviarlo a la IA. Activado por defecto."
+    }
   },
   "jobSearch": {
     "title": "Buscar",
@@ -168,12 +196,7 @@
     "title": "Perfil",
     "titleEm": "Ajustes",
     "subtitle": "Gestiona tu CV, escaneos y claves API — sin terminal.",
-    "cvUpload": "Subir CV",
-    "uploadCv": "Subir CV",
-    "linkedinProfile": "Perfil LinkedIn",
-    "linkedinSub": "Mejora el contexto IA para un matching más preciso",
     "linkedinPlaceholder": "https://linkedin.com/in/...",
-    "saveUrl": "Guardar URL",
     "llmKeys": "Claves de Proveedor LLM",
     "editKeys": "Editar Claves",
     "primaryProvider": "Proveedor Primario",
@@ -234,8 +257,8 @@
       "setPrimaryFirst": "Define este proveedor como principal para usar este modelo."
     },
     "features": {
-      "title": "Funciones",
-      "subtitle": "Activa o desactiva funciones opcionales. Las desactivadas se ocultan en la app.",
+      "title": "Automatización",
+      "subtitle": "Búsquedas programadas y notificaciones de escritorio. Los ajustes de funciones ahora están en tu Perfil.",
       "interviewPrep": "Generador de prep. de entrevista",
       "resumeTailoring": "Adaptación de CV",
       "saved": "Guardado",
@@ -262,7 +285,12 @@
     "settings": "Ajustes",
     "expand": "Ampliar chat",
     "collapse": "Reducir chat",
-    "savedToShortlist": "Rol añadido a tu búsqueda"
+    "savedToShortlist": "Rol añadido a tu búsqueda",
+    "modelPicker": "Proveedor y modelo",
+    "pickProvider": "Proveedor",
+    "pickModel": "Modelo",
+    "badgeFree": "gratis",
+    "badgePaid": "pago"
   },
   "offcanvas": {
     "details": "Detalles",
@@ -611,7 +639,16 @@
     "addShort": "Añadir",
     "adding": "Añadiendo…",
     "added": "Empleo añadido",
-    "addError": "No se pudo añadir el empleo"
+    "addError": "No se pudo añadir el empleo",
+    "orImport": "— o importar desde un enlace —",
+    "importUrl": "URL de la oferta",
+    "pasteText": "…o pega el texto de la oferta (se usa si el enlace no se puede descargar)",
+    "importBtn": "Importar y evaluar",
+    "importing": "Importando…",
+    "importedFromText": "Importado del texto pegado (el enlace no se pudo descargar)",
+    "importNeedInput": "Introduce una URL o pega el texto de la oferta",
+    "importFetchFailed": "No se pudo descargar el enlace — pega el texto de la oferta",
+    "importExtractFailed": "No se pudo leer la oferta de ese contenido"
   },
   "timeline": {
     "title": "Historial",

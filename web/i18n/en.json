@@ -41,7 +41,35 @@
     "confirmDelete": "Delete this CV from the history? This cannot be undone.",
     "deleted": "Profile deleted",
     "deleteFailed": "Delete failed",
-    "chipSaved": "Saved"
+    "chipSaved": "Saved",
+    "cvUpload": "CV Upload",
+    "uploadCv": "Upload CV",
+    "linkedinProfile": "LinkedIn Profile",
+    "linkedinSub": "Enhances AI context for better matching",
+    "saveUrl": "Save URL",
+    "cvReviewBtn": "Review my CV",
+    "onboarding": {
+      "title": "Search goals",
+      "subtitle": "Used to tailor scoring and CV advice to what you're looking for.",
+      "sector": "Target sector (e.g. fintech)",
+      "goal": "Career goal",
+      "seniority": "Seniority sought (e.g. junior)",
+      "workMode": "Preferred work mode (remote/hybrid)",
+      "save": "Save goals",
+      "saved": "Goals saved"
+    },
+    "features": {
+      "title": "CV tools & privacy",
+      "groupCv": "CV tools",
+      "groupPrivacy": "Privacy",
+      "cvReview": "CV improvement advice",
+      "cvReviewDesc": "Adds a \"Review my CV\" button with actionable suggestions.",
+      "interviewPrepDesc": "Likely interview questions per job, with tips from your CV.",
+      "resumeTailoringDesc": "A version of your CV tuned to a specific job.",
+      "skillGapDesc": "Skills that recur in jobs but are missing from your CV.",
+      "privacyMode": "Privacy Mode",
+      "privacyModeDesc": "Removes name, email, phone and address from the CV before it's sent to the AI. On by default."
+    }
   },
   "jobSearch": {
     "title": "Job",
@@ -168,12 +196,7 @@
     "title": "Profile",
     "titleEm": "Settings",
     "subtitle": "Manage your CV, search scans & API keys — no terminal needed.",
-    "cvUpload": "CV Upload",
-    "uploadCv": "Upload CV",
-    "linkedinProfile": "LinkedIn Profile",
-    "linkedinSub": "Enhances AI context for better matching",
     "linkedinPlaceholder": "https://linkedin.com/in/...",
-    "saveUrl": "Save URL",
     "llmKeys": "LLM Provider Keys",
     "editKeys": "Edit Keys",
     "primaryProvider": "Primary Provider",
@@ -234,8 +257,8 @@
       "setPrimaryFirst": "Set this provider as primary to use this model."
     },
     "features": {
-      "title": "Features",
-      "subtitle": "Turn optional features on or off. Disabled features are hidden across the app.",
+      "title": "Automation",
+      "subtitle": "Scheduled scans and desktop notifications. Optional feature toggles now live in your Profile.",
       "interviewPrep": "Interview prep generator",
       "resumeTailoring": "Resume tailoring",
       "saved": "Saved",
@@ -262,7 +285,12 @@
     "settings": "Settings",
     "expand": "Expand chat",
     "collapse": "Collapse chat",
-    "savedToShortlist": "Role added to your search"
+    "savedToShortlist": "Role added to your search",
+    "modelPicker": "Provider & model",
+    "pickProvider": "Provider",
+    "pickModel": "Model",
+    "badgeFree": "free",
+    "badgePaid": "paid"
   },
   "offcanvas": {
     "details": "Details",
@@ -611,7 +639,16 @@
     "addShort": "Add job",
     "adding": "Adding…",
     "added": "Job added",
-    "addError": "Couldn't add the job"
+    "addError": "Couldn't add the job",
+    "orImport": "— or import from a link —",
+    "importUrl": "Job posting URL",
+    "pasteText": "…or paste the posting text (used if the link can't be fetched)",
+    "importBtn": "Import & score",
+    "importing": "Importing…",
+    "importedFromText": "Imported from the pasted text (the link couldn't be fetched)",
+    "importNeedInput": "Enter a URL or paste the posting text",
+    "importFetchFailed": "Couldn't fetch that link — paste the posting text instead",
+    "importExtractFailed": "Couldn't read the job from that content"
   },
   "timeline": {
     "title": "History",

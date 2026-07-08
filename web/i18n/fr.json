@@ -41,7 +41,35 @@
     "confirmDelete": "Supprimer ce CV de l'historique ? Action irréversible.",
     "deleted": "Profil supprimé",
     "deleteFailed": "Échec de la suppression",
-    "chipSaved": "Enregistré"
+    "chipSaved": "Enregistré",
+    "cvUpload": "Importer le CV",
+    "uploadCv": "Importer le CV",
+    "linkedinProfile": "Profil LinkedIn",
+    "linkedinSub": "Améliore le contexte de l'IA pour un meilleur appariement",
+    "saveUrl": "Enregistrer l'URL",
+    "cvReviewBtn": "Analyser mon CV",
+    "onboarding": {
+      "title": "Objectifs de recherche",
+      "subtitle": "Servent à adapter le score et les conseils CV à ce que vous cherchez.",
+      "sector": "Secteur visé (ex. fintech)",
+      "goal": "Objectif de carrière",
+      "seniority": "Niveau recherché (ex. junior)",
+      "workMode": "Mode de travail préféré (télétravail/hybride)",
+      "save": "Enregistrer les objectifs",
+      "saved": "Objectifs enregistrés"
+    },
+    "features": {
+      "title": "Outils CV et confidentialité",
+      "groupCv": "Outils CV",
+      "groupPrivacy": "Confidentialité",
+      "cvReview": "Conseils d'amélioration du CV",
+      "cvReviewDesc": "Ajoute un bouton \"Analyser mon CV\" avec des suggestions concrètes.",
+      "interviewPrepDesc": "Questions d'entretien probables par offre, avec des pistes de votre CV.",
+      "resumeTailoringDesc": "Une version de votre CV adaptée à une offre précise.",
+      "skillGapDesc": "Compétences fréquentes dans les offres mais absentes de votre CV.",
+      "privacyMode": "Mode confidentialité",
+      "privacyModeDesc": "Retire nom, e-mail, téléphone et adresse du CV avant l'envoi à l'IA. Activé par défaut."
+    }
   },
   "jobSearch": {
     "title": "Recherche",
@@ -168,12 +196,7 @@
     "title": "Profil",
     "titleEm": "Paramètres",
     "subtitle": "Gérez votre CV, scans et clés API — sans terminal.",
-    "cvUpload": "Télécharger CV",
-    "uploadCv": "Télécharger CV",
-    "linkedinProfile": "Profil LinkedIn",
-    "linkedinSub": "Améliore le contexte IA pour un matching plus précis",
     "linkedinPlaceholder": "https://linkedin.com/in/...",
-    "saveUrl": "Enregistrer URL",
     "llmKeys": "Clés Fournisseur LLM",
     "editKeys": "Modifier Clés",
     "primaryProvider": "Fournisseur Principal",
@@ -234,8 +257,8 @@
       "setPrimaryFirst": "Définissez ce fournisseur comme principal pour utiliser ce modèle."
     },
     "features": {
-      "title": "Fonctionnalités",
-      "subtitle": "Activez ou désactivez les fonctionnalités optionnelles. Celles désactivées sont masquées dans l'app.",
+      "title": "Automatisation",
+      "subtitle": "Recherches planifiées et notifications de bureau. Les options de fonctionnalités sont désormais dans votre Profil.",
       "interviewPrep": "Générateur de prépa entretien",
       "resumeTailoring": "Adaptation du CV",
       "saved": "Enregistré",
@@ -262,7 +285,12 @@
     "settings": "Paramètres",
     "expand": "Agrandir le chat",
     "collapse": "Réduire le chat",
-    "savedToShortlist": "Rôle ajouté à ta recherche"
+    "savedToShortlist": "Rôle ajouté à ta recherche",
+    "modelPicker": "Fournisseur et modèle",
+    "pickProvider": "Fournisseur",
+    "pickModel": "Modèle",
+    "badgeFree": "gratuit",
+    "badgePaid": "payant"
   },
   "offcanvas": {
     "details": "Détails",
@@ -611,7 +639,16 @@
     "addShort": "Ajouter",
     "adding": "Ajout…",
     "added": "Offre ajoutée",
-    "addError": "Impossible d'ajouter l'offre"
+    "addError": "Impossible d'ajouter l'offre",
+    "orImport": "— ou importer depuis un lien —",
+    "importUrl": "URL de l'offre",
+    "pasteText": "…ou collez le texte de l'offre (utilisé si le lien est inaccessible)",
+    "importBtn": "Importer et évaluer",
+    "importing": "Importation…",
+    "importedFromText": "Importé depuis le texte collé (le lien était inaccessible)",
+    "importNeedInput": "Saisissez une URL ou collez le texte de l'offre",
+    "importFetchFailed": "Impossible de récupérer le lien — collez le texte de l'offre",
+    "importExtractFailed": "Impossible d'extraire l'offre de ce contenu"
   },
   "timeline": {
     "title": "Historique",

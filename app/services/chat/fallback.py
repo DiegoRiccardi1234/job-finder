@@ -21,7 +21,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_jobs": "No analyzed jobs available yet. Run a scan first from Settings.",
         "role_guidance": "From your CV, the most suitable roles are: {roles}. I also pre-filled search terms and location: run the scan and I will rank the best matches.",
         "search_prepared": "I prepared a search aligned with your CV and preferences. Keywords: {kw}. Locations: {loc}. Run the scan and I will prioritize the best opportunities.",
-        "default_saved": "I've saved your message. I can suggest what to search and prioritize your best jobs — just ask!",
+        "default_saved": "The AI couldn't answer right now (likely rate-limited). Add your own API key in Settings for full replies. Meanwhile I can pre-fill a search or rank your best jobs — just ask.",
     },
     "it": {
         "top_picks_lead": "Ecco le offerte prioritarie in questo momento:",
@@ -29,7 +29,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_jobs": "Non ho ancora offerte analizzate. Avvia prima una scansione dalla pagina Settings.",
         "role_guidance": "Dal tuo CV i ruoli piu coerenti sono: {roles}. Ho anche precompilato la ricerca con parole chiave e location: avvia la scansione e poi ti dico quali offerte hanno fit migliore.",
         "search_prepared": "Ho preparato una ricerca coerente con CV e preferenze. Parole chiave: {kw}. Location: {loc}. Avvia la scansione e poi ti ordino le offerte per priorita.",
-        "default_saved": "Messaggio salvato. Posso suggerirti cosa cercare, avviare una ricerca guidata e ordinare le offerte migliori.",
+        "default_saved": "L'IA non ha potuto rispondere ora (probabile rate limit). Aggiungi una tua chiave API in Impostazioni per risposte complete. Intanto posso precompilare una ricerca o ordinare le tue offerte migliori — chiedimelo.",
     },
     "es": {
         "top_picks_lead": "Estas son las mejores opciones ahora mismo:",
@@ -37,7 +37,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_jobs": "Aun no hay ofertas analizadas. Lanza primero una busqueda desde Settings.",
         "role_guidance": "Segun tu CV, los puestos mas adecuados son: {roles}. Tambien he prerrellenado palabras clave y ubicacion: lanza la busqueda y te clasificare las mejores coincidencias.",
         "search_prepared": "He preparado una busqueda alineada con tu CV y preferencias. Palabras clave: {kw}. Ubicaciones: {loc}. Lanza la busqueda y priorizare las mejores oportunidades.",
-        "default_saved": "Mensaje guardado. Puedo sugerirte que buscar y priorizar tus mejores ofertas — solo pidemelo!",
+        "default_saved": "La IA no pudo responder ahora (probable limite de uso). Anade tu propia clave API en Ajustes para respuestas completas. Mientras tanto puedo preparar una busqueda o priorizar tus mejores ofertas — solo pidemelo.",
     },
     "fr": {
         "top_picks_lead": "Voici les meilleurs choix en ce moment :",
@@ -45,7 +45,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_jobs": "Aucune offre analysee pour l'instant. Lance d'abord une recherche depuis Settings.",
         "role_guidance": "D'apres ton CV, les postes les plus adaptes sont : {roles}. J'ai aussi prerempli mots-cles et localisation : lance la recherche et je classerai les meilleures correspondances.",
         "search_prepared": "J'ai prepare une recherche alignee avec ton CV et tes preferences. Mots-cles : {kw}. Lieux : {loc}. Lance la recherche et je priorisera les meilleures opportunites.",
-        "default_saved": "Message enregistre. Je peux suggerer quoi chercher et prioriser tes meilleures offres — il suffit de demander !",
+        "default_saved": "L'IA n'a pas pu repondre pour le moment (probable limite de debit). Ajoute ta propre cle API dans Reglages pour des reponses completes. En attendant je peux preparer une recherche ou classer tes meilleures offres — demande simplement.",
     },
     "de": {
         "top_picks_lead": "Hier sind die besten Empfehlungen jetzt:",
@@ -53,7 +53,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_jobs": "Noch keine analysierten Stellen vorhanden. Starte zuerst eine Suche in Settings.",
         "role_guidance": "Basierend auf deinem CV sind die passendsten Rollen: {roles}. Ich habe auch Suchbegriffe und Standort vorbefuellt: starte die Suche, dann ordne ich die besten Treffer.",
         "search_prepared": "Ich habe eine Suche passend zu deinem CV und deinen Praeferenzen vorbereitet. Suchbegriffe: {kw}. Orte: {loc}. Starte die Suche, dann priorisiere ich die besten Chancen.",
-        "default_saved": "Nachricht gespeichert. Ich kann vorschlagen, wonach du suchen sollst und deine besten Stellen priorisieren — frag einfach!",
+        "default_saved": "Die KI konnte gerade nicht antworten (wahrscheinlich Rate-Limit). Fuege in den Einstellungen deinen eigenen API-Schluessel hinzu fuer vollstaendige Antworten. In der Zwischenzeit kann ich eine Suche vorbereiten oder deine besten Stellen priorisieren — frag einfach.",
     },
 }
 

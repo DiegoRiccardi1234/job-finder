@@ -19,6 +19,8 @@ from app.cv_ingest import (
 )
 from app.models import ProfileUpdate, RoleShortlistRequest
 from app.services import roles_shortlist as roles_shortlist_svc
+from app.services.generation import generate_with_profile
+from app.services.onboarding import onboarding_context
 
 if TYPE_CHECKING:
     from app.container import AppContainer
@@ -100,6 +102,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 container.providers,
                 on_retry=_track_retry,
                 language=lang,
+                privacy=container.feature_enabled("privacy_mode", True),
             )
             # If the result is structurally richer than the heuristic, mark as llm.
             if any(k in summary for k in ("strengths", "industries", "summary")):
@@ -138,6 +141,33 @@ def build_router(container: AppContainer) -> APIRouter:
         profile = container.db.get_active_candidate_profile()
         active = container.db.get_preference("active_profile_id", "")
         return {"profile": profile, "active_profile_id": active}
+
+    @router.post("/api/profile/cv-review")
+    def cv_review() -> dict[str, Any]:
+        """AI review of the active CV with actionable improvement advice.
+
+        Uses the onboarding answers (target sector/goal) so the advice is aimed
+        at what the user is looking for. Honors Privacy Mode: the CV is scrubbed
+        before the LLM call, the name restored in the returned text.
+        """
+        container.require_feature("cv_review")
+        profile = container.db.get_active_candidate_profile()
+        if not profile:
+            raise HTTPException(status_code=404, detail="no_profile")
+        container.require_provider()
+        try:
+            content = generate_with_profile(
+                container.providers,
+                "cv_review",
+                profile["markdown"],
+                {},
+                extra_block=onboarding_context(container.db),
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=profile.get("name"),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"CV review failed: {e}") from e
+        return {"cv_review": content}
 
     @router.patch("/api/profile")
     def update_profile(payload: ProfileUpdate) -> dict[str, Any]:

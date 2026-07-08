@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [1.5.6] — 2026-07-08
+
+Privacy for your CV, a CV advisor, importing jobs from a link, and a self-update that survives being reopened.
+
+### Added
+- **Privacy Mode** (on by default) — your name, email, phone and address are stripped from the CV before it's sent to any AI provider. Scoring and profile summaries never see them; cover letters and tailored resumes get your real name restored in the final text. Toggle it in Profile → CV tools & privacy.
+- **CV improvement advice** — a "Review my CV" button in Profile asks the AI for prioritized, actionable suggestions. It uses your **search goals** (target sector, career goal, seniority, work mode) — a short form now in Profile — which also sharpen job scoring.
+- **Import a job from a link** — the "Add a job" dialog now takes a posting URL (with a paste-the-text fallback when a site like LinkedIn blocks the fetch); the AI extracts title/company/description and scores it against your profile.
+- **Unified model picker** — the coach's provider/model dropdowns are replaced by a single "Provider · Model" popover: providers on the left, models on the right with ⭐ recommended and Free/Paid groups.
+
+### Fixed
+- **Model rotation on rate limits** — when a model returns 429 the app now tries another model of the *same* provider within the request (not only another provider), and de-ranks the rate-limited one for a few minutes — so a single OpenRouter :free model going busy no longer drops chat/scoring to the degraded fallback.
+- **CV tools no longer error out on a chatty model** — if the model replies in prose instead of the expected JSON, the CV review / cover letter / interview prep / resume tailoring now fall back to plain text instead of failing with a 502.
+- **Self-update no longer breaks if you reopen the app mid-update** — a single-instance guard plus an update-in-progress check stop a second launch from locking `JobFinder.exe` while the updater is replacing it (the "stuck at 95%" failure). The "Update now" button also unsticks itself if a previous update was interrupted.
+- **Untranslated UI strings after an update** — locale files are now cache-busted with the app version, so new translations show up immediately instead of the raw key (e.g. `chat.degradedNote`).
+- **Clearer chat message when the AI is rate-limited** — the fallback now says the AI is unavailable and to add your own API key, instead of a vague "message saved".
+- Fixed the wrapped "Every / Min score" labels in the auto-scan settings.
+
+### Changed
+- **Settings/Profile reorganization** — CV tools (interview prep, resume tailoring, skill-gap, CV review) and Privacy Mode now live in your Profile, next to the CV; Settings keeps API keys, scheduled scans and notifications.
+
 ## [1.5.5] — 2026-07-06
 
 Provider-resilience hardening, native tray notifications, and a refreshed README.

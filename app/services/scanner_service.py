@@ -140,6 +140,8 @@ from app.lifecycle import apply_post_scan_lifecycle
 from app.log import get_logger
 from app.models import ScanRequest
 from app.providers.factory import ProviderManager
+from app.services.onboarding import onboarding_context
+from app.services.pii import redact_pii
 from app.services.recruiter_scrape import fetch_recruiter
 
 log = get_logger(__name__)
@@ -243,12 +245,19 @@ def pre_filtro(titolo: str, descrizione: str) -> tuple[bool, str]:
     return False, ""
 
 
-def _analysis_prompt(profile_markdown: str, titolo: str, azienda: str, descrizione: str) -> str:
+def _analysis_prompt(
+    profile_markdown: str,
+    titolo: str,
+    azienda: str,
+    descrizione: str,
+    extra_context: str = "",
+) -> str:
+    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
     return f"""Analizza questa offerta IT e rispondi SOLO con JSON valido, senza testo extra.
 
 CV candidato:
 {profile_markdown[:3500]}
-
+{extra}
 OFFERTA:
 Titolo: {titolo}
 Azienda: {azienda}
@@ -426,8 +435,18 @@ def analyze_offer(
     titolo: str,
     azienda: str,
     descrizione: str,
+    *,
+    privacy: bool = False,
+    extra_context: str = "",
+    candidate_name: str | None = None,
 ) -> dict[str, Any]:
-    prompt = _analysis_prompt(profile_markdown, titolo, azienda, descrizione)
+    # Privacy Mode: scrub the CV before it reaches the LLM. Scoring never needs
+    # the name/contacts, so no restore — the token map is discarded. The local
+    # keyword fallback below keeps the ORIGINAL markdown for a better match.
+    prompt_markdown = profile_markdown
+    if privacy:
+        prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
+    prompt = _analysis_prompt(prompt_markdown, titolo, azienda, descrizione, extra_context)
     try:
         result = provider_manager.complete_json(prompt=prompt, max_tokens=500)
         if not isinstance(result, dict):
@@ -473,6 +492,12 @@ def run_scan(
     linkedin_url = db.get_preference("linkedin_url", "")
     if linkedin_url:
         profile_markdown += f"\n\nLinkedIn profile: {linkedin_url}"
+
+    # Privacy Mode + onboarding preferences, resolved once for every job in this
+    # scan. feature_privacy_mode mirrors container.feature_enabled semantics.
+    privacy = db.get_preference("feature_privacy_mode", "1") not in ("0", "false", "off", "")
+    onboarding = onboarding_context(db)
+    candidate_name = profile.get("name") if profile else None
 
     terms = payload.search_terms or settings.default_search_terms
     exp_levels = list(payload.experience_levels or [])
@@ -641,6 +666,9 @@ def run_scan(
                 titolo=titolo,
                 azienda=azienda,
                 descrizione=descrizione,
+                privacy=privacy,
+                extra_context=onboarding,
+                candidate_name=candidate_name,
             )
 
             # Enrich with raw salary fields when available.
