@@ -149,8 +149,8 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
   await page.evaluate(() => document.getElementById("manualJobModal").classList.add("hidden"));
   await page.waitForTimeout(200);
 
-  // 7. Job detail with timeline + notes (v1.5.4) — opened from the dashboard
-  // recommendations (where the inline detail panel lives + is visible).
+  // 7. Job detail with timeline + notes — opened as the shared side drawer
+  // (v1.6.0) from the dashboard recommendations.
   await page.locator(".topnav .nav-link[data-view='dashboard']").click();
   await page.waitForTimeout(700);
   await page.evaluate(() => {
@@ -164,6 +164,12 @@ test("demo screenshots (pre-seeded DB)", async ({ page }) => {
   });
   await page.waitForTimeout(400);
   await shot(page, "job-timeline-en.png");
+  // Close the drawer — its backdrop would otherwise intercept the next click.
+  await page.evaluate(() => {
+    document.getElementById("jobDetailInline")?.classList.remove("is-open");
+    document.getElementById("jobDetailBackdrop")?.classList.add("hidden");
+  });
+  await page.waitForTimeout(250);
 
   // 8. Dark-mode dashboard (v1.5.3 theme overhaul)
   await page.locator(".topnav .nav-link[data-view='dashboard']").click();

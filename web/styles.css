@@ -2498,6 +2498,8 @@ pre {
   .brand { font-size: var(--fs-sm); }
   /* Reduce table density so fewer columns overflow before scroll kicks in. */
   .table-wrap th, .table-wrap td { padding: 8px 10px; }
+  /* Kanban to a single column on phone-width windows (was stuck at 2-up). */
+  .kanban-board { grid-template-columns: 1fr; }
 }
 
 /* ── Unified provider/model picker (coach head) ───────────────── */
@@ -2549,3 +2551,108 @@ pre {
   .model-picker-pop { right: auto; left: 0; width: 92vw; grid-template-columns: 1fr; }
   .mp-col + .mp-col { border-left: none; border-top: 1px solid var(--border); }
 }
+
+/* Nav badge (reminders count) */
+.nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.05rem; height: 1.05rem; margin-left: 0.3rem; padding: 0 0.3rem;
+  font-size: 0.62rem; font-weight: 700; line-height: 1; color: #fff;
+  background: #e11d48; border-radius: 999px;
+}
+.nav-badge.hidden { display: none; }
+
+/* Reminders & deadlines (F4) */
+.reminders-section { margin: 1.5rem 0; }
+.reminders-list { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+.reminder-item {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%;
+  padding: 0.55rem 0.7rem; text-align: left; cursor: pointer;
+  background: var(--card, rgba(127,127,127,0.05)); border: 1px solid var(--border);
+  border-radius: 0.6rem; color: inherit; font: inherit;
+}
+.reminder-item:hover { border-color: var(--primary); }
+.reminder-item .material-symbols-outlined { font-size: 1.15rem; opacity: 0.75; }
+.reminder-item.overdue { border-color: rgba(225, 29, 72, 0.5); }
+.reminder-item.stale .material-symbols-outlined { color: #d97706; }
+.reminder-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.reminder-main strong { font-size: 0.9rem; }
+.reminder-sub { font-size: 0.72rem; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reminder-when { font-size: 0.72rem; font-weight: 600; opacity: 0.85; flex: 0 0 auto; }
+.reminder-item.overdue .reminder-when { color: #e11d48; }
+.reminder-editor { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); }
+.reminder-editor-label { font-size: 0.72rem; font-weight: 700; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.03em; }
+.reminder-editor-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; align-items: center; }
+.reminder-editor-row input[type="text"] { flex: 1; min-width: 8rem; }
+
+/* Cross-source "also on" badge (F10) */
+.info-tag.also-on { display: block; margin-bottom: 0.4rem; }
+.info-tag.also-on a { color: var(--primary); text-decoration: none; }
+.info-tag.also-on a:hover { text-decoration: underline; }
+
+/* Saved searches (F7) */
+.saved-searches-section .search-section-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.saved-search-list { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+.saved-search-item { display: flex; align-items: center; gap: 0.4rem; }
+.saved-search-run {
+  display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;
+  padding: 0.5rem 0.65rem; text-align: left; cursor: pointer; color: inherit; font: inherit;
+  background: var(--card, rgba(127,127,127,0.05)); border: 1px solid var(--border); border-radius: 0.6rem;
+}
+.saved-search-run:hover { border-color: var(--primary); }
+.saved-search-run .material-symbols-outlined { font-size: 1.15rem; color: var(--primary); }
+.saved-search-main { display: flex; flex-direction: column; min-width: 0; }
+.saved-search-main strong { font-size: 0.9rem; }
+.saved-search-sub { font-size: 0.72rem; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-search-del { flex: 0 0 auto; }
+
+/* Skill-gap learning suggestions (F8) */
+.section-head-actions { display: flex; align-items: center; gap: 0.4rem; }
+.skill-gap-learning { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.9rem; }
+.skill-gap-learning:empty { display: none; }
+.learn-block { border: 1px solid var(--border); border-radius: 0.6rem; padding: 0.6rem 0.75rem; background: var(--card, rgba(127,127,127,0.05)); }
+.learn-block h5 { margin: 0 0 0.4rem; font-size: 0.85rem; }
+.learn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.learn-list li { font-size: 0.82rem; }
+.learn-type {
+  display: inline-block; margin: 0 0.35rem; padding: 0.02rem 0.35rem; font-size: 0.62rem;
+  text-transform: uppercase; letter-spacing: 0.03em; border: 1px solid var(--border);
+  border-radius: 999px; opacity: 0.8;
+}
+.learn-why { display: block; font-size: 0.75rem; opacity: 0.75; margin-top: 0.1rem; }
+
+/* Profile switcher + delete (dashboard hero) */
+.profile-select-row { display: flex; align-items: center; gap: 0.3rem; }
+.profile-select-row .profile-select { flex: 1; min-width: 0; }
+.profile-select-row .icon-btn { flex: 0 0 auto; padding: 0.15rem; opacity: 0.7; }
+.profile-select-row .icon-btn:hover { opacity: 1; color: #e11d48; }
+
+/* Import CTA under the scan form (F3 discoverability) */
+.search-import-cta { margin: 0.6rem 0; }
+
+/* Settings field (dedup mode select, F10 setting) */
+.settings-field { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.6rem; }
+.settings-select { padding: 0.4rem 0.55rem; border: 1px solid var(--border); border-radius: 0.5rem; background: inherit; color: inherit; }
+
+/* Shared job-detail drawer (reorg): lifted out of the dashboard, opens over any tab */
+.job-detail-inline {
+  position: fixed; top: 0; right: 0; height: 100vh;
+  width: min(760px, 94vw); max-width: 94vw;
+  overflow-y: auto; z-index: 1000;
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.28);
+  transform: translateX(100%); transition: transform 0.25s ease;
+  padding: 1.2rem 1.3rem;
+}
+.job-detail-inline.is-open { transform: translateX(0); }
+.job-detail-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 999; }
+.job-detail-backdrop.hidden { display: none; }
+@media (max-width: 640px) {
+  .job-detail-inline { width: 100vw; max-width: 100vw; padding: 1rem; }
+}
+
+/* Kanban drag-and-drop (F5) */
+.kanban-card { cursor: grab; }
+.kanban-card.dragging { opacity: 0.5; }
+.kanban-col.drag-over { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-soft, rgba(99, 102, 241, 0.08)); }
+.kanban-card-actions { display: flex; gap: 0.4rem; align-items: center; margin-top: 8px; }
+.kanban-status { font-size: 0.72rem; padding: 0.15rem 0.3rem; border: 1px solid var(--border); border-radius: 0.4rem; background: inherit; color: inherit; }

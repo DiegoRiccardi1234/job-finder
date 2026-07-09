@@ -15,6 +15,7 @@ from app.routers import jobs as jobs_router
 from app.routers import preferences as preferences_router
 from app.routers import profile as profile_router
 from app.routers import providers as providers_router
+from app.routers import saved_searches as saved_searches_router
 from app.routers import scan as scan_router
 from app.routers import scheduler as scheduler_router
 from app.routers import system as system_router
@@ -101,6 +102,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
         chat_router,
         preferences_router,
         scheduler_router,
+        saved_searches_router,
     ):
         fastapi_app.include_router(module.build_router(container))
 

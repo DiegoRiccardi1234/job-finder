@@ -28,6 +28,25 @@ class JobNoteRequest(BaseModel):
     notes: str = ""
 
 
+class LinkedinSaveRequest(BaseModel):
+    """Save the LinkedIn URL and, optionally, pasted profile text (F7-bis).
+
+    ``text`` is the fallback when LinkedIn blocks the server-side fetch."""
+
+    url: str = ""
+    text: str = ""
+
+
+class ReminderRequest(BaseModel):
+    """Manual follow-up reminder / deadline on a job application (F4).
+
+    ``reminder_at`` is a date (YYYY-MM-DD) or ISO datetime; empty clears it.
+    """
+
+    reminder_at: str = ""
+    note: str = ""
+
+
 class FavoriteRequest(BaseModel):
     is_favorite: bool = True
 
@@ -60,6 +79,14 @@ class ScanRequest(BaseModel):
     job_types: list[str] = Field(default_factory=list)
     work_types: list[str] = Field(default_factory=list)
     min_salary: int | None = None
+
+
+class SavedSearchCreate(BaseModel):
+    """A named snapshot of the Job Search filters (F7). ``config`` mirrors the
+    frontend scan-form state (terms, location, sites, levels, salary…)."""
+
+    name: str = ""
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class ScanResponse(BaseModel):

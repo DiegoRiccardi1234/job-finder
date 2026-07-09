@@ -62,11 +62,11 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Job Search** — Flat layout with profile-derived role chips, keyword/location tag inputs, parallel LinkedIn + Indeed scan with one-click delete on jobs you don't want.
 - **Multi-source scan** — LinkedIn + Indeed in parallel, streamed via Server-Sent Events.
 - **Personalized scoring** — Each job gets a 1-10 AI score with pros/cons and an apply/skip recommendation.
-- **Kanban tracking** — Open → Applied → Interviewing → Rejected.
+- **Kanban tracking** — Open → Applied → Interviewing → Rejected, with **drag-and-drop** between columns to change status (v1.6.0).
 - **Cover-letter generator** — One-click, tailored to the job and your CV.
 - **Interview-prep generator** (v1.4.0+) — Per-job likely technical + behavioural questions with CV-tailored answer hints, from the job detail panel.
 - **Resume tailoring** (v1.4.0+) — Generate a CV variant reordered and keyworded for a specific listing (truthful, ATS-friendly), copy-ready.
-- **Skill-gap analysis** (v1.4.0+) — Dashboard panel aggregating the skills your scored jobs most often flag as missing (excluding ones you already have) — no extra LLM calls.
+- **Skill-gap analysis** (v1.4.0+) — Dashboard panel aggregating the skills your scored jobs most often flag as missing (excluding ones you already have) — no extra LLM calls. A **"How to close them"** button (v1.6.0) turns the gaps into concrete learning ideas (course / book / project) in your language.
 - **Scheduled auto-scan** (v1.4.0+) — Optional in-process scheduler re-runs your last search every N hours while the app is open and flags new high-scoring jobs via a dashboard banner.
 - **Per-feature toggles** (v1.4.0+) — Every optional feature above can be enabled/disabled from Settings → Features.
 - **Chat in your language** (v1.5.0+) — The coach replies in the language of your message and receives the recent conversation turns, not just a summary.
@@ -80,6 +80,12 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Add a job manually** (v1.5.4) — a "+ Add job" form for referrals or roles found off LinkedIn/Indeed; AI-scored against your CV like any scanned one.
 - **Per-job history + notes** (v1.5.4) — the job detail panel shows a timeline of status changes and lets you attach free-text notes.
 - **AI usage panel + desktop notifications** (v1.5.4) — a dashboard card with tokens/calls per provider over today / 7 / 30 days / all time; opt-in native tray notification when the auto-scan finds new above-threshold jobs.
+- **Jobs tab + shared detail drawer** (v1.6.0) — the job archive (table + kanban) has its own **Jobs** tab, and the job-detail panel opens as a side drawer from anywhere (dashboard, archive, coach chat). The dashboard is now a lean overview.
+- **Application reminders & deadlines** (v1.6.0) — set a follow-up date + note on a job and get an automatic nudge for applications that have gone quiet; a dashboard card + nav badge show what needs attention.
+- **Saved searches** (v1.6.0) — save the current Job Search filters as a named preset and re-run them in one click.
+- **Recruiter outreach message** (v1.6.0) — draft a short, personalized message to a posting's recruiter, in your UI language, with Privacy Mode applied.
+- **Configurable cross-source dedup** (v1.6.0) — the same role on LinkedIn and Indeed is grouped into one card with an "also on" badge; a Settings option controls the grouping (exact / by city / title+company).
+- **Richer LinkedIn context** (v1.6.0) — saving your LinkedIn profile best-effort fetches the page text (paste-the-text fallback when blocked); the text feeds AI scoring and letters.
 - **Multilingual UI** — English, Italian, Spanish, French, German (100% key parity across locales).
 - **Responsive layout** (v1.4.2+) — mobile-friendly below 960px: hamburger nav, off-canvas Career Coach drawer, horizontally-scrollable tables, single-column dashboards. Desktop layout unchanged.
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI (Grok), Zhipu GLM, Mistral — configurable order, skips a dead (401) key, exponential backoff retry.

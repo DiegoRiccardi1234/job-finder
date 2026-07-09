@@ -5,7 +5,8 @@
     "profile": "Profilo",
     "settings": "Impostazioni",
     "info": "Info",
-    "quit": "Esci"
+    "quit": "Esci",
+    "jobs": "Offerte"
   },
   "profile": {
     "title": "Il tuo Profilo",
@@ -69,7 +70,11 @@
       "skillGapDesc": "Skill che ricorrono nelle offerte ma mancano nel tuo CV.",
       "privacyMode": "Modalità Privacy",
       "privacyModeDesc": "Rimuove nome, email, telefono e indirizzo dal CV prima di inviarlo all'IA. Attivo di default."
-    }
+    },
+    "linkedinPaste": "…oppure incolla il testo del tuo profilo (usato se LinkedIn non è recuperabile)",
+    "linkedinPasteSaved": "Testo profilo salvato",
+    "linkedinFetched": "Profilo recuperato e salvato",
+    "linkedinBlocked": "URL salvato — impossibile recuperare il profilo; incolla il testo per arricchire il contesto AI"
   },
   "jobSearch": {
     "title": "Cerca",
@@ -94,7 +99,8 @@
     "noProfile": "Carica un CV dal tab Impostazioni per vedere i suggerimenti.",
     "detectedSkills": "Competenze rilevate",
     "preferredRoles": "Ruoli preferiti",
-    "reviewEmpty": "I parametri di scansione appariranno qui mentre compili lo Step 2."
+    "reviewEmpty": "I parametri di scansione appariranno qui mentre compili lo Step 2.",
+    "importCta": "Importa un job da un link"
   },
   "hero": {
     "eyebrow": "Ricerca Lavoro con IA",
@@ -184,7 +190,8 @@
     "emptyFiltered": "Nessun lavoro con questi filtri.",
     "loadError": "Impossibile caricare i lavori. Riprova.",
     "exportEmpty": "Nessun lavoro da esportare.",
-    "deleteAllTitle": "Elimina tutti i lavori"
+    "deleteAllTitle": "Elimina tutti i lavori",
+    "alsoOn": "Anche su"
   },
   "kanbanCols": {
     "open": "Aperto",
@@ -271,6 +278,15 @@
       "runNow": "Esegui ora",
       "autoscanStarted": "Scansione avviata",
       "notify": "Notifica desktop per nuovi lavori ad alto punteggio"
+    },
+    "dedup": {
+      "title": "Offerte duplicate",
+      "subtitle": "Come lo stesso ruolo trovato su fonti diverse (LinkedIn, Indeed) viene raggruppato in un'unica card.",
+      "mode": "Raggruppamento",
+      "exact": "Esatto — titolo + azienda + sede completa",
+      "city": "Città — titolo + azienda + città (consigliato)",
+      "titleCompany": "Titolo + azienda — ignora la sede",
+      "saved": "Raggruppamento aggiornato"
     }
   },
   "coach": {
@@ -333,7 +349,9 @@
     "interviewPrep": "Preparazione al colloquio",
     "tailoredResume": "CV su misura",
     "copy": "Copia",
-    "copied": "Copiato"
+    "copied": "Copiato",
+    "generateRecruiterMsg": "Messaggio recruiter",
+    "recruiterMsg": "Messaggio recruiter"
   },
   "scan": {
     "scanning": "Scansione portali lavoro...",
@@ -607,7 +625,12 @@
   "skillGap": {
     "title": "Competenze mancanti",
     "subtitle": "Le competenze più spesso mancanti nelle offerte analizzate — impararle sblocca più match.",
-    "empty": "Analizza e valuta qualche offerta per vedere le tue competenze mancanti."
+    "empty": "Analizza e valuta qualche offerta per vedere le tue competenze mancanti.",
+    "learn": {
+      "button": "Come colmarli",
+      "empty": "Nessun suggerimento disponibile.",
+      "error": "Impossibile caricare i suggerimenti"
+    }
   },
   "autoscan": {
     "bannerText": "L'auto-scan ha trovato {count} nuovi lavori con punteggio {threshold}+.",
@@ -657,5 +680,25 @@
     "notePlaceholder": "Aggiungi una nota…",
     "addNote": "Aggiungi nota",
     "noteError": "Impossibile salvare la nota"
+  },
+  "reminders": {
+    "title": "Promemoria e scadenze",
+    "subtitle": "Follow-up in arrivo e candidature ferme.",
+    "setLabel": "Promemoria / scadenza",
+    "notePlaceholder": "Nota (opzionale)",
+    "save": "Salva",
+    "clear": "Rimuovi",
+    "saved": "Promemoria salvato",
+    "cleared": "Promemoria rimosso",
+    "stuckDays": "Candidatura {days}g fa"
+  },
+  "savedSearch": {
+    "title": "Ricerche salvate",
+    "save": "Salva corrente",
+    "hint": "Salva i filtri correnti come preset e rilanciali con un clic.",
+    "empty": "Nessuna ricerca salvata.",
+    "namePrompt": "Nome della ricerca:",
+    "saved": "Ricerca salvata",
+    "loaded": "Avvio: {name}"
   }
 }

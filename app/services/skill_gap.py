@@ -12,6 +12,16 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.db import Database
+    from app.providers.factory import ProviderManager
+
+# UI locale code -> language name for the learning-suggestions prompt (F8).
+_LEARN_LANG = {
+    "en": "English",
+    "it": "Italian",
+    "es": "Spanish",
+    "de": "German",
+    "fr": "French",
+}
 
 
 def _normalize(skill: str) -> str:
@@ -83,3 +93,65 @@ def compute_skill_gap(db: Database, *, top: int = 12) -> dict[str, Any]:
         "analyzed_jobs": analyzed_jobs,
         "max_count": gaps[0]["count"] if gaps else 0,
     }
+
+
+def suggest_learning(
+    provider_manager: ProviderManager,
+    gaps: list[dict[str, Any]],
+    *,
+    language: str | None = None,
+    max_skills: int = 8,
+) -> dict[str, Any]:
+    """Ask the LLM for concrete learning resources for the top gap skills (F8).
+
+    Input is the ``gaps`` list from :func:`compute_skill_gap` (skill labels only —
+    no CV/PII, so no redaction needed). Returns ``{"suggestions": {skill_lower:
+    [{title, type, why}]}}`` keyed by lowercased skill for easy frontend lookup.
+    URLs are deliberately not requested (models hallucinate them). Any failure or
+    malformed reply degrades to an empty ``suggestions`` map.
+    """
+    labels: list[str] = []
+    for g in gaps:
+        skill = str(g.get("skill", "")).strip() if isinstance(g, dict) else str(g).strip()
+        if skill:
+            labels.append(skill)
+        if len(labels) >= max_skills:
+            break
+    if not labels:
+        return {"suggestions": {}}
+
+    name = _LEARN_LANG.get(language or "")
+    lang_line = f"Write all text in {name}. " if name else ""
+    skills_list = "\n".join(f"- {s}" for s in labels)
+    prompt = (
+        "You are a career learning advisor. For each skill below, suggest 1-2 concrete, "
+        "reputable ways to learn it (an online course, a book, or a hands-on project), "
+        "each with a one-line reason. Do NOT invent URLs or links. "
+        f"{lang_line}"
+        "Reply ONLY with valid JSON shaped as "
+        '{"skill name": [{"title": "...", "type": "course|book|project", "why": "..."}]}.\n\n'
+        f"Skills:\n{skills_list}"
+    )
+    try:
+        result = provider_manager.complete_json(prompt=prompt, max_tokens=900)
+    except Exception:
+        return {"suggestions": {}}
+    if not isinstance(result, dict):
+        return {"suggestions": {}}
+
+    suggestions: dict[str, list[dict[str, str]]] = {}
+    for skill, items in result.items():
+        if not isinstance(items, list):
+            continue
+        clean = [
+            {
+                "title": str(item.get("title", "")).strip(),
+                "type": str(item.get("type", "")).strip(),
+                "why": str(item.get("why", "")).strip(),
+            }
+            for item in items
+            if isinstance(item, dict) and (item.get("title") or item.get("why"))
+        ]
+        if clean:
+            suggestions[str(skill).strip().lower()] = clean
+    return {"suggestions": suggestions}

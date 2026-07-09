@@ -17,7 +17,7 @@ from app.cv_ingest import (
     summarize_profile_with_llm,
     validate_cv_content,
 )
-from app.models import ProfileUpdate, RoleShortlistRequest
+from app.models import LinkedinSaveRequest, ProfileUpdate, RoleShortlistRequest
 from app.services import roles_shortlist as roles_shortlist_svc
 from app.services.generation import generate_with_profile
 from app.services.onboarding import onboarding_context
@@ -210,6 +210,33 @@ def build_router(container: AppContainer) -> APIRouter:
             raise HTTPException(status_code=404, detail="Profile not found")
         active_raw = container.db.get_preference("active_profile_id", "")
         return {"ok": True, "deleted_id": profile_id, "active_profile_id": active_raw}
+
+    @router.post("/api/profile/linkedin")
+    def save_linkedin(payload: LinkedinSaveRequest) -> dict[str, Any]:
+        """Save the LinkedIn URL and, best-effort, the profile text for AI context.
+
+        Pasted ``text`` wins (LinkedIn blocks most server-side fetches, like job
+        import). Otherwise we try ``fetch_page_text(url)``; if it yields enough
+        content we store it, else we keep only the URL and report ``fetched=False``
+        so the UI can prompt the user to paste the text.
+        """
+        url = (payload.url or "").strip()
+        text = (payload.text or "").strip()
+        container.db.set_preference("linkedin_url", url)
+
+        profile_text = ""
+        fetched = False
+        if text:
+            profile_text = text
+        elif url:
+            from app.services.job_import import fetch_page_text
+
+            page = fetch_page_text(url)
+            if page and len(page) >= 400:
+                profile_text = page
+                fetched = True
+        container.db.set_preference("linkedin_profile_text", profile_text)
+        return {"ok": True, "fetched": fetched, "chars": len(profile_text)}
 
     @router.get("/api/roles/shortlist")
     def get_role_shortlist() -> dict[str, Any]:

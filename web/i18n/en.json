@@ -5,7 +5,8 @@
     "profile": "Profile",
     "settings": "Settings",
     "info": "Info",
-    "quit": "Quit"
+    "quit": "Quit",
+    "jobs": "Jobs"
   },
   "profile": {
     "title": "Your Profile",
@@ -69,7 +70,11 @@
       "skillGapDesc": "Skills that recur in jobs but are missing from your CV.",
       "privacyMode": "Privacy Mode",
       "privacyModeDesc": "Removes name, email, phone and address from the CV before it's sent to the AI. On by default."
-    }
+    },
+    "linkedinPaste": "…or paste your profile text (used if LinkedIn can't be fetched)",
+    "linkedinPasteSaved": "Profile text saved",
+    "linkedinFetched": "Profile fetched and saved",
+    "linkedinBlocked": "URL saved — couldn't fetch the profile; paste the text to enrich AI context"
   },
   "jobSearch": {
     "title": "Job",
@@ -94,7 +99,8 @@
     "sources": "Sources",
     "noRoles": "Add roles to your Profile to get suggestions here.",
     "preferredRoles": "Preferred roles",
-    "reviewEmpty": "Your scan parameters will appear here as you fill Step 2."
+    "reviewEmpty": "Your scan parameters will appear here as you fill Step 2.",
+    "importCta": "Import a job from a link"
   },
   "hero": {
     "eyebrow": "AI-Powered Job Search",
@@ -184,7 +190,8 @@
     "emptyFiltered": "No jobs match these filters.",
     "loadError": "Couldn't load jobs. Try again.",
     "exportEmpty": "No jobs to export.",
-    "deleteAllTitle": "Delete all jobs"
+    "deleteAllTitle": "Delete all jobs",
+    "alsoOn": "Also on"
   },
   "kanbanCols": {
     "open": "Open",
@@ -271,6 +278,15 @@
       "runNow": "Run now",
       "autoscanStarted": "Auto-scan started",
       "notify": "Desktop notification for new high-scoring jobs"
+    },
+    "dedup": {
+      "title": "Duplicate jobs",
+      "subtitle": "How the same role found on different sources (LinkedIn, Indeed) is grouped into one card.",
+      "mode": "Grouping",
+      "exact": "Exact — title + company + full location",
+      "city": "City — title + company + city (recommended)",
+      "titleCompany": "Title + company — ignore location",
+      "saved": "Grouping updated"
     }
   },
   "coach": {
@@ -333,7 +349,9 @@
     "interviewPrep": "Interview Prep",
     "tailoredResume": "Tailored Resume",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "generateRecruiterMsg": "Recruiter message",
+    "recruiterMsg": "Recruiter message"
   },
   "scan": {
     "scanning": "Scanning job portals...",
@@ -607,7 +625,12 @@
   "skillGap": {
     "title": "Skill Gap",
     "subtitle": "Skills most often missing across your scored jobs — learn these to unlock more matches.",
-    "empty": "Scan and score some jobs to see your skill gaps."
+    "empty": "Scan and score some jobs to see your skill gaps.",
+    "learn": {
+      "button": "How to close them",
+      "empty": "No suggestions available.",
+      "error": "Couldn't load suggestions"
+    }
   },
   "autoscan": {
     "bannerText": "Auto-scan found {count} new job(s) scoring {threshold}+.",
@@ -657,5 +680,25 @@
     "notePlaceholder": "Add a note…",
     "addNote": "Add note",
     "noteError": "Couldn't save the note"
+  },
+  "reminders": {
+    "title": "Reminders & deadlines",
+    "subtitle": "Upcoming follow-ups and applications that have gone quiet.",
+    "setLabel": "Reminder / deadline",
+    "notePlaceholder": "Note (optional)",
+    "save": "Save",
+    "clear": "Clear",
+    "saved": "Reminder saved",
+    "cleared": "Reminder cleared",
+    "stuckDays": "Applied {days}d ago"
+  },
+  "savedSearch": {
+    "title": "Saved searches",
+    "save": "Save current",
+    "hint": "Save the current filters as a preset and re-run them with one click.",
+    "empty": "No saved searches yet.",
+    "namePrompt": "Name this search:",
+    "saved": "Search saved",
+    "loaded": "Running: {name}"
   }
 }

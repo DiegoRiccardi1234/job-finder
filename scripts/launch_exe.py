@@ -126,6 +126,14 @@ def _resolve_workspace() -> Path:
 
 
 def _open_browser_when_ready() -> None:
+    # A self-update relaunch already has the user's tab open: runBundleUpdate()
+    # in web/modules/update.js polls /api/health and reloads that tab in place
+    # once the new server is back, so opening another tab here just leaves a
+    # duplicate (the "two tabs after update" report). Skip it on the
+    # updater-triggered relaunch — the updater sets JOBFINDER_UPDATED=1. If the
+    # user closed the tab mid-update, the tray "Open" entry still reopens it.
+    if os.environ.get("JOBFINDER_UPDATED"):
+        return
     # Automated tests launch the exe just to probe /api/health and then kill it;
     # opening the default browser leaves a dead tab. Let them opt out.
     if os.environ.get("JOBFINDER_NO_BROWSER"):

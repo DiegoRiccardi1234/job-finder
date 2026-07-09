@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import Database
-from app.services.skill_gap import compute_skill_gap
+from app.services.skill_gap import compute_skill_gap, suggest_learning
 
 
 def _seed(db: Database) -> None:
@@ -53,6 +53,46 @@ def test_compute_skill_gap_empty_when_no_analysis(tmp_path: Path) -> None:
         assert result["analyzed_jobs"] == 0
     finally:
         db.close()
+
+
+class _FakeProvider:
+    def __init__(self, response: object) -> None:
+        self._response = response
+        self.last_prompt = ""
+
+    def complete_json(self, *, prompt: str, max_tokens: int) -> object:
+        self.last_prompt = prompt
+        return self._response
+
+
+def test_suggest_learning_normalizes_and_filters() -> None:
+    resp = {
+        "Docker": [
+            {"title": "Docker Deep Dive", "type": "book", "why": "Solid fundamentals"},
+            {"nonsense": 1},  # no title/why -> dropped
+        ],
+        "Kubernetes": "not a list",  # dropped
+    }
+    fake = _FakeProvider(resp)
+    out = suggest_learning(fake, [{"skill": "Docker"}, {"skill": "Kubernetes"}], language="it")
+    assert list(out["suggestions"].keys()) == ["docker"]  # lowercased key, malformed dropped
+    assert len(out["suggestions"]["docker"]) == 1
+    assert out["suggestions"]["docker"][0]["title"] == "Docker Deep Dive"
+    assert "Italian" in fake.last_prompt  # language instruction injected
+
+
+def test_suggest_learning_empty_gaps_skips_llm() -> None:
+    fake = _FakeProvider({"Docker": [{"title": "x", "why": "y"}]})
+    assert suggest_learning(fake, []) == {"suggestions": {}}
+    assert fake.last_prompt == ""  # never called the provider
+
+
+def test_suggest_learning_degrades_on_error() -> None:
+    class _Boom:
+        def complete_json(self, *, prompt: str, max_tokens: int) -> object:
+            raise RuntimeError("no provider")
+
+    assert suggest_learning(_Boom(), [{"skill": "X"}]) == {"suggestions": {}}
 
 
 @pytest.fixture

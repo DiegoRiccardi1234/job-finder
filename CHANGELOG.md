@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-07-09
+
+A dedicated Jobs tab, a job-detail panel you can open from anywhere, application reminders, saved searches, kanban drag-and-drop, and more ways to let the AI help.
+
+### Added
+- **Jobs tab + shared detail panel** — the job archive (table + kanban) now lives in its own **Jobs** tab, and the job-detail panel is a shared side drawer you can open from the dashboard, the archive, or the coach chat (previously it only worked on the dashboard). The dashboard is now a lean overview: highlights, recommendations, reminders, analytics.
+- **Application reminders & deadlines** — set a follow-up date + note on any job, and get an automatic nudge for applications that have gone quiet. A "Reminders & deadlines" card on the dashboard and a badge on the nav show what needs attention.
+- **Saved searches** — save the current Job Search filters as a named preset and re-run them with one click.
+- **Recruiter outreach message** — a new button on a job drafts a short, personalized message to the posting's recruiter (using the recruiter's name/role when available), in your UI language, with Privacy Mode applied.
+- **Skill-gap → learning suggestions** — a "How to close them" button turns your skill gaps into concrete learning ideas (course / book / project) with a one-line why, in your language.
+- **Kanban drag-and-drop** — drag a job card between Open / Applied / Interviewing / Rejected columns to change its status (with a per-card status dropdown as an accessible fallback).
+- **Configurable cross-source dedup** — the same role found on LinkedIn and Indeed is now grouped into one card with an "also on" badge. A new Settings option controls the grouping (exact / by city / title+company); "by city" now matches different location spellings.
+- **CV management, surfaced** — the CV history (set active / delete) moved to the top of the Profile tab, and a delete button sits next to the profile switcher on the dashboard.
+- **Richer LinkedIn context** — saving your LinkedIn profile now best-effort fetches the page text, with a paste-the-text fallback when the fetch is blocked; the text feeds the AI's scoring and letters.
+- **Import a job from a link** is now a visible button on the Job Search tab (previously only reachable inside the Add-a-job dialog).
+
+### Fixed
+- **Self-update no longer opens a duplicate browser tab** — after an update the existing tab reloads in place instead of a second tab opening (takes effect from the next update onward).
+- Kanban now reaches all four columns on any window width (single column on narrow windows) and no longer overflows horizontally.
+
+### Changed
+- **Internal: `web/app.js` split into focused modules** (`job_list`, `job_detail`, `scan`) — the monolith dropped from ~2340 to ~1590 lines with no behavior change. Pure refactor for maintainability.
+
 ## [1.5.6] — 2026-07-08
 
 Privacy for your CV, a CV advisor, importing jobs from a link, and a self-update that survives being reopened.
