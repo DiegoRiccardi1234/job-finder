@@ -30,6 +30,18 @@ MAX_TOKENS = {
     "interview_prep": 900,
     "resume_tailoring": 1300,
     "cv_review": 1200,
+    "recruiter_outreach": 450,
+}
+
+# UI locale code -> language name for the optional "write in X" instruction.
+# Generation prompts are authored in Italian and default to Italian output;
+# passing ``language`` steers the reply to the user's UI language instead.
+_LANG_NAMES = {
+    "en": "English",
+    "it": "Italian",
+    "es": "Spanish",
+    "de": "German",
+    "fr": "French",
 }
 
 
@@ -46,13 +58,15 @@ def build_prompt(
     *,
     extra_block: str = "",
     json_output: bool = True,
+    language: str | None = None,
 ) -> str:
     """Assemble the full LLM prompt for a generation task.
 
     Tasks with no job attached (e.g. the standalone CV review) pass an empty
     ``job_info`` and the OFFERTA block is dropped. With ``json_output=False`` the
     prompt asks for plain markdown instead of the JSON wrapper — used as a
-    fallback when a model can't produce the JSON envelope.
+    fallback when a model can't produce the JSON envelope. ``language`` (a UI
+    locale code) steers the output language; omit it to keep the Italian default.
     """
     task = _load_task(content_type)
     extra = f"{extra_block.strip()}\n" if extra_block.strip() else ""
@@ -65,6 +79,11 @@ def build_prompt(
         offer_block = f"OFFERTA:\nTitolo: {titolo}\nAzienda: {azienda}\n{descrizione_line}\n\n"
     else:
         offer_block = ""
+    lang_line = ""
+    if language:
+        name = _LANG_NAMES.get(language)
+        if name:
+            lang_line = f"Write your response in {name}.\n"
     if json_output:
         tail = (
             "Non aggiungere testo extra. Rispondi SOLO con JSON valido con la chiave "
@@ -72,7 +91,7 @@ def build_prompt(
         )
     else:
         tail = "Rispondi in testo semplice (markdown), senza JSON e senza testo extra."
-    return f"{task}\n{extra}\nCV candidato:\n{profile_markdown[:3500]}\n\n{offer_block}{tail}"
+    return f"{task}\n{extra}\nCV candidato:\n{profile_markdown[:3500]}\n\n{offer_block}{lang_line}{tail}"
 
 
 def _extract_content(result: Any, content_type: str) -> str:
@@ -94,6 +113,7 @@ def generate_with_profile(
     max_tokens: int | None = None,
     redact: bool = False,
     candidate_name: str | None = None,
+    language: str | None = None,
 ) -> str:
     """Generate profile-tailored content for a job. Returns the text body.
 
@@ -112,12 +132,19 @@ def generate_with_profile(
         profile_markdown, token_map = redact_pii(profile_markdown, candidate_name)
     budget = max_tokens if max_tokens is not None else MAX_TOKENS.get(content_type, 700)
     try:
-        prompt = build_prompt(content_type, profile_markdown, job_info, extra_block=extra_block)
+        prompt = build_prompt(
+            content_type, profile_markdown, job_info, extra_block=extra_block, language=language
+        )
         result = provider_manager.complete_json(prompt=prompt, max_tokens=budget)
         content = _extract_content(result, content_type)
     except Exception:
         prose_prompt = build_prompt(
-            content_type, profile_markdown, job_info, extra_block=extra_block, json_output=False
+            content_type,
+            profile_markdown,
+            job_info,
+            extra_block=extra_block,
+            json_output=False,
+            language=language,
         )
         content = provider_manager.chat(
             [{"role": "user", "content": prose_prompt}], max_tokens=budget

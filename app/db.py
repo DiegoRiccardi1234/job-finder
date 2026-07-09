@@ -4,6 +4,7 @@ import json
 import logging
 import sqlite3
 import threading
+import unicodedata
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +40,63 @@ def now_iso() -> str:
 def make_job_hash(titolo: str, azienda: str, link: str) -> str:
     raw = f"{titolo.strip().lower()}|{azienda.strip().lower()}|{link.strip().lower()}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+DEDUP_MODES = ("exact", "city", "title_company")
+
+
+def _normalize_city(sede: str) -> str:
+    """Canonical city token from a free-text location.
+
+    Takes the part before the first comma ("Milano, Lombardia, Italia" ->
+    "Milano"), lowercases, strips accents and collapses whitespace, so sources
+    that spell the region/country differently still match on the city. Does NOT
+    bridge cross-language names (Milano vs Milan stay distinct).
+    """
+    city = (sede or "").split(",")[0].strip().lower()
+    city = "".join(c for c in unicodedata.normalize("NFKD", city) if not unicodedata.combining(c))
+    return " ".join(city.split())
+
+
+def make_dedup_key(titolo: str, azienda: str, sede: str, mode: str = "exact") -> str:
+    """Cross-source identity of a role, tunable via ``mode`` (see DEDUP_MODES).
+
+    Same posting on LinkedIn vs Indeed has different URLs (so a different
+    ``make_job_hash``) but can share a ``dedup_key`` — ``upsert_job`` uses it to
+    merge the second source into the first row instead of duplicating.
+    - ``exact``: title+company+full location (most conservative).
+    - ``city``: title+company+normalized city (merges cross-source location spellings).
+    - ``title_company``: title+company only (most aggressive; ignores location).
+    """
+    titolo_n = titolo.strip().lower()
+    azienda_n = azienda.strip().lower()
+    if mode == "title_company":
+        raw = f"{titolo_n}|{azienda_n}"
+    elif mode == "city":
+        raw = f"{titolo_n}|{azienda_n}|{_normalize_city(sede)}"
+    else:  # exact
+        raw = f"{titolo_n}|{azienda_n}|{sede.strip().lower()}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _parse_sources(raw: Any) -> list[dict[str, str]]:
+    """Decode ``jobs.sources_json`` into a list; tolerate null/legacy rows."""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _merge_source(sources: list[dict[str, str]], fonte: str, link: str) -> list[dict[str, str]]:
+    """Append ``{fonte, link}`` unless an entry with the same link already exists."""
+    link_norm = (link or "").strip().lower()
+    for entry in sources:
+        if (entry.get("link") or "").strip().lower() == link_norm:
+            return sources
+    return [*sources, {"fonte": fonte or "", "link": link or ""}]
 
 
 class Database:
@@ -121,16 +179,24 @@ class Database:
 
     @_synchronized
     def upsert_job(self, payload: dict[str, Any]) -> tuple[int, bool, str]:
-        hash_value = make_job_hash(
-            payload.get("titolo", ""),
-            payload.get("azienda", ""),
-            payload.get("link", ""),
-        )
+        titolo = payload.get("titolo", "")
+        azienda = payload.get("azienda", "")
+        sede = payload.get("sede", "")
+        fonte = payload.get("fonte", "")
+        link = payload.get("link", "")
+        hash_value = make_job_hash(titolo, azienda, link)
+        mode = self.get_preference("dedup_mode", "city")
+        if mode not in DEDUP_MODES:
+            mode = "city"
+        dedup_key = make_dedup_key(titolo, azienda, sede, mode)
         cur = self.conn.cursor()
-        cur.execute("SELECT id, status FROM jobs WHERE job_hash = ?", (hash_value,))
-        row = cur.fetchone()
         timestamp = now_iso()
+
+        # (1) Exact same posting (same link) → refresh content in place.
+        cur.execute("SELECT id, status, sources_json FROM jobs WHERE job_hash = ?", (hash_value,))
+        row = cur.fetchone()
         if row:
+            sources = _merge_source(_parse_sources(row["sources_json"]), fonte, link)
             cur.execute(
                 """
                 UPDATE jobs
@@ -139,16 +205,20 @@ class Database:
                     fonte = ?,
                     ricerca_usata = ?,
                     modalita = ?,
+                    dedup_key = ?,
+                    sources_json = ?,
                     last_seen_at = ?,
                     updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     payload.get("descrizione", ""),
-                    payload.get("sede", ""),
-                    payload.get("fonte", ""),
+                    sede,
+                    fonte,
                     payload.get("ricerca_usata", ""),
                     payload.get("modalita", ""),
+                    dedup_key,
+                    json.dumps(sources, ensure_ascii=False),
                     timestamp,
                     timestamp,
                     row["id"],
@@ -157,24 +227,44 @@ class Database:
             self.conn.commit()
             return int(row["id"]), False, str(row["status"])
 
+        # (2) Same role from a different source (same title+company+location, new
+        # link) → record the extra source on the existing row; keep its analysis.
+        cur.execute(
+            "SELECT id, status, sources_json FROM jobs WHERE dedup_key = ? ORDER BY id ASC LIMIT 1",
+            (dedup_key,),
+        )
+        dup = cur.fetchone()
+        if dup:
+            sources = _merge_source(_parse_sources(dup["sources_json"]), fonte, link)
+            cur.execute(
+                "UPDATE jobs SET sources_json = ?, last_seen_at = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(sources, ensure_ascii=False), timestamp, timestamp, dup["id"]),
+            )
+            self.conn.commit()
+            return int(dup["id"]), False, str(dup["status"])
+
+        # (3) New role.
         cur.execute(
             """
             INSERT INTO jobs(
-                job_hash, titolo, azienda, descrizione, sede, fonte, link,
-                ricerca_usata, modalita, first_seen_at, last_seen_at, updated_at, is_new
+                job_hash, dedup_key, titolo, azienda, descrizione, sede, fonte, link,
+                ricerca_usata, modalita, sources_json,
+                first_seen_at, last_seen_at, updated_at, is_new
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """,
             (
                 hash_value,
-                payload.get("titolo", ""),
-                payload.get("azienda", ""),
+                dedup_key,
+                titolo,
+                azienda,
                 payload.get("descrizione", ""),
-                payload.get("sede", ""),
-                payload.get("fonte", ""),
-                payload.get("link", ""),
+                sede,
+                fonte,
+                link,
                 payload.get("ricerca_usata", ""),
                 payload.get("modalita", ""),
+                json.dumps([{"fonte": fonte, "link": link}], ensure_ascii=False),
                 timestamp,
                 timestamp,
                 timestamp,
@@ -240,6 +330,111 @@ class Database:
             (job_id,),
         )
         return [dict(r) for r in cur.fetchall()]
+
+    @_synchronized
+    def set_job_reminder(self, job_id: int, reminder_at: str, note: str = "") -> None:
+        """Set a manual follow-up date/deadline on a job (F4). Empty clears it."""
+        if reminder_at and reminder_at.strip():
+            self.conn.execute(
+                "UPDATE jobs SET reminder_at = ?, reminder_note = ?, updated_at = ? WHERE id = ?",
+                (reminder_at.strip(), (note or "").strip(), now_iso(), job_id),
+            )
+        else:
+            self.conn.execute(
+                "UPDATE jobs SET reminder_at = NULL, reminder_note = NULL, updated_at = ? WHERE id = ?",
+                (now_iso(), job_id),
+            )
+        self.conn.commit()
+
+    @_synchronized
+    def clear_job_reminder(self, job_id: int) -> None:
+        self.conn.execute(
+            "UPDATE jobs SET reminder_at = NULL, reminder_note = NULL, updated_at = ? WHERE id = ?",
+            (now_iso(), job_id),
+        )
+        self.conn.commit()
+
+    def list_reminders(self, stale_days: int = 7) -> dict[str, Any]:
+        """Reminders due + auto nudges for stale applications (F4).
+
+        ``reminders``: jobs with a manual ``reminder_at`` (any date; ``overdue``
+        flags past dates). ``stale``: applied/interviewing jobs whose most recent
+        timeline event is older than ``stale_days`` (derived from job_actions,
+        falling back to ``updated_at`` for jobs with no recorded action).
+        """
+        now = now_iso()
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT id, titolo, azienda, reminder_at, reminder_note FROM jobs "
+            "WHERE reminder_at IS NOT NULL AND TRIM(reminder_at) != '' "
+            "ORDER BY reminder_at ASC"
+        )
+        reminders = [
+            {
+                "job_id": int(r["id"]),
+                "titolo": r["titolo"] or "",
+                "azienda": r["azienda"] or "",
+                "type": "reminder",
+                "due_at": r["reminder_at"],
+                "note": r["reminder_note"] or "",
+                "overdue": bool(r["reminder_at"] and r["reminder_at"] <= now),
+            }
+            for r in cur.fetchall()
+        ]
+
+        cur.execute(
+            "SELECT j.id, j.titolo, j.azienda, j.status, "
+            "COALESCE(MAX(a.created_at), j.updated_at) AS last_at "
+            "FROM jobs j LEFT JOIN job_actions a ON a.job_id = j.id "
+            "WHERE j.status IN ('applied', 'interviewing') "
+            "GROUP BY j.id "
+            "HAVING julianday('now') - julianday(last_at) >= ? "
+            "ORDER BY last_at ASC",
+            (stale_days,),
+        )
+        stale = [
+            {
+                "job_id": int(r["id"]),
+                "titolo": r["titolo"] or "",
+                "azienda": r["azienda"] or "",
+                "type": "stale",
+                "status": r["status"],
+                "since": r["last_at"],
+            }
+            for r in cur.fetchall()
+        ]
+        return {"reminders": reminders, "stale": stale, "count": len(reminders) + len(stale)}
+
+    @_synchronized
+    def create_saved_search(self, name: str, config: dict[str, Any]) -> int:
+        ts = now_iso()
+        cur = self.conn.execute(
+            "INSERT INTO saved_searches(name, config_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?)",
+            (name.strip() or "Untitled", json.dumps(config, ensure_ascii=False), ts, ts),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid or 0)
+
+    def list_saved_searches(self) -> list[dict[str, Any]]:
+        cur = self.conn.execute(
+            "SELECT id, name, config_json, created_at FROM saved_searches ORDER BY id DESC"
+        )
+        out: list[dict[str, Any]] = []
+        for r in cur.fetchall():
+            row = dict(r)
+            try:
+                row["config"] = json.loads(row.pop("config_json") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                row["config"] = {}
+            out.append(row)
+        return out
+
+    @_synchronized
+    def delete_saved_search(self, search_id: int) -> bool:
+        cur = self.conn.execute("DELETE FROM saved_searches WHERE id = ?", (search_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     @_synchronized
     def set_favorite(self, job_id: int, is_favorite: bool) -> None:
@@ -310,6 +505,7 @@ class Database:
             raw = dict(row)
             raw["is_favorite"] = bool(raw.get("is_favorite", 0))
             raw["is_new"] = bool(raw.get("is_new", 0))
+            raw["sources"] = _parse_sources(raw.get("sources_json"))
             output.append(raw)
         return output
 
@@ -339,13 +535,18 @@ class Database:
         for row in rows:
             row["is_favorite"] = bool(row.get("is_favorite", 0))
             row["is_new"] = bool(row.get("is_new", 0))
+            row["sources"] = _parse_sources(row.get("sources_json"))
         return rows
 
     def get_job(self, job_id: int) -> dict[str, Any] | None:
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
         row = cur.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        data = dict(row)
+        data["sources"] = _parse_sources(data.get("sources_json"))
+        return data
 
     def get_job_with_analysis(self, job_id: int) -> dict[str, Any] | None:
         data = self.get_job(job_id)

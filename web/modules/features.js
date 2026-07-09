@@ -4,7 +4,7 @@
 // initFeatures() wires the DOM event listeners (loadJobs injected to avoid a
 // circular import).
 import { api, escapeHtml, setText, showToast } from "./helpers.js";
-import { t } from "./i18n.js";
+import { t, getCurrentLang } from "./i18n.js";
 import { appState } from "./state.js";
 
 export function readFeatureFlags(prefs) {
@@ -60,6 +60,44 @@ function renderSkillGap(data) {
   }
 }
 
+export async function loadSkillGapLearning() {
+  const out = document.getElementById("skillGapLearning");
+  const btn = document.getElementById("skillGapLearnBtn");
+  if (!out) return;
+  out.innerHTML = `<p class="micro">${escapeHtml(t("toast.generating"))}</p>`;
+  if (btn) btn.disabled = true;
+  try {
+    const data = await api(`/api/skill-gap/learning?lang=${encodeURIComponent(getCurrentLang())}`);
+    renderSkillGapLearning(data);
+  } catch (error) {
+    out.innerHTML = `<p class="micro">${escapeHtml(t("skillGap.learn.error"))}: ${escapeHtml(error.message)}</p>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderSkillGapLearning(data) {
+  const out = document.getElementById("skillGapLearning");
+  if (!out) return;
+  const suggestions = (data && data.suggestions) || {};
+  const skills = Object.keys(suggestions);
+  if (!skills.length) {
+    out.innerHTML = `<p class="micro">${escapeHtml(t("skillGap.learn.empty"))}</p>`;
+    return;
+  }
+  out.innerHTML = skills
+    .map((skill) => {
+      const lis = (suggestions[skill] || [])
+        .map((it) => {
+          const typeTag = it.type ? `<span class="learn-type">${escapeHtml(it.type)}</span>` : "";
+          return `<li><strong>${escapeHtml(it.title || "")}</strong> ${typeTag}<span class="learn-why">${escapeHtml(it.why || "")}</span></li>`;
+        })
+        .join("");
+      return `<div class="learn-block"><h5>${escapeHtml(skill)}</h5><ul class="learn-list">${lis}</ul></div>`;
+    })
+    .join("");
+}
+
 export function syncFeatureToggles() {
   // Global selector: toggles live in both the Settings card and the Profile card.
   document.querySelectorAll("input[data-feature]").forEach((cb) => {
@@ -88,7 +126,7 @@ export function setupGenerationButton({ btnId, boxId, outId, enabled, saved }) {
   }
 }
 
-async function runGeneration({ btn, box, out, endpoint, field }) {
+async function runGeneration({ btn, box, out, endpoint, field, query = "" }) {
   if (!appState.selectedJobId) return;
   box.style.display = "block";
   out.textContent = t("toast.generating");
@@ -96,7 +134,9 @@ async function runGeneration({ btn, box, out, endpoint, field }) {
   const originalLabel = btn.innerHTML;
   btn.innerHTML = `<span class="spinner-inline"></span> ${t("toast.generating")}`;
   try {
-    const payload = await api(`/api/jobs/${appState.selectedJobId}/${endpoint}`, { method: "POST" });
+    const payload = await api(`/api/jobs/${appState.selectedJobId}/${endpoint}${query}`, {
+      method: "POST",
+    });
     out.textContent = payload[field] || t("toast.noResult");
   } catch (error) {
     out.textContent = `${t("toast.genError")}: ${error.message}`;
@@ -171,6 +211,34 @@ export function initFeatures({ loadJobs }) {
     );
   }
 
+  const rmBtn = document.getElementById("generateRecruiterMsgBtn");
+  if (rmBtn) {
+    rmBtn.addEventListener("click", () =>
+      runGeneration({
+        btn: rmBtn,
+        box: document.getElementById("recruiterMsgBox"),
+        out: document.getElementById("recruiterMsgOutput"),
+        endpoint: "recruiter-outreach",
+        field: "recruiter_outreach",
+        query: `?lang=${encodeURIComponent(getCurrentLang())}`,
+      }),
+    );
+  }
+
+  const copyRmBtn = document.getElementById("copyRecruiterMsgBtn");
+  if (copyRmBtn) {
+    copyRmBtn.addEventListener("click", async () => {
+      const text = document.getElementById("recruiterMsgOutput").textContent || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        setText("rmCopyStatus", t("offcanvas.copied") || "Copied");
+        setTimeout(() => setText("rmCopyStatus", ""), 1500);
+      } catch (error) {
+        showToast(String(error), "error");
+      }
+    });
+  }
+
   const copyTrBtn = document.getElementById("copyTailoredResumeBtn");
   if (copyTrBtn) {
     copyTrBtn.addEventListener("click", async () => {
@@ -218,6 +286,10 @@ export function initFeatures({ loadJobs }) {
   if (refreshSkillGapBtn) {
     refreshSkillGapBtn.addEventListener("click", loadSkillGap);
   }
+  const skillGapLearnBtn = document.getElementById("skillGapLearnBtn");
+  if (skillGapLearnBtn) {
+    skillGapLearnBtn.addEventListener("click", loadSkillGapLearning);
+  }
 
   const autoscanEnabledEl = document.getElementById("autoscanEnabled");
   if (autoscanEnabledEl) {
@@ -263,12 +335,10 @@ export function initFeatures({ loadJobs }) {
   if (autoscanBannerViewEl) {
     autoscanBannerViewEl.addEventListener("click", () => {
       const onlyNew = document.getElementById("onlyNew");
-      if (onlyNew) {
-        onlyNew.checked = true;
-        loadJobs();
-      }
-      const jobsSection = document.querySelector(".jobs-section");
-      if (jobsSection) jobsSection.scrollIntoView({ behavior: "smooth" });
+      if (onlyNew) onlyNew.checked = true;
+      // The job archive now lives in its own tab; the nav link switches view
+      // and (re)loads jobs with the onlyNew filter applied.
+      document.querySelector('[data-view="jobs"]')?.click();
     });
   }
 

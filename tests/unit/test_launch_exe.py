@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from scripts.launch_exe import _harden_stdio, main
+from scripts.launch_exe import _harden_stdio, _open_browser_when_ready, main
 
 
 class _DeadStdout:
@@ -68,6 +68,23 @@ def test_harden_stdio_keeps_working_stream(monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(sys, "stdout", f)
         _harden_stdio()
         assert sys.stdout is f
+
+
+def test_open_browser_skipped_on_update_relaunch(monkeypatch) -> None:
+    """After a self-update the updater relaunches with JOBFINDER_UPDATED=1; the
+    existing tab reloads itself, so opening another tab here would duplicate it.
+    ``_open_browser_when_ready`` must return without calling ``webbrowser.open``.
+    """
+    import scripts.launch_exe as le
+
+    opened: list[str] = []
+    monkeypatch.setattr(le.webbrowser, "open", lambda url: opened.append(url))
+    monkeypatch.setenv("JOBFINDER_UPDATED", "1")
+    monkeypatch.delenv("JOBFINDER_NO_BROWSER", raising=False)
+
+    _open_browser_when_ready()
+
+    assert opened == []
 
 
 def test_main_survives_dead_stdout(monkeypatch, tmp_path: Path) -> None:

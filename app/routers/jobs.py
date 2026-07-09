@@ -13,15 +13,31 @@ from app.models import (
     JobImportRequest,
     JobNoteRequest,
     ManualJobCreateRequest,
+    ReminderRequest,
 )
 from app.services.generation import generate_with_profile
 from app.services.job_import import extract_job_fields, fetch_page_text
 from app.services.onboarding import onboarding_context
 from app.services.scanner_service import analyze_offer
-from app.services.skill_gap import compute_skill_gap
+from app.services.skill_gap import compute_skill_gap, suggest_learning
 
 if TYPE_CHECKING:
     from app.container import AppContainer
+
+
+def _linkedin_suffix(db: Any) -> str:
+    """CV-context suffix from the saved LinkedIn data (F7).
+
+    Prefers the fetched/pasted profile text over the bare URL. Truncated; PII is
+    scrubbed downstream by Privacy Mode since this is appended to the CV markdown.
+    """
+    text = db.get_preference("linkedin_profile_text", "")
+    if text and text.strip():
+        return f"\n\nProfilo LinkedIn (estratto):\n{text.strip()[:2000]}"
+    url = db.get_preference("linkedin_url", "")
+    if url:
+        return f"\n\nProfilo LinkedIn: {url}"
+    return ""
 
 
 def build_router(container: AppContainer) -> APIRouter:
@@ -67,9 +83,7 @@ def build_router(container: AppContainer) -> APIRouter:
         profile = container.db.get_active_candidate_profile()
         profile_markdown = profile["markdown"] if profile else "CV non disponibile."
 
-        linkedin_url = container.db.get_preference("linkedin_url", "")
-        if linkedin_url:
-            profile_markdown += f"\n\nProfilo LinkedIn: {linkedin_url}"
+        profile_markdown += _linkedin_suffix(container.db)
 
         titolo = job.get("titolo", "N/A")
         azienda = job.get("azienda", "N/A")
@@ -179,6 +193,59 @@ def build_router(container: AppContainer) -> APIRouter:
             raise HTTPException(status_code=502, detail=f"Resume tailoring failed: {e}") from e
         return {"tailored_resume": content}
 
+    @router.post("/api/jobs/{job_id}/recruiter-outreach")
+    def generate_recruiter_outreach(job_id: int, lang: str = Query(default="")) -> dict[str, Any]:
+        """Draft a short outreach message to the posting's recruiter (F6).
+
+        Same recruiter-aware path as the cover letter, but a shorter message and
+        language-aware output (follows the UI locale passed as ``lang``).
+        """
+        job = container.db.get_job_with_analysis(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        profile = container.db.get_active_candidate_profile()
+        profile_markdown = profile["markdown"] if profile else "CV non disponibile."
+        candidate_name = profile.get("name") if profile else None
+
+        recruiter = container.db.get_recruiter(job_id)
+        recruiter_block = ""
+        if recruiter and (recruiter.get("name") or recruiter.get("headline")):
+            parts = []
+            if recruiter.get("name"):
+                parts.append(f"Nome: {recruiter['name']}")
+            if recruiter.get("title"):
+                parts.append(f"Ruolo: {recruiter['title']}")
+            if recruiter.get("headline"):
+                parts.append(f"Headline: {recruiter['headline']}")
+            recruiter_block = (
+                "\nDESTINATARIO (recruiter / hiring manager visibile nell'annuncio):\n"
+                + "\n".join(parts)
+            )
+
+        job_info = {
+            "titolo": job.get("titolo", "N/A"),
+            "azienda": job.get("azienda", "N/A"),
+            "descrizione": job.get("descrizione", ""),
+        }
+        try:
+            content = generate_with_profile(
+                container.providers,
+                "recruiter_outreach",
+                profile_markdown,
+                job_info,
+                extra_block=recruiter_block,
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=candidate_name,
+                language=(lang or None),
+            )
+            container.db.save_job_analysis_field(job_id, "recruiter_outreach", content)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502, detail=f"Recruiter outreach generation failed: {e}"
+            ) from e
+        return {"recruiter_outreach": content}
+
     @router.get("/api/analytics")
     def get_analytics() -> dict[str, Any]:
         return container.db.get_analytics()
@@ -187,6 +254,14 @@ def build_router(container: AppContainer) -> APIRouter:
     def skill_gap() -> dict[str, Any]:
         container.require_feature("skill_gap")
         return compute_skill_gap(container.db)
+
+    @router.get("/api/skill-gap/learning")
+    def skill_gap_learning(lang: str = Query(default="")) -> dict[str, Any]:
+        """On-demand learning resources for the top skill gaps (F8)."""
+        container.require_feature("skill_gap")
+        container.require_provider()
+        gap = compute_skill_gap(container.db)
+        return suggest_learning(container.providers, gap.get("gaps", []), language=(lang or None))
 
     @router.get("/api/recommendations")
     def recommendations(limit: int = Query(default=5, ge=1, le=20)) -> dict[str, Any]:
@@ -213,9 +288,7 @@ def build_router(container: AppContainer) -> APIRouter:
         profile = container.db.get_active_candidate_profile()
         profile_markdown = profile["markdown"] if profile else "Profile not loaded"
 
-        linkedin_url = container.db.get_preference("linkedin_url", "")
-        if linkedin_url:
-            profile_markdown += f"\n\nProfilo LinkedIn: {linkedin_url}"
+        profile_markdown += _linkedin_suffix(container.db)
 
         analysis = analyze_offer(
             provider_manager=container.providers,
@@ -284,9 +357,7 @@ def build_router(container: AppContainer) -> APIRouter:
 
         profile = container.db.get_active_candidate_profile()
         profile_markdown = profile["markdown"] if profile else "Profile not loaded"
-        linkedin_url = container.db.get_preference("linkedin_url", "")
-        if linkedin_url:
-            profile_markdown += f"\n\nProfilo LinkedIn: {linkedin_url}"
+        profile_markdown += _linkedin_suffix(container.db)
 
         analysis = analyze_offer(
             provider_manager=container.providers,
@@ -330,6 +401,31 @@ def build_router(container: AppContainer) -> APIRouter:
             raise HTTPException(status_code=404, detail="Job not found")
         container.db.set_job_action(job_id=job_id, action="note", notes=note)
         return {"ok": True}
+
+    @router.post("/api/jobs/{job_id}/reminder")
+    def set_job_reminder(job_id: int, payload: ReminderRequest) -> dict[str, Any]:
+        """Set (or clear, when reminder_at is empty) a follow-up reminder (F4)."""
+        if not container.db.get_job(job_id):
+            raise HTTPException(status_code=404, detail="Job not found")
+        container.db.set_job_reminder(job_id, payload.reminder_at, payload.note)
+        return {"ok": True}
+
+    @router.delete("/api/jobs/{job_id}/reminder")
+    def clear_job_reminder(job_id: int) -> dict[str, Any]:
+        if not container.db.get_job(job_id):
+            raise HTTPException(status_code=404, detail="Job not found")
+        container.db.clear_job_reminder(job_id)
+        return {"ok": True}
+
+    @router.get("/api/reminders")
+    def list_reminders() -> dict[str, Any]:
+        """Manual reminders due + auto nudges for stale applications (F4)."""
+        raw = container.db.get_preference("reminder_stale_days", "7")
+        try:
+            stale_days = max(1, int(raw))
+        except (TypeError, ValueError):
+            stale_days = 7
+        return container.db.list_reminders(stale_days=stale_days)
 
     @router.post("/api/jobs/{job_id}/favorite")
     def set_favorite(job_id: int, payload: FavoriteRequest) -> dict[str, Any]:

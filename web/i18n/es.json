@@ -5,7 +5,8 @@
     "profile": "Perfil",
     "settings": "Ajustes",
     "info": "Info",
-    "quit": "Salir"
+    "quit": "Salir",
+    "jobs": "Ofertas"
   },
   "profile": {
     "title": "Tu Perfil",
@@ -69,7 +70,11 @@
       "skillGapDesc": "Habilidades que se repiten en las ofertas pero faltan en tu CV.",
       "privacyMode": "Modo privacidad",
       "privacyModeDesc": "Elimina nombre, correo, teléfono y dirección del CV antes de enviarlo a la IA. Activado por defecto."
-    }
+    },
+    "linkedinPaste": "…o pega el texto de tu perfil (se usa si no se puede obtener de LinkedIn)",
+    "linkedinPasteSaved": "Texto del perfil guardado",
+    "linkedinFetched": "Perfil obtenido y guardado",
+    "linkedinBlocked": "URL guardada — no se pudo obtener el perfil; pega el texto para enriquecer el contexto de IA"
   },
   "jobSearch": {
     "title": "Buscar",
@@ -94,7 +99,8 @@
     "noProfile": "Sube un CV desde Ajustes para ver las sugerencias.",
     "detectedSkills": "Habilidades detectadas",
     "preferredRoles": "Roles preferidos",
-    "reviewEmpty": "Los parámetros del escaneo aparecerán aquí mientras completas el Paso 2."
+    "reviewEmpty": "Los parámetros del escaneo aparecerán aquí mientras completas el Paso 2.",
+    "importCta": "Importar un empleo desde un enlace"
   },
   "hero": {
     "eyebrow": "Búsqueda de Empleo con IA",
@@ -184,7 +190,8 @@
     "emptyFiltered": "Ningún empleo coincide con estos filtros.",
     "loadError": "No se pudieron cargar los empleos. Reinténtalo.",
     "exportEmpty": "No hay empleos para exportar.",
-    "deleteAllTitle": "Eliminar todos los empleos"
+    "deleteAllTitle": "Eliminar todos los empleos",
+    "alsoOn": "También en"
   },
   "kanbanCols": {
     "open": "Abierto",
@@ -271,6 +278,15 @@
       "runNow": "Ejecutar ahora",
       "autoscanStarted": "Escaneo iniciado",
       "notify": "Notificación de escritorio para nuevos empleos con alta puntuación"
+    },
+    "dedup": {
+      "title": "Ofertas duplicadas",
+      "subtitle": "Cómo se agrupa en una sola tarjeta el mismo puesto encontrado en distintas fuentes (LinkedIn, Indeed).",
+      "mode": "Agrupación",
+      "exact": "Exacto — título + empresa + ubicación completa",
+      "city": "Ciudad — título + empresa + ciudad (recomendado)",
+      "titleCompany": "Título + empresa — ignorar ubicación",
+      "saved": "Agrupación actualizada"
     }
   },
   "coach": {
@@ -333,7 +349,9 @@
     "interviewPrep": "Preparación de entrevista",
     "tailoredResume": "CV a medida",
     "copy": "Copiar",
-    "copied": "Copiado"
+    "copied": "Copiado",
+    "generateRecruiterMsg": "Mensaje al reclutador",
+    "recruiterMsg": "Mensaje al reclutador"
   },
   "scan": {
     "scanning": "Escaneando portales de empleo...",
@@ -607,7 +625,12 @@
   "skillGap": {
     "title": "Brecha de habilidades",
     "subtitle": "Las habilidades que más faltan en tus empleos analizados: apréndelas para desbloquear más coincidencias.",
-    "empty": "Escanea y puntúa algunos empleos para ver tus brechas de habilidades."
+    "empty": "Escanea y puntúa algunos empleos para ver tus brechas de habilidades.",
+    "learn": {
+      "button": "Cómo cerrarlas",
+      "empty": "No hay sugerencias disponibles.",
+      "error": "No se pudieron cargar las sugerencias"
+    }
   },
   "autoscan": {
     "bannerText": "El escaneo automático encontró {count} nuevos empleos con puntuación {threshold}+.",
@@ -657,5 +680,25 @@
     "notePlaceholder": "Añade una nota…",
     "addNote": "Añadir nota",
     "noteError": "No se pudo guardar la nota"
+  },
+  "reminders": {
+    "title": "Recordatorios y plazos",
+    "subtitle": "Seguimientos próximos y candidaturas sin respuesta.",
+    "setLabel": "Recordatorio / fecha límite",
+    "notePlaceholder": "Nota (opcional)",
+    "save": "Guardar",
+    "clear": "Quitar",
+    "saved": "Recordatorio guardado",
+    "cleared": "Recordatorio eliminado",
+    "stuckDays": "Postulado hace {days}d"
+  },
+  "savedSearch": {
+    "title": "Búsquedas guardadas",
+    "save": "Guardar actual",
+    "hint": "Guarda los filtros actuales como preajuste y reejecútalos con un clic.",
+    "empty": "Aún no hay búsquedas guardadas.",
+    "namePrompt": "Nombre de la búsqueda:",
+    "saved": "Búsqueda guardada",
+    "loaded": "Ejecutando: {name}"
   }
 }

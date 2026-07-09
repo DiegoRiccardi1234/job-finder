@@ -5,7 +5,8 @@
     "profile": "Profil",
     "settings": "Einstellungen",
     "info": "Info",
-    "quit": "Beenden"
+    "quit": "Beenden",
+    "jobs": "Jobs"
   },
   "profile": {
     "title": "Dein Profil",
@@ -69,7 +70,11 @@
       "skillGapDesc": "Skills, die in Stellen oft vorkommen, aber in deinem CV fehlen.",
       "privacyMode": "Datenschutzmodus",
       "privacyModeDesc": "Entfernt Name, E-Mail, Telefon und Adresse aus dem CV, bevor es an die KI geht. Standardmäßig aktiv."
-    }
+    },
+    "linkedinPaste": "…oder füge deinen Profiltext ein (wird genutzt, wenn LinkedIn nicht abrufbar ist)",
+    "linkedinPasteSaved": "Profiltext gespeichert",
+    "linkedinFetched": "Profil abgerufen und gespeichert",
+    "linkedinBlocked": "URL gespeichert — Profil konnte nicht abgerufen werden; füge den Text ein, um den KI-Kontext zu erweitern"
   },
   "jobSearch": {
     "title": "Job",
@@ -94,7 +99,8 @@
     "noProfile": "Lade einen Lebenslauf in den Einstellungen hoch, um Vorschläge zu sehen.",
     "detectedSkills": "Erkannte Skills",
     "preferredRoles": "Bevorzugte Rollen",
-    "reviewEmpty": "Scan-Parameter erscheinen hier, während du Schritt 2 ausfüllst."
+    "reviewEmpty": "Scan-Parameter erscheinen hier, während du Schritt 2 ausfüllst.",
+    "importCta": "Job über einen Link importieren"
   },
   "hero": {
     "eyebrow": "KI-gestützte Jobsuche",
@@ -184,7 +190,8 @@
     "emptyFiltered": "Keine Jobs für diese Filter.",
     "loadError": "Jobs konnten nicht geladen werden. Erneut versuchen.",
     "exportEmpty": "Keine Jobs zum Exportieren.",
-    "deleteAllTitle": "Alle Jobs löschen"
+    "deleteAllTitle": "Alle Jobs löschen",
+    "alsoOn": "Auch auf"
   },
   "kanbanCols": {
     "open": "Offen",
@@ -271,6 +278,15 @@
       "runNow": "Jetzt ausführen",
       "autoscanStarted": "Auto-Scan gestartet",
       "notify": "Desktop-Benachrichtigung für neue Top-Jobs"
+    },
+    "dedup": {
+      "title": "Doppelte Jobs",
+      "subtitle": "Wie dieselbe Stelle aus verschiedenen Quellen (LinkedIn, Indeed) zu einer Karte zusammengefasst wird.",
+      "mode": "Gruppierung",
+      "exact": "Exakt — Titel + Firma + vollständiger Ort",
+      "city": "Stadt — Titel + Firma + Stadt (empfohlen)",
+      "titleCompany": "Titel + Firma — Ort ignorieren",
+      "saved": "Gruppierung aktualisiert"
     }
   },
   "coach": {
@@ -333,7 +349,9 @@
     "interviewPrep": "Interviewvorbereitung",
     "tailoredResume": "Maßgeschneiderter Lebenslauf",
     "copy": "Kopieren",
-    "copied": "Kopiert"
+    "copied": "Kopiert",
+    "generateRecruiterMsg": "Recruiter-Nachricht",
+    "recruiterMsg": "Recruiter-Nachricht"
   },
   "scan": {
     "scanning": "Jobportale werden gescannt...",
@@ -607,7 +625,12 @@
   "skillGap": {
     "title": "Kompetenzlücke",
     "subtitle": "Die in deinen bewerteten Jobs am häufigsten fehlenden Fähigkeiten — lerne sie, um mehr Treffer freizuschalten.",
-    "empty": "Scanne und bewerte einige Jobs, um deine Kompetenzlücken zu sehen."
+    "empty": "Scanne und bewerte einige Jobs, um deine Kompetenzlücken zu sehen.",
+    "learn": {
+      "button": "So schließen Sie sie",
+      "empty": "Keine Vorschläge verfügbar.",
+      "error": "Vorschläge konnten nicht geladen werden"
+    }
   },
   "autoscan": {
     "bannerText": "Der Auto-Scan fand {count} neue Jobs mit Bewertung {threshold}+.",
@@ -657,5 +680,25 @@
     "notePlaceholder": "Notiz hinzufügen…",
     "addNote": "Notiz hinzufügen",
     "noteError": "Notiz konnte nicht gespeichert werden"
+  },
+  "reminders": {
+    "title": "Erinnerungen & Fristen",
+    "subtitle": "Anstehende Follow-ups und ins Stocken geratene Bewerbungen.",
+    "setLabel": "Erinnerung / Frist",
+    "notePlaceholder": "Notiz (optional)",
+    "save": "Speichern",
+    "clear": "Löschen",
+    "saved": "Erinnerung gespeichert",
+    "cleared": "Erinnerung entfernt",
+    "stuckDays": "Beworben vor {days} T"
+  },
+  "savedSearch": {
+    "title": "Gespeicherte Suchen",
+    "save": "Aktuelle speichern",
+    "hint": "Aktuelle Filter als Vorlage speichern und mit einem Klick erneut ausführen.",
+    "empty": "Noch keine gespeicherten Suchen.",
+    "namePrompt": "Name der Suche:",
+    "saved": "Suche gespeichert",
+    "loaded": "Starte: {name}"
   }
 }

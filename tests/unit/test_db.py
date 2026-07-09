@@ -1,7 +1,7 @@
 import threading
 from pathlib import Path
 
-from app.db import Database, make_job_hash
+from app.db import Database, make_dedup_key, make_job_hash
 
 
 def test_make_job_hash_is_deterministic_and_case_insensitive() -> None:
@@ -157,6 +157,155 @@ def test_save_job_analysis_field_merges_and_guards(tmp_path: Path) -> None:
         assert job["analysis"]["interview_prep"] == "Q1"
         assert job["analysis"]["tailored_resume"] == "CV"
         assert job["analysis"]["punteggio"] == 7  # original field preserved
+    finally:
+        db.close()
+
+
+def test_dedup_key_modes() -> None:
+    # city mode: region/country spelling differences collapse to the city
+    assert make_dedup_key("Dev", "Acme", "Milano, Lombardia, Italia", "city") == make_dedup_key(
+        "Dev", "Acme", "Milano, Italy", "city"
+    )
+    # exact mode keeps those distinct
+    assert make_dedup_key("Dev", "Acme", "Milano, Lombardia", "exact") != make_dedup_key(
+        "Dev", "Acme", "Milano, Italy", "exact"
+    )
+    # title_company mode ignores location entirely
+    assert make_dedup_key("Dev", "Acme", "Milano", "title_company") == make_dedup_key(
+        "Dev", "Acme", "Roma", "title_company"
+    )
+
+
+def test_upsert_honors_dedup_mode_pref(tmp_path: Path) -> None:
+    a = {"titolo": "Dev", "azienda": "Acme", "sede": "Milano, Lombardia, Italia", "link": "https://a/1"}
+    b = {"titolo": "Dev", "azienda": "Acme", "sede": "Milano, Italy", "link": "https://a/2"}
+
+    db = Database(tmp_path / "city.db")
+    try:
+        db.set_preference("dedup_mode", "city")
+        db.upsert_job(dict(a))
+        db.upsert_job(dict(b))
+        assert len(db.list_jobs(limit=100)) == 1  # city normalization merges
+    finally:
+        db.close()
+
+    db = Database(tmp_path / "exact.db")
+    try:
+        db.set_preference("dedup_mode", "exact")
+        db.upsert_job(dict(a))
+        db.upsert_job(dict(b))
+        assert len(db.list_jobs(limit=100)) == 2  # different spellings stay separate
+    finally:
+        db.close()
+
+
+def test_cross_source_dedup_merges_same_role(tmp_path: Path) -> None:
+    """Same title+company+location from two sources (different URLs) collapses
+    to one row that records both sources."""
+    db = Database(tmp_path / "s.db")
+    try:
+        jid, is_new, _ = db.upsert_job(
+            {
+                "titolo": "Backend Dev",
+                "azienda": "Acme",
+                "sede": "Milano, Italy",
+                "fonte": "linkedin",
+                "link": "https://linkedin.com/jobs/1",
+            }
+        )
+        assert is_new
+        jid2, is_new2, _ = db.upsert_job(
+            {
+                "titolo": "Backend Dev",
+                "azienda": "Acme",
+                "sede": "Milano, Italy",
+                "fonte": "indeed",
+                "link": "https://indeed.com/viewjob?jk=2",
+            }
+        )
+        assert jid2 == jid  # merged, not a new row
+        assert not is_new2
+
+        jobs = db.list_jobs(limit=100)
+        assert len(jobs) == 1
+        sources = jobs[0]["sources"]
+        assert {s["fonte"] for s in sources} == {"linkedin", "indeed"}
+        assert len(sources) == 2
+    finally:
+        db.close()
+
+
+def test_cross_source_dedup_keeps_distinct_locations_separate(tmp_path: Path) -> None:
+    """Same title+company but different city = two distinct openings, no merge."""
+    db = Database(tmp_path / "s.db")
+    try:
+        db.upsert_job(
+            {"titolo": "Sales", "azienda": "Acme", "sede": "Milano", "link": "https://a/1"}
+        )
+        db.upsert_job(
+            {"titolo": "Sales", "azienda": "Acme", "sede": "Roma", "link": "https://a/2"}
+        )
+        assert len(db.list_jobs(limit=100)) == 2
+    finally:
+        db.close()
+
+
+def test_reminders_manual_set_clear_and_overdue(tmp_path: Path) -> None:
+    db = Database(tmp_path / "s.db")
+    try:
+        jid, _, _ = db.upsert_job({"titolo": "QA", "azienda": "Acme", "link": "https://ex/1"})
+        db.set_job_reminder(jid, "2000-01-01", "call HR")  # past date → overdue
+        out = db.list_reminders()
+        rem = [r for r in out["reminders"] if r["job_id"] == jid]
+        assert len(rem) == 1
+        assert rem[0]["overdue"] is True
+        assert rem[0]["note"] == "call HR"
+
+        db.clear_job_reminder(jid)
+        assert all(r["job_id"] != jid for r in db.list_reminders()["reminders"])
+    finally:
+        db.close()
+
+
+def test_reminders_stale_application_nudge(tmp_path: Path) -> None:
+    db = Database(tmp_path / "s.db")
+    try:
+        jid, _, _ = db.upsert_job({"titolo": "Dev", "azienda": "Acme", "link": "https://ex/1"})
+        db.set_job_action(jid, "applied", "sent CV")
+        # Backdate the application so it counts as stale.
+        old = "2000-01-01T00:00:00+00:00"
+        db.conn.execute("UPDATE job_actions SET created_at = ? WHERE job_id = ?", (old, jid))
+        db.conn.execute("UPDATE jobs SET updated_at = ? WHERE id = ?", (old, jid))
+        db.conn.commit()
+
+        # A freshly-applied job must NOT be flagged.
+        jid2, _, _ = db.upsert_job({"titolo": "Dev2", "azienda": "Acme", "link": "https://ex/2"})
+        db.set_job_action(jid2, "applied", "sent CV")
+
+        stale = db.list_reminders(stale_days=7)["stale"]
+        stale_ids = {s["job_id"] for s in stale}
+        assert jid in stale_ids
+        assert jid2 not in stale_ids
+    finally:
+        db.close()
+
+
+def test_saved_searches_crud(tmp_path: Path) -> None:
+    db = Database(tmp_path / "s.db")
+    try:
+        cfg = {"terms": ["QA"], "location": ["Milano"], "is_remote": True, "sites": ["linkedin"]}
+        sid = db.create_saved_search("My QA search", cfg)
+        assert sid > 0
+
+        rows = db.list_saved_searches()
+        assert len(rows) == 1
+        assert rows[0]["name"] == "My QA search"
+        assert rows[0]["config"]["terms"] == ["QA"]
+        assert rows[0]["config"]["is_remote"] is True
+
+        assert db.delete_saved_search(sid) is True
+        assert db.list_saved_searches() == []
+        assert db.delete_saved_search(sid) is False
     finally:
         db.close()
 

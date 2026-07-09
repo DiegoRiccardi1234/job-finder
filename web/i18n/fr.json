@@ -5,7 +5,8 @@
     "profile": "Profil",
     "settings": "Paramètres",
     "info": "Info",
-    "quit": "Quitter"
+    "quit": "Quitter",
+    "jobs": "Offres"
   },
   "profile": {
     "title": "Votre Profil",
@@ -69,7 +70,11 @@
       "skillGapDesc": "Compétences fréquentes dans les offres mais absentes de votre CV.",
       "privacyMode": "Mode confidentialité",
       "privacyModeDesc": "Retire nom, e-mail, téléphone et adresse du CV avant l'envoi à l'IA. Activé par défaut."
-    }
+    },
+    "linkedinPaste": "…ou collez le texte de votre profil (utilisé si LinkedIn ne peut pas être récupéré)",
+    "linkedinPasteSaved": "Texte du profil enregistré",
+    "linkedinFetched": "Profil récupéré et enregistré",
+    "linkedinBlocked": "URL enregistrée — impossible de récupérer le profil ; collez le texte pour enrichir le contexte IA"
   },
   "jobSearch": {
     "title": "Recherche",
@@ -94,7 +99,8 @@
     "noProfile": "Charge un CV depuis l'onglet Paramètres pour voir les suggestions.",
     "detectedSkills": "Compétences détectées",
     "preferredRoles": "Rôles préférés",
-    "reviewEmpty": "Les paramètres du scan apparaîtront ici pendant l'étape 2."
+    "reviewEmpty": "Les paramètres du scan apparaîtront ici pendant l'étape 2.",
+    "importCta": "Importer une offre depuis un lien"
   },
   "hero": {
     "eyebrow": "Recherche d'Emploi par IA",
@@ -184,7 +190,8 @@
     "emptyFiltered": "Aucune offre pour ces filtres.",
     "loadError": "Impossible de charger les offres. Réessaie.",
     "exportEmpty": "Aucune offre à exporter.",
-    "deleteAllTitle": "Supprimer toutes les offres"
+    "deleteAllTitle": "Supprimer toutes les offres",
+    "alsoOn": "Aussi sur"
   },
   "kanbanCols": {
     "open": "Ouvert",
@@ -271,6 +278,15 @@
       "runNow": "Lancer maintenant",
       "autoscanStarted": "Scan lancé",
       "notify": "Notification bureau pour les nouvelles offres bien notées"
+    },
+    "dedup": {
+      "title": "Offres en double",
+      "subtitle": "Comment un même poste trouvé sur plusieurs sources (LinkedIn, Indeed) est regroupé en une seule carte.",
+      "mode": "Regroupement",
+      "exact": "Exact — titre + entreprise + lieu complet",
+      "city": "Ville — titre + entreprise + ville (recommandé)",
+      "titleCompany": "Titre + entreprise — ignorer le lieu",
+      "saved": "Regroupement mis à jour"
     }
   },
   "coach": {
@@ -333,7 +349,9 @@
     "interviewPrep": "Préparation à l'entretien",
     "tailoredResume": "CV sur mesure",
     "copy": "Copier",
-    "copied": "Copié"
+    "copied": "Copié",
+    "generateRecruiterMsg": "Message au recruteur",
+    "recruiterMsg": "Message au recruteur"
   },
   "scan": {
     "scanning": "Scan des portails d'emploi...",
@@ -607,7 +625,12 @@
   "skillGap": {
     "title": "Compétences manquantes",
     "subtitle": "Les compétences les plus souvent manquantes dans vos offres analysées — apprenez-les pour débloquer plus de correspondances.",
-    "empty": "Analysez et notez quelques offres pour voir vos lacunes de compétences."
+    "empty": "Analysez et notez quelques offres pour voir vos lacunes de compétences.",
+    "learn": {
+      "button": "Comment les combler",
+      "empty": "Aucune suggestion disponible.",
+      "error": "Impossible de charger les suggestions"
+    }
   },
   "autoscan": {
     "bannerText": "Le scan automatique a trouvé {count} nouveaux emplois notés {threshold}+.",
@@ -657,5 +680,25 @@
     "notePlaceholder": "Ajouter une note…",
     "addNote": "Ajouter",
     "noteError": "Impossible d'enregistrer la note"
+  },
+  "reminders": {
+    "title": "Rappels et échéances",
+    "subtitle": "Relances à venir et candidatures sans réponse.",
+    "setLabel": "Rappel / échéance",
+    "notePlaceholder": "Note (facultatif)",
+    "save": "Enregistrer",
+    "clear": "Effacer",
+    "saved": "Rappel enregistré",
+    "cleared": "Rappel supprimé",
+    "stuckDays": "Postulé il y a {days}j"
+  },
+  "savedSearch": {
+    "title": "Recherches enregistrées",
+    "save": "Enregistrer",
+    "hint": "Enregistrez les filtres actuels comme préréglage et relancez-les en un clic.",
+    "empty": "Aucune recherche enregistrée.",
+    "namePrompt": "Nom de la recherche :",
+    "saved": "Recherche enregistrée",
+    "loaded": "Lancement : {name}"
   }
 }

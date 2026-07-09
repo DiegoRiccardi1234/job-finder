@@ -1,0 +1,233 @@
+// Job scan: the scan-form submit handler (SSE progress overlay + live feed) plus
+// the snapshot/restore of the filter state reused by saved searches. Extracted
+// from app.js. Tag-input access and provider gating are injected via initScan so
+// this module doesn't import app.js.
+import { showToast } from "./helpers.js";
+import { t } from "./i18n.js";
+import { showPostScanModal } from "./update.js";
+import { loadJobs } from "./job_list.js";
+import { loadRecommendations } from "./job_detail.js";
+
+const _noopTags = { getTags: () => [], addMultiple: () => false, clear: () => {} };
+let _deps = {
+  getKeywords: _noopTags,
+  getLocations: _noopTags,
+  ensureProviderConfigured: null,
+};
+
+export function initScan(deps) {
+  _deps = { ..._deps, ...deps };
+  const form = document.getElementById("scanForm");
+  if (form) form.addEventListener("submit", _onScanSubmit);
+}
+
+// Snapshot / restore the Job Search filter state — shared by saved searches (F7).
+export function readScanConfig() {
+  const getKeywords = _deps.getKeywords;
+  const getLocations = _deps.getLocations;
+  const checked = (name) =>
+    Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map((cb) => cb.value);
+  const salaryRaw = document.getElementById("scanMinSalary")?.value.trim();
+  return {
+    terms: getKeywords.getTags().slice(),
+    location: getLocations.getTags().slice(),
+    is_remote: document.getElementById("remoteToggle")?.checked || false,
+    sites: checked("scanSites"),
+    experience_levels: checked("scanExperience"),
+    job_types: checked("scanJobType"),
+    work_types: checked("scanWorkType"),
+    min_salary: salaryRaw ? parseInt(salaryRaw, 10) || 0 : 0,
+  };
+}
+
+export function applyScanConfig(cfg) {
+  const getKeywords = _deps.getKeywords;
+  const getLocations = _deps.getLocations;
+  cfg = cfg || {};
+  getKeywords.clear();
+  getLocations.clear();
+  if (Array.isArray(cfg.terms)) getKeywords.addMultiple(cfg.terms);
+  if (Array.isArray(cfg.location)) getLocations.addMultiple(cfg.location);
+  const remote = document.getElementById("remoteToggle");
+  if (remote) remote.checked = !!cfg.is_remote;
+  const setChecks = (name, values) => {
+    const set = new Set(values || []);
+    document
+      .querySelectorAll(`input[name="${name}"]`)
+      .forEach((cb) => {
+        cb.checked = set.has(cb.value);
+      });
+  };
+  setChecks("scanSites", cfg.sites);
+  setChecks("scanExperience", cfg.experience_levels);
+  setChecks("scanJobType", cfg.job_types);
+  setChecks("scanWorkType", cfg.work_types);
+  const sal = document.getElementById("scanMinSalary");
+  if (sal) sal.value = cfg.min_salary ? String(cfg.min_salary) : "";
+}
+
+async function _onScanSubmit(event) {
+  event.preventDefault();
+
+  if (typeof _deps.ensureProviderConfigured === "function") {
+    const ok = await _deps.ensureProviderConfigured();
+    if (!ok) return;
+  }
+
+  const getKeywords = _deps.getKeywords;
+  const getLocations = _deps.getLocations;
+
+  // Add any pending typed text that wasn't entered
+  const kwInputRaw = document.getElementById("keywordsInput").value.trim();
+  if (kwInputRaw) {
+    getKeywords.addMultiple([kwInputRaw]);
+    document.getElementById("keywordsInput").value = '';
+  }
+  const locInputRaw = document.getElementById("locationsInput").value.trim();
+  if (locInputRaw) {
+    getLocations.addMultiple([locInputRaw]);
+    document.getElementById("locationsInput").value = '';
+  }
+
+  const termsText = getKeywords.getTags().join(", ");
+  const siteCheckboxes = document.querySelectorAll('input[name="scanSites"]:checked');
+  const selectedSites = Array.from(siteCheckboxes).map(cb => cb.value);
+  const isRemote = document.getElementById("remoteToggle")?.checked || false;
+  const location = getLocations.getTags().join(", ");
+
+  const expLevels = Array.from(document.querySelectorAll('input[name="scanExperience"]:checked')).map(cb => cb.value);
+  const jobTypes = Array.from(document.querySelectorAll('input[name="scanJobType"]:checked')).map(cb => cb.value);
+  const workTypes = Array.from(document.querySelectorAll('input[name="scanWorkType"]:checked')).map(cb => cb.value);
+
+  const params = new URLSearchParams();
+  if (termsText) params.set("search_terms", termsText);
+  if (location) params.set("location", location);
+  params.set("is_remote", isRemote);
+  params.set("sites", (selectedSites.length > 0 ? selectedSites : ["linkedin", "indeed"]).join(","));
+  if (expLevels.length) params.set("experience_levels", expLevels.join(","));
+  if (jobTypes.length) params.set("job_types", jobTypes.join(","));
+  if (workTypes.length) params.set("work_types", workTypes.join(","));
+
+  const minSalaryRaw = document.getElementById("scanMinSalary")?.value.trim();
+  const minSalary = minSalaryRaw ? parseInt(minSalaryRaw, 10) : 0;
+  if (minSalary > 0) params.set("min_salary", String(minSalary));
+
+  // Show scan overlay
+  const overlay = document.getElementById("scanOverlay");
+  const progressText = document.getElementById("scanProgressText");
+  const progressFill = document.getElementById("scanProgressFill");
+  const feedEl = document.getElementById("scanFeed");
+  overlay.style.display = "flex";
+  overlay.classList.remove("minimized");
+  progressFill.style.width = "5%";
+  progressText.textContent = t("scan.connecting");
+  if (feedEl) feedEl.innerHTML = "";
+
+  const appendFeed = (iconName, textHtml, chip) => {
+    if (!feedEl) return;
+    const li = document.createElement("li");
+    const chipHtml = chip ? `<span class="feed-chip ${chip.cls || ""}">${chip.label}</span>` : "";
+    li.innerHTML = `<span class="material-symbols-outlined feed-icon">${iconName}</span><span class="feed-text">${textHtml}</span>${chipHtml}`;
+    feedEl.appendChild(li);
+    while (feedEl.children.length > 50) feedEl.removeChild(feedEl.firstChild);
+    feedEl.scrollTop = feedEl.scrollHeight;
+  };
+  const escHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  let analysisCount = 0;
+  let totalFound = 0;
+  const lastTopJobs = [];
+
+  const fmtEta = (ms) => {
+    if (!ms || ms < 0) return "";
+    const sec = Math.round(ms / 1000);
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m ${String(s).padStart(2, "0")}s`;
+  };
+
+  const setProgress = (pct, label) => {
+    progressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    if (label) progressText.textContent = label;
+  };
+
+  const evtSource = new EventSource(`/api/scan/stream?${params.toString()}`);
+  evtSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.status === "started") {
+        const terms = (data.terms || []).join(", ");
+        setProgress(2, `${t("scan.searching")}: ${terms}`);
+        appendFeed("travel_explore", t("scan.feedStarted", { terms: escHtml(terms) }));
+      } else if (data.status === "progress") {
+        const pct = Number(data.percent || 0);
+        const eta = fmtEta(data.eta_ms);
+        const stepKey = data.step === "analyzing" ? "scan.progress.analyzing" : "scan.progress.scraping";
+        const stepLabel = t(stepKey) || (data.step === "analyzing" ? "Analyzing" : "Scraping");
+        const line = `${stepLabel} ${data.current || 0}/${data.total || "?"}` + (eta ? ` · ${t("scan.progress.eta") || "ETA"} ${eta}` : "");
+        setProgress(pct, line);
+      } else if (data.status === "scraped") {
+        totalFound += data.found || 0;
+        appendFeed("manage_search", t("scan.feedScraped", { found: data.found || 0, portal: escHtml(data.portal || data.site || "") }));
+      } else if (data.status === "analyzed") {
+        analysisCount++;
+        const j = data.job || {};
+        const score = Number(j.score || 0);
+        lastTopJobs.push({ titolo: j.titolo, azienda: j.azienda, score });
+        lastTopJobs.sort((a, b) => b.score - a.score);
+        if (lastTopJobs.length > 5) lastTopJobs.length = 5;
+        const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
+        const pct = Number(data.percent || Math.min(30 + analysisCount * 3, 95));
+        const eta = fmtEta(data.eta_ms);
+        const line = t("scan.analyzed", { title: j.titolo || "?", company: j.azienda || "?", score });
+        setProgress(pct, eta ? `${line} · ${t("scan.progress.eta") || "ETA"} ${eta}` : line);
+        appendFeed("check_circle", t("scan.feedAnalyzed", { title: escHtml(j.titolo || "?"), company: escHtml(j.azienda || "?") }), { label: `${score}/10`, cls });
+      } else if (data.status === "complete") {
+        setProgress(100, t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 }));
+        appendFeed("task_alt", t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 }));
+        evtSource.close();
+        // Close the scan overlay first so the post-scan modal isn't covered
+        // by it. Stash the data on closure since the SSE event won't repeat.
+        const completeData = data;
+        const completeTops = lastTopJobs.slice();
+        setTimeout(() => {
+          overlay.style.display = "none";
+          overlay.classList.remove("minimized");
+          try {
+            showPostScanModal(completeData, completeTops);
+          } catch (err) {
+            console.error("post-scan modal failed:", err);
+            showToast(t("scan.postScanRenderFailed"), "info");
+          }
+        }, 600);
+        Promise.all([loadJobs(), loadRecommendations()]);
+      } else if (data.error) {
+        progressText.textContent = `${t("scan.error")}: ${data.error}`;
+        appendFeed("error", `${t("scan.error")}: ${escHtml(data.error)}`);
+        showToast(`${t("scan.error")}: ${data.error}`, "error");
+        evtSource.close();
+        setTimeout(() => { overlay.style.display = "none"; overlay.classList.remove("minimized"); }, 3000);
+      }
+    } catch (_) {}
+  };
+  evtSource.onerror = () => {
+    evtSource.close();
+    progressText.textContent = t("scan.connectionLost");
+    showToast(t("scan.connectionLost") || "Scan connection lost", "error");
+    setTimeout(() => { overlay.style.display = "none"; }, 2000);
+    Promise.all([loadJobs(), loadRecommendations()]);
+  };
+
+  document.getElementById("cancelScanBtn").onclick = () => {
+    evtSource.close();
+    overlay.style.display = "none";
+    overlay.classList.remove("minimized");
+    Promise.all([loadJobs(), loadRecommendations()]);
+  };
+
+  const minimizeBtn = document.getElementById("minimizeScanBtn");
+  if (minimizeBtn) {
+    minimizeBtn.onclick = () => overlay.classList.toggle("minimized");
+  }
+}

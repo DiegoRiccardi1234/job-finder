@@ -36,6 +36,24 @@ import {
   setProviderDeps,
 } from "./modules/providers.js";
 import { initModelPicker, refreshModelPickerLabel } from "./modules/model_picker.js";
+import {
+  initReminders,
+  loadReminders,
+  reminderEditorHtml,
+  wireReminderEditor,
+} from "./modules/reminders.js";
+import { initSavedSearches, loadSavedSearches } from "./modules/saved_searches.js";
+import { initJobList, loadJobs } from "./modules/job_list.js";
+import {
+  initJobDetail,
+  showJobDetail,
+  performJobAction,
+  toggleFavorite,
+  loadRecommendations,
+  openJobDetail,
+  closeJobDetail,
+} from "./modules/job_detail.js";
+import { initScan, readScanConfig, applyScanConfig } from "./modules/scan.js";
 
 // Global safety nets: surface otherwise-silent async failures in the console.
 window.addEventListener("unhandledrejection", (e) => console.error("Unhandled promise rejection:", e.reason));
@@ -251,6 +269,15 @@ async function loadHealth() {
   if (linkedinInput && prefs.linkedin_url) {
     linkedinInput.value = prefs.linkedin_url;
   }
+  const linkedinText = document.getElementById("linkedinText");
+  if (linkedinText && prefs.linkedin_profile_text) {
+    linkedinText.value = prefs.linkedin_profile_text;
+  }
+  const dedupSel = document.getElementById("dedupModeSelect");
+  if (dedupSel) {
+    const mode = prefs.dedup_mode || "city";
+    if (["exact", "city", "title_company"].includes(mode)) dedupSel.value = mode;
+  }
 
   const keys = health.keys || {};
   const status = normalizeKeyStatus(keys, health.provider || {});
@@ -295,405 +322,12 @@ async function activateProfile(profileId) {
   await api(`/api/profiles/${profileId}/activate`, { method: "POST" });
   showToast(t("toast.profileActive", { id: profileId }), "info");
   // Refresh the views that depend on the active profile so they don't go stale.
-  await Promise.allSettled([loadRecommendations(), loadAnalytics(), loadSkillGap()]);
-}
-
-let _matchRadarChart = null;
-
-function renderMatchRadar(axes) {
-  const canvas = document.getElementById("detailMatchRadar");
-  if (!canvas || typeof window.Chart === "undefined") return;
-  const data = axes && typeof axes === "object" ? axes : {};
-  const labels = [
-    t("offcanvas.axisSkills"),
-    t("offcanvas.axisSeniority"),
-    t("offcanvas.axisRemote"),
-    t("offcanvas.axisSalary"),
-    t("offcanvas.axisContract"),
-  ];
-  const values = [
-    Number(data.skills_match) || 0,
-    Number(data.seniority_match) || 0,
-    Number(data.remote_match) || 0,
-    Number(data.salary_match) || 0,
-    Number(data.contract_match) || 0,
-  ];
-  if (_matchRadarChart) {
-    _matchRadarChart.destroy();
-    _matchRadarChart = null;
-  }
-  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-  const gridColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
-  const textColor = isDark ? "#cbd5e1" : "#334155";
-  _matchRadarChart = new window.Chart(canvas, {
-    type: "radar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: t("offcanvas.matchScore"),
-          data: values,
-          backgroundColor: "rgba(99,91,255,0.25)",
-          borderColor: "#635bff",
-          pointBackgroundColor: "#635bff",
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        r: {
-          min: 0,
-          max: 10,
-          ticks: { stepSize: 2, color: textColor, backdropColor: "transparent" },
-          angleLines: { color: gridColor },
-          grid: { color: gridColor },
-          pointLabels: { color: textColor, font: { size: 11 } },
-        },
-      },
-    },
-  });
-}
-
-async function renderTimeline(jobId) {
-  const el = document.getElementById("detailTimeline");
-  if (!el) return;
-  let actions = [];
-  try {
-    ({ actions } = await api(`/api/jobs/${jobId}/timeline`));
-  } catch {
-    actions = [];
-  }
-  if (!actions || !actions.length) {
-    el.innerHTML = `<p class="micro">${t("timeline.empty")}</p>`;
-    return;
-  }
-  el.innerHTML = actions
-    .slice()
-    .reverse()
-    .map((a) => {
-      const isNote = a.action === "note";
-      const statusKey = a.action === "reopened" ? "open" : a.action;
-      const label = isNote ? t("timeline.note") : t(`jobs.status.${statusKey}`) || a.action;
-      const icon = isNote ? "sticky_note_2" : "flag";
-      return `<div class="tl-item"><span class="material-symbols-outlined tl-icon">${icon}</span><div class="tl-body"><div class="tl-head"><strong>${escapeHtml(label)}</strong><span class="tl-date">${fmtDate(a.created_at)}</span></div>${a.notes ? `<div class="tl-note">${escapeHtml(a.notes)}</div>` : ""}</div></div>`;
-    })
-    .join("");
-}
-
-async function showJobDetail(jobId) {
-  const payload = await api(`/api/jobs/${jobId}`);
-  const job = payload.job || {};
-  const analysis = job.analysis || {};
-  appState.selectedJobId = job.id || null;
-
-  setText("detailStatus", `${t("jobs.statusLabel")}: ${t("jobs.status." + normalizeJobStatus(job.status))}`);
-  setText("detailTitle", job.titolo || t("jobs.titleUnavailable"));
-  setText("detailCompany", job.azienda || t("jobs.companyUnavailable"));
-  // Build the meta line from distinct parts: legacy data sometimes stored the
-  // city in ``modalita`` too, which produced "Torino | Score | Torino".
-  const sede = (job.sede || "").trim();
-  const modalita = (job.modalita || "").trim();
-  const detailScore = scoreCell(job.punteggio_ai);
-  const metaParts = [sede || t("jobs.locationUnavailable"), `${t("jobs.score")}: ${detailScore.text}`];
-  if (modalita && modalita.toLowerCase() !== sede.toLowerCase()) {
-    metaParts.push(modalita);
-  }
-  setText("detailMeta", metaParts.join(" | "));
-
-  const detailLinkBtn = document.getElementById("detailLinkBtn");
-  if (detailLinkBtn) {
-    if (job.link) {
-      detailLinkBtn.href = job.link;
-      detailLinkBtn.style.display = "flex";
-    } else {
-      detailLinkBtn.style.display = "none";
-    }
-  }
-
-  const genBtn = document.getElementById("generateCoverLetterBtn");
-  const covBox = document.getElementById("coverLetterBox");
-  if (genBtn && covBox) {
-    genBtn.style.display = "inline-block";
-    covBox.style.display = "none";
-    document.getElementById("coverLetterOutput").textContent = "";
-  }
-
-  // Optional generation features: show the button only when enabled, and
-  // re-render any previously generated artifact stored on the job.
-  setupGenerationButton({
-    btnId: "generateInterviewPrepBtn",
-    boxId: "interviewPrepBox",
-    outId: "interviewPrepOutput",
-    enabled: appState.featureFlags.interview_prep !== false,
-    saved: analysis.interview_prep,
-  });
-  setupGenerationButton({
-    btnId: "generateTailoredResumeBtn",
-    boxId: "tailoredResumeBox",
-    outId: "tailoredResumeOutput",
-    enabled: appState.featureFlags.resume_tailoring !== false,
-    saved: analysis.tailored_resume,
-  });
-
-  const recruiter = payload.recruiter || null;
-
-  const renderList = (items, max = 5) => {
-    if (!Array.isArray(items) || !items.length) return "";
-    return `<ul class="bullet-list">${items.slice(0, max).map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>`;
-  };
-
-  const requisitiBlock = analysis && analysis.requisiti ? `
-        <div class="info-card mt-16">
-          <h4>${t("offcanvas.requirements") || "Requisiti chiave"}</h4>
-          ${renderList(analysis.requisiti)}
-        </div>` : "";
-  const responsabilitaBlock = analysis && analysis.responsabilita ? `
-        <div class="info-card mt-8">
-          <h4>${t("offcanvas.responsibilities") || "Responsabilità"}</h4>
-          ${renderList(analysis.responsabilita)}
-        </div>` : "";
-  const benefitBlock = analysis && Array.isArray(analysis.benefit) && analysis.benefit.length ? `
-        <div class="info-card mt-8">
-          <h4>${t("offcanvas.benefits") || "Benefit"}</h4>
-          ${renderList(analysis.benefit)}
-        </div>` : "";
-
-  let skillsMatchBlock = "";
-  if (analysis && analysis.skills_match) {
-    const hai = Array.isArray(analysis.skills_match.hai) ? analysis.skills_match.hai : [];
-    const mancano = Array.isArray(analysis.skills_match.mancano) ? analysis.skills_match.mancano : [];
-    skillsMatchBlock = `
-        <div class="info-card mt-8">
-          <h4>${t("offcanvas.skillsMatch") || "Skills match"}</h4>
-          <div class="skills-match">
-            <div><strong class="pro-label">✅ ${t("offcanvas.skillsHave") || "Hai"}:</strong> ${hai.length ? hai.map((s) => `<span class="chip-mini">${escapeHtml(s)}</span>`).join("") : "—"}</div>
-            <div class="mt-8"><strong class="con-label">❌ ${t("offcanvas.skillsMissing") || "Mancano"}:</strong> ${mancano.length ? mancano.map((s) => `<span class="chip-mini missing">${escapeHtml(s)}</span>`).join("") : "—"}</div>
-          </div>
-        </div>`;
-  }
-
-  let recruiterBlock = "";
-  if (recruiter && (recruiter.name || recruiter.headline)) {
-    recruiterBlock = `
-        <div class="info-card mt-8 recruiter-card">
-          <h4>${t("offcanvas.postedBy") || "Pubblicato da"}</h4>
-          <div class="recruiter-name">${escapeHtml(recruiter.name || "—")}</div>
-          ${recruiter.title ? `<div class="text-sm text-dim">${escapeHtml(recruiter.title)}</div>` : ""}
-          ${recruiter.headline ? `<div class="text-sm">${escapeHtml(recruiter.headline)}</div>` : ""}
-          ${recruiter.profile_url ? `<a class="ghost-btn small mt-8" target="_blank" rel="noopener" href="${escapeHtml(recruiter.profile_url)}">${t("offcanvas.viewProfile") || "View profile"}</a>` : ""}
-        </div>`;
-  }
-
-  const pinBtnRow = `
-        <div class="mt-16 detail-action-row">
-          <button type="button" class="ghost-btn" id="detailPinBtn"><span class="material-symbols-outlined">push_pin</span> ${t("offcanvas.pinToChat") || "Pin to chat"}</button>
-        </div>`;
-
-  const container = document.getElementById("jobDetailContainer");
-  if (container) {
-    const sc = scoreCell(job.punteggio_ai);
-    let ralSpan = "";
-    if (analysis && analysis.ral_stimata && analysis.ral_stimata !== "Non stimabile") {
-      ralSpan = `<div class="info-tag"><strong>RAL:</strong> ${escapeHtml(analysis.ral_stimata)}</div>`;
-    }
-
-    container.innerHTML = `
-      <div class="modern-detail">
-        <div class="modern-detail-grid">
-          <div class="info-card highlight" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
-            <h4>${t("offcanvas.matchScore")}</h4>
-            <div class="score-xl ${sc.cls}">${sc.text}</div>
-            <div class="text-sm mt-8 text-center">${escapeHtml((analysis ? analysis.consiglio : null) || job.consiglio || "")}</div>
-          </div>
-          <div class="info-card">
-            <h4>${t("offcanvas.positionDetails")}</h4>
-            ${ralSpan}
-            <div class="info-tag"><strong>${t("offcanvas.contract")}:</strong> ${escapeHtml((analysis ? analysis.contratto : null) || "N/A")}</div>
-            <div class="info-tag"><strong>${t("offcanvas.remoteWork")}:</strong> ${escapeHtml((analysis ? analysis.smart_working : null) || job.modalita || "N/A")}</div>
-            <div class="info-tag"><strong>${t("offcanvas.experience")}:</strong> ${escapeHtml((analysis ? analysis.anni_esperienza_richiesti : null) || "N/A")}</div>
-            <div class="info-tag"><strong>${t("offcanvas.codingSkills")}:</strong> ${escapeHtml((analysis ? analysis.programmazione_richiesta : null) || "N/A")}</div>
-            <div class="info-tag"><strong>${t("offcanvas.graduateFriendly")}:</strong> ${escapeHtml((analysis ? analysis.adatta_neolaureati : null) || "N/A")}</div>
-          </div>
-        </div>
-        <div class="mt-16">
-          <h4>${t("offcanvas.prosAndCons")}</h4>
-          <ul class="pros-cons">
-            <li class="pro">✅ ${escapeHtml((analysis ? analysis.punti_forza_per_diego : null) || "N/A")}</li>
-            <li class="con">❌ ${escapeHtml((analysis ? analysis.punti_deboli_per_diego : null) || "N/A")}</li>
-          </ul>
-        </div>
-        <div class="info-card mt-8">
-            <p class="text-sm">💡 <strong>${t("offcanvas.aiVerdict")}:</strong> ${escapeHtml((analysis ? analysis.riassunto : null) || "")}</p>
-        </div>
-        <div class="mt-16 info-card">
-          <h4>${t("offcanvas.breakdown")}</h4>
-          <canvas id="detailMatchRadar" height="220"></canvas>
-        </div>
-        ${requisitiBlock}
-        ${responsabilitaBlock}
-        ${benefitBlock}
-        ${skillsMatchBlock}
-        ${recruiterBlock}
-        ${pinBtnRow}
-        <div class="mt-16">
-          <h4>${t("offcanvas.listingMeta")}</h4>
-          <p class="text-sm text-dim">${t("offcanvas.search")}: ${escapeHtml(job.ricerca_usata)} | ${t("jobs.source")}: ${escapeHtml(job.fonte || "App")} | ${t("offcanvas.found")}: ${fmtDate(job.first_seen_at)} | ${t("offcanvas.companyRep")}: ${escapeHtml((analysis ? analysis.reputazione_azienda : null) || "N/A")}</p>
-        </div>
-        <div class="mt-16 info-card">
-          <h4>${t("timeline.title")}</h4>
-          <div id="detailTimeline" class="detail-timeline"></div>
-          <div class="note-add">
-            <textarea id="detailNoteInput" rows="2" data-i18n-placeholder="timeline.notePlaceholder" placeholder="Add a note…"></textarea>
-            <button type="button" id="detailNoteBtn" class="ghost-btn small">${t("timeline.addNote")}</button>
-          </div>
-        </div>
-      </div>
-    `;
-    renderMatchRadar(analysis && analysis.match_axes);
-    const pinBtn = document.getElementById("detailPinBtn");
-    if (pinBtn) {
-      pinBtn.addEventListener("click", () => {
-        if (appState.selectedJobId && typeof pinJobToActiveSession === "function") {
-          pinJobToActiveSession(appState.selectedJobId);
-        }
-      });
-    }
-
-    renderTimeline(job.id);
-    const noteBtn = document.getElementById("detailNoteBtn");
-    const noteInput = document.getElementById("detailNoteInput");
-    if (noteBtn && noteInput) {
-      noteBtn.addEventListener("click", async () => {
-        const notes = noteInput.value.trim();
-        if (!notes) return;
-        noteBtn.disabled = true;
-        try {
-          await api(`/api/jobs/${job.id}/note`, { method: "POST", body: JSON.stringify({ notes }) });
-          noteInput.value = "";
-          await renderTimeline(job.id);
-        } catch (err) {
-          showToast(`${t("timeline.noteError")}: ${err.message}`, "info");
-        } finally {
-          noteBtn.disabled = false;
-        }
-      });
-    }
-  }
-  
-  const inlineDetail = document.getElementById('jobDetailInline');
-  if (inlineDetail) {
-    inlineDetail.style.display = 'block';
-    inlineDetail.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-}
-
-async function performJobAction(jobId, action) {
-  try {
-    await api(`/api/jobs/${jobId}/action`, {
-      method: "POST",
-      body: JSON.stringify({ action, notes: "" }),
-    });
-    await Promise.all([loadJobs(), loadRecommendations()]);
-    const specific = t(`toast.job.${action}`);
-    showToast(specific && specific !== `toast.job.${action}` ? specific : (t("toast.jobUpdated") || "Job updated"), "info");
-  } catch (err) {
-    showToast(`${t("toast.jobActionFailed") || "Job action failed"}: ${err.message}`, "error");
-  }
-}
-
-async function toggleFavorite(jobId, isFavorite) {
-  try {
-    await api(`/api/jobs/${jobId}/favorite`, {
-      method: "POST",
-      body: JSON.stringify({ is_favorite: isFavorite }),
-    });
-    await Promise.all([loadJobs(), loadRecommendations()]);
-    const key = isFavorite ? "toast.favoriteAdded" : "toast.favoriteRemoved";
-    const fallback = isFavorite ? "Added to favorites" : "Removed from favorites";
-    showToast(t(key) || fallback, "info");
-  } catch (err) {
-    showToast(`${t("toast.jobActionFailed") || "Job action failed"}: ${err.message}`, "error");
-  }
-}
-
-function recommendationCardHtml(job) {
-  const sc = scoreCell(job.punteggio_ai);
-  const consiglio = escapeHtml(job.consiglio || "Evaluate match");
-  const title = escapeHtml(job.titolo || t("jobs.titleUnavailable"));
-  const company = escapeHtml(job.azienda || t("jobs.companyUnavailable"));
-  const newTag = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
-  const favoriteText = job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite");
-  const nextFavorite = job.is_favorite ? "0" : "1";
-  const linkHtml = job.link ? `<div style="margin-top: 4px"><a href="${escapeHtml(job.link)}" target="_blank" rel="noopener">🔗 ${t("jobs.linkToOffer")}</a></div>` : "";
-
-  return `
-    <article class="rec-card" data-rec-id="${job.id}">
-      <div class="rec-head">
-        <div class="rec-title">${title}</div>
-        <span class="rec-score ${sc.cls}">${sc.text}</span>
-      </div>
-      <div class="rec-company">${company} ${newTag}</div>
-      <div>${consiglio}</div>
-      ${linkHtml}
-      <div class="rec-actions">
-        <button class="secondary" data-rec-action="detail" data-id="${job.id}">${t("jobs.details")}</button>
-        <button class="apply-btn" data-rec-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
-        <button class="danger" data-rec-action="rejected" data-id="${job.id}">${t("jobs.skip")}</button>
-        <button class="secondary" data-rec-favorite="${nextFavorite}" data-id="${job.id}">${favoriteText}</button>
-      </div>
-    </article>
-  `;
-}
-
-async function loadRecommendations() {
-  const container = document.getElementById("recommendationsGrid");
-  if (!container) return;
-
-  container.innerHTML = "";
-  try {
-    const payload = await api("/api/recommendations?limit=5");
-    const jobs = payload.jobs || [];
-
-    if (!jobs.length) {
-      container.innerHTML = `<article class="rec-card"><div class="rec-title">${t("recommendations.noRecs")}</div><div>${t("recommendations.noRecsSub")}</div></article>`;
-      return;
-    }
-
-    container.innerHTML = jobs.map((job) => recommendationCardHtml(job)).join("");
-
-    container.querySelectorAll("button[data-rec-action]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.dataset.id;
-        const action = btn.dataset.recAction;
-        try {
-          if (action === "detail") {
-            await showJobDetail(id);
-            return;
-          }
-          await performJobAction(id, action);
-        } catch (error) {
-          showToast(`${t("toast.quickActionError")}: ${error.message}`, "info");
-        }
-      });
-    });
-
-    container.querySelectorAll("button[data-rec-favorite]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.dataset.id;
-        const fav = btn.dataset.recFavorite === "1";
-        try {
-          await toggleFavorite(id, fav);
-        } catch (error) {
-          showToast(`${t("toast.favoriteError")}: ${error.message}`, "info");
-        }
-      });
-    });
-  } catch (error) {
-    container.innerHTML = `<article class="rec-card"><div class="rec-title">${t("recommendations.loadError")}</div><div>${escapeHtml(error.message)}</div></article>`;
-  }
+  await Promise.allSettled([
+    loadRecommendations(),
+    loadAnalytics(),
+    loadSkillGap(),
+    loadReminders(),
+  ]);
 }
 
 async function loadChatPrompts() {
@@ -784,225 +418,7 @@ async function sendChatMessage(message) {
 }
 
 // ── Shared job-display helpers ────────────────────────────────────────────
-function scoreClass(score) {
-  const n = Number(score);
-  return n >= 7 ? "score-high" : n >= 4 ? "score-mid" : "score-low";
-}
-// AI score cell: null/undefined/"" => "not scored" (unscored is NOT a 0/10 match).
-function scoreCell(score) {
-  if (score === null || score === undefined || score === "") {
-    return { text: t("jobs.notScored") || "—", cls: "score-none" };
-  }
-  return { text: `${score}/10`, cls: scoreClass(score) };
-}
-function statusPillHtml(status) {
-  const s = normalizeJobStatus(status);
-  const label = t(`jobs.status.${s}`) || s;
-  return `<span class="status-pill status-${s}">${escapeHtml(label)}</span>`;
-}
-function fmtDate(s) {
-  if (!s) return "";
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? escapeHtml(s) : d.toLocaleDateString(getCurrentLang());
-}
 
-async function loadJobs() {
-  const onlyNew = document.getElementById("onlyNew").checked;
-  const onlyFavorites = document.getElementById("onlyFavorites").checked;
-  const remoteOnly = document.getElementById("remoteOnly").checked;
-  const searchText = document.getElementById("searchText").value.trim();
-  const status = document.getElementById("statusFilter").value;
-  const minScoreRaw = document.getElementById("minScore").value.trim();
-  const maxAgeRaw = document.getElementById("maxAgeDays").value.trim();
-
-  const query = new URLSearchParams({
-    only_new: onlyNew ? "true" : "false",
-    only_favorites: onlyFavorites ? "true" : "false",
-    limit: "250",
-  });
-  if (remoteOnly) query.set("remote_only", "true");
-  if (searchText) query.set("search_text", searchText);
-  if (status) query.set("status", status);
-  if (minScoreRaw) query.set("min_score", minScoreRaw);
-  if (maxAgeRaw) query.set("max_age_days", maxAgeRaw);
-
-  const COLS = 9;
-  const body = document.getElementById("jobsTableBody");
-  const fullRow = (cls, msg) => `<tr><td colspan="${COLS}" class="${cls}">${msg}</td></tr>`;
-  body.innerHTML = fullRow("table-empty", "…");
-
-  let jobs;
-  try {
-    ({ jobs } = await api(`/api/jobs?${query.toString()}`));
-  } catch (err) {
-    console.error("loadJobs failed", err);
-    body.innerHTML = fullRow("table-empty table-error", t("jobs.loadError") || "Couldn't load jobs.");
-    return;
-  }
-
-  body.innerHTML = "";
-  if (!jobs.length) {
-    const filtered =
-      onlyNew || onlyFavorites || remoteOnly || searchText || status || minScoreRaw || maxAgeRaw;
-    body.innerHTML = fullRow(
-      "table-empty",
-      filtered ? t("jobs.emptyFiltered") || "No jobs match these filters."
-               : t("jobs.emptyNoJobs") || "No jobs yet — run your first scan.",
-    );
-    renderKanban(jobs);
-    return;
-  }
-
-  for (const job of jobs) {
-    const newBadge = job.is_new ? `<span class="pill-new">${t("jobs.newBadge")}</span>` : "";
-    const sc = scoreCell(job.punteggio_ai);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><span class="${sc.cls}">${sc.text}</span> ${newBadge}</td>
-      <td>${statusPillHtml(job.status)}</td>
-      <td>${truncate(job.titolo || "")}</td>
-      <td>${truncate(job.azienda || "")}</td>
-      <td>${truncate(job.sede || "")}</td>
-      <td>${truncate(job.fonte || "")}</td>
-      <td>${truncate(job.consiglio || "")}</td>
-      <td>
-        <button data-detail-id="${job.id}" class="secondary">${t("jobs.details")}</button>
-        ${job.link ? `<a href="${escapeHtml(job.link)}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ""}
-      </td>
-      <td>
-        <div class="mini">
-          <button class="apply-btn" data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
-          <button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>
-          <button data-action="reopened" data-id="${job.id}" class="secondary icon-btn" title="${t("jobs.reopen")}" aria-label="${t("jobs.reopen")}"><span class="material-symbols-outlined">restart_alt</span></button>
-          <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary icon-btn${job.is_favorite ? " is-active" : ""}" title="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}" aria-label="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}"><span class="material-symbols-outlined">${job.is_favorite ? "favorite" : "favorite_border"}</span></button>
-          <button data-delete-id="${job.id}" class="danger icon-btn" title="${t("jobs.delete")}" aria-label="${t("jobs.delete")}"><span class="material-symbols-outlined">delete</span></button>
-        </div>
-      </td>
-    `;
-    body.appendChild(tr);
-  }
-
-  body.querySelectorAll("button[data-action]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.id;
-      const action = btn.dataset.action;
-      try {
-        await performJobAction(id, action);
-      } catch (error) {
-        showToast(`${t("toast.actionError")}: ${error.message}`, "info");
-      }
-    });
-  });
-
-  body.querySelectorAll("button[data-favorite]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.id;
-      const fav = btn.dataset.favorite === "1";
-      try {
-        await toggleFavorite(id, fav);
-      } catch (error) {
-        showToast(`${t("toast.favoriteError")}: ${error.message}`, "info");
-      }
-    });
-  });
-
-  body.querySelectorAll("button[data-detail-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.detailId;
-      try {
-        await showJobDetail(id);
-      } catch (error) {
-        showToast(`${t("toast.detailError")}: ${error.message}`, "info");
-      }
-    });
-  });
-
-  body.querySelectorAll("button[data-delete-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.deleteId;
-      if (!confirm(t("jobs.deleteConfirm"))) return;
-      try {
-        await api(`/api/jobs/${id}`, { method: "DELETE" });
-        showToast(t("jobs.deleted"), "info");
-        await loadJobs();
-      } catch (error) {
-        showToast(`${t("toast.deleteError")}: ${error.message}`, "info");
-      }
-    });
-  });
-
-  renderKanban(jobs);
-}
-
-function normalizeJobStatus(status) {
-  const normalized = String(status || "open").trim().toLowerCase();
-  if (normalized === "interview") return "interviewing";
-  return normalized;
-}
-
-function renderKanban(jobs) {
-  const kanbanView = document.getElementById("kanbanView");
-  if (!kanbanView) return;
-
-  const columns = {
-    open: kanbanView.querySelector('.kanban-col[data-status="open"] .cards-container'),
-    applied: kanbanView.querySelector('.kanban-col[data-status="applied"] .cards-container'),
-    interviewing: kanbanView.querySelector('.kanban-col[data-status="interviewing"] .cards-container'),
-    rejected: kanbanView.querySelector('.kanban-col[data-status="rejected"] .cards-container'),
-  };
-
-  Object.values(columns).forEach((container) => {
-    if (container) container.innerHTML = "";
-  });
-
-  const counts = { open: 0, applied: 0, interviewing: 0, rejected: 0 };
-  for (const job of jobs || []) {
-    const status = normalizeJobStatus(job.status);
-    if (!(status in columns) || !columns[status]) continue;
-
-    counts[status] += 1;
-    const sc = scoreCell(job.punteggio_ai);
-    const card = document.createElement("article");
-    card.className = "kanban-card";
-    card.innerHTML = `
-      <strong>${escapeHtml(job.titolo || t("jobs.titleUnavailable"))}</strong>
-      <div class="micro">${escapeHtml(job.azienda || t("jobs.companyUnavailable"))}</div>
-      <div class="micro">${t("jobs.score")}: <span class="${sc.cls}">${sc.text}</span></div>
-      <div class="mini" style="margin-top:8px;">
-        <button class="secondary" data-k-detail-id="${job.id}">${t("jobs.details")}</button>
-        <button class="apply-btn" data-k-action="${status === "open" ? "applied" : "reopened"}" data-id="${job.id}">
-          ${status === "open" ? t("jobs.apply") : t("jobs.reopen")}
-        </button>
-      </div>
-    `;
-    columns[status].appendChild(card);
-  }
-
-  setText("k-count-open", String(counts.open));
-  setText("k-count-applied", String(counts.applied));
-  setText("k-count-interviewing", String(counts.interviewing));
-  setText("k-count-rejected", String(counts.rejected));
-
-  kanbanView.querySelectorAll("button[data-k-detail-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      try {
-        await showJobDetail(btn.dataset.kDetailId);
-      } catch (error) {
-        showToast(`${t("toast.detailError")}: ${error.message}`, "info");
-      }
-    });
-  });
-
-  kanbanView.querySelectorAll("button[data-k-action]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      try {
-        await performJobAction(btn.dataset.id, btn.dataset.kAction);
-      } catch (error) {
-        showToast(`${t("toast.actionError")}: ${error.message}`, "info");
-      }
-    });
-  });
-}
 
 async function loadChatHistory() {
   const { messages } = await api("/api/chat/history?session_id=default&limit=20");
@@ -1016,16 +432,24 @@ async function loadChatHistory() {
 document.getElementById("linkedinForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const url = document.getElementById("linkedinUrl").value.trim();
+  const text = document.getElementById("linkedinText")?.value.trim() || "";
+  const status = document.getElementById("linkedinStatus");
   try {
-    await api("/api/preferences", {
+    const res = await api("/api/profile/linkedin", {
       method: "POST",
-      body: JSON.stringify({ key: "linkedin_url", value: url }),
+      body: JSON.stringify({ url, text }),
     });
-    const status = document.getElementById("linkedinStatus");
-    status.textContent = t("toast.linkedinSaved");
-    status.classList.remove("hidden");
-    setTimeout(() => status.classList.add("hidden"), 3000);
-    showToast(t("toast.linkedinSaved"), "info");
+    let msg;
+    if (text) msg = t("profile.linkedinPasteSaved");
+    else if (res.fetched) msg = t("profile.linkedinFetched");
+    else if (url) msg = t("profile.linkedinBlocked");
+    else msg = t("toast.linkedinSaved");
+    if (status) {
+      status.textContent = msg;
+      status.classList.remove("hidden");
+      setTimeout(() => status.classList.add("hidden"), 5000);
+    }
+    showToast(msg, "info");
   } catch (error) {
     showToast(`${t("toast.linkedinError")}: ${error.message}`, "info");
   }
@@ -1193,169 +617,7 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
   }
 }
 
-document.getElementById("scanForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  if (typeof ensureProviderConfigured === "function") {
-    const ok = await ensureProviderConfigured();
-    if (!ok) return;
-  }
-
-  // Add any pending typed text that wasn't entered
-  const kwInputRaw = document.getElementById("keywordsInput").value.trim();
-  if (kwInputRaw) {
-    getKeywords.addMultiple([kwInputRaw]);
-    document.getElementById("keywordsInput").value = '';
-  }
-  const locInputRaw = document.getElementById("locationsInput").value.trim();
-  if (locInputRaw) {
-    getLocations.addMultiple([locInputRaw]);
-    document.getElementById("locationsInput").value = '';
-  }
-
-  const termsText = getKeywords.getTags().join(", ");
-  const siteCheckboxes = document.querySelectorAll('input[name="scanSites"]:checked');
-  const selectedSites = Array.from(siteCheckboxes).map(cb => cb.value);
-  const isRemote = document.getElementById("remoteToggle")?.checked || false;
-  const location = getLocations.getTags().join(", ");
-
-  const expLevels = Array.from(document.querySelectorAll('input[name="scanExperience"]:checked')).map(cb => cb.value);
-  const jobTypes = Array.from(document.querySelectorAll('input[name="scanJobType"]:checked')).map(cb => cb.value);
-  const workTypes = Array.from(document.querySelectorAll('input[name="scanWorkType"]:checked')).map(cb => cb.value);
-
-  const params = new URLSearchParams();
-  if (termsText) params.set("search_terms", termsText);
-  if (location) params.set("location", location);
-  params.set("is_remote", isRemote);
-  params.set("sites", (selectedSites.length > 0 ? selectedSites : ["linkedin", "indeed"]).join(","));
-  if (expLevels.length) params.set("experience_levels", expLevels.join(","));
-  if (jobTypes.length) params.set("job_types", jobTypes.join(","));
-  if (workTypes.length) params.set("work_types", workTypes.join(","));
-
-  const minSalaryRaw = document.getElementById("scanMinSalary")?.value.trim();
-  const minSalary = minSalaryRaw ? parseInt(minSalaryRaw, 10) : 0;
-  if (minSalary > 0) params.set("min_salary", String(minSalary));
-
-  // Show scan overlay
-  const overlay = document.getElementById("scanOverlay");
-  const progressText = document.getElementById("scanProgressText");
-  const progressFill = document.getElementById("scanProgressFill");
-  const feedEl = document.getElementById("scanFeed");
-  overlay.style.display = "flex";
-  overlay.classList.remove("minimized");
-  progressFill.style.width = "5%";
-  progressText.textContent = t("scan.connecting");
-  if (feedEl) feedEl.innerHTML = "";
-
-  const appendFeed = (iconName, textHtml, chip) => {
-    if (!feedEl) return;
-    const li = document.createElement("li");
-    const chipHtml = chip ? `<span class="feed-chip ${chip.cls || ""}">${chip.label}</span>` : "";
-    li.innerHTML = `<span class="material-symbols-outlined feed-icon">${iconName}</span><span class="feed-text">${textHtml}</span>${chipHtml}`;
-    feedEl.appendChild(li);
-    while (feedEl.children.length > 50) feedEl.removeChild(feedEl.firstChild);
-    feedEl.scrollTop = feedEl.scrollHeight;
-  };
-  const escHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  let analysisCount = 0;
-  let totalFound = 0;
-  const lastTopJobs = [];
-
-  const fmtEta = (ms) => {
-    if (!ms || ms < 0) return "";
-    const sec = Math.round(ms / 1000);
-    if (sec < 60) return `${sec}s`;
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}m ${String(s).padStart(2, "0")}s`;
-  };
-
-  const setProgress = (pct, label) => {
-    progressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-    if (label) progressText.textContent = label;
-  };
-
-  const evtSource = new EventSource(`/api/scan/stream?${params.toString()}`);
-  evtSource.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (data.status === "started") {
-        const terms = (data.terms || []).join(", ");
-        setProgress(2, `${t("scan.searching")}: ${terms}`);
-        appendFeed("travel_explore", t("scan.feedStarted", { terms: escHtml(terms) }));
-      } else if (data.status === "progress") {
-        const pct = Number(data.percent || 0);
-        const eta = fmtEta(data.eta_ms);
-        const stepKey = data.step === "analyzing" ? "scan.progress.analyzing" : "scan.progress.scraping";
-        const stepLabel = t(stepKey) || (data.step === "analyzing" ? "Analyzing" : "Scraping");
-        const line = `${stepLabel} ${data.current || 0}/${data.total || "?"}` + (eta ? ` · ${t("scan.progress.eta") || "ETA"} ${eta}` : "");
-        setProgress(pct, line);
-      } else if (data.status === "scraped") {
-        totalFound += data.found || 0;
-        appendFeed("manage_search", t("scan.feedScraped", { found: data.found || 0, portal: escHtml(data.portal || data.site || "") }));
-      } else if (data.status === "analyzed") {
-        analysisCount++;
-        const j = data.job || {};
-        const score = Number(j.score || 0);
-        lastTopJobs.push({ titolo: j.titolo, azienda: j.azienda, score });
-        lastTopJobs.sort((a, b) => b.score - a.score);
-        if (lastTopJobs.length > 5) lastTopJobs.length = 5;
-        const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
-        const pct = Number(data.percent || Math.min(30 + analysisCount * 3, 95));
-        const eta = fmtEta(data.eta_ms);
-        const line = t("scan.analyzed", { title: j.titolo || "?", company: j.azienda || "?", score });
-        setProgress(pct, eta ? `${line} · ${t("scan.progress.eta") || "ETA"} ${eta}` : line);
-        appendFeed("check_circle", t("scan.feedAnalyzed", { title: escHtml(j.titolo || "?"), company: escHtml(j.azienda || "?") }), { label: `${score}/10`, cls });
-      } else if (data.status === "complete") {
-        setProgress(100, t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 }));
-        appendFeed("task_alt", t("scan.complete", { newJobs: data.totale_nuovi || 0, analyzed: data.totale_analizzati || 0 }));
-        evtSource.close();
-        // Close the scan overlay first so the post-scan modal isn't covered
-        // by it. Stash the data on closure since the SSE event won't repeat.
-        const completeData = data;
-        const completeTops = lastTopJobs.slice();
-        setTimeout(() => {
-          overlay.style.display = "none";
-          overlay.classList.remove("minimized");
-          try {
-            showPostScanModal(completeData, completeTops);
-          } catch (err) {
-            console.error("post-scan modal failed:", err);
-            showToast(t("scan.postScanRenderFailed"), "info");
-          }
-        }, 600);
-        Promise.all([loadJobs(), loadRecommendations()]);
-      } else if (data.error) {
-        progressText.textContent = `${t("scan.error")}: ${data.error}`;
-        appendFeed("error", `${t("scan.error")}: ${escHtml(data.error)}`);
-        showToast(`${t("scan.error")}: ${data.error}`, "error");
-        evtSource.close();
-        setTimeout(() => { overlay.style.display = "none"; overlay.classList.remove("minimized"); }, 3000);
-      }
-    } catch (_) {}
-  };
-  evtSource.onerror = () => {
-    evtSource.close();
-    progressText.textContent = t("scan.connectionLost");
-    showToast(t("scan.connectionLost") || "Scan connection lost", "error");
-    setTimeout(() => { overlay.style.display = "none"; }, 2000);
-    Promise.all([loadJobs(), loadRecommendations()]);
-  };
-
-  document.getElementById("cancelScanBtn").onclick = () => {
-    evtSource.close();
-    overlay.style.display = "none";
-    overlay.classList.remove("minimized");
-    Promise.all([loadJobs(), loadRecommendations()]);
-  };
-
-  const minimizeBtn = document.getElementById("minimizeScanBtn");
-  if (minimizeBtn) {
-    minimizeBtn.onclick = () => overlay.classList.toggle("minimized");
-  }
-});
-
+// Snapshot / restore the Job Search filter state — shared by saved searches (F7).
 const _chatForm = document.getElementById("chatForm");
 if (_chatForm) _chatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1408,11 +670,8 @@ const _focusOpenBtn = document.getElementById("focusOpenBtn");
 if (_focusOpenBtn) _focusOpenBtn.addEventListener("click", async () => {
   const status = document.getElementById("statusFilter");
   status.value = "open";
-  activateView("dashboard");
+  activateView("jobs");
   await loadJobs();
-  requestAnimationFrame(() => {
-    document.querySelector(".jobs-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
 });
 
 document.querySelectorAll("[data-view]").forEach((btn) => {
@@ -1421,6 +680,9 @@ document.querySelectorAll("[data-view]").forEach((btn) => {
     activateView(view);
     if (view === "profile") {
       loadProfileView().catch(() => {});
+    }
+    if (view === "jobs") {
+      loadJobs().catch(() => {});
     }
   });
 });
@@ -1567,6 +829,12 @@ if (genCovBtn) {
 }
 
 initFeatures({ loadJobs });
+initReminders({ onOpenJob: showJobDetail });
+initSavedSearches({
+  readConfig: readScanConfig,
+  applyConfig: applyScanConfig,
+  submitScan: () => document.getElementById("scanForm")?.requestSubmit(),
+});
 
 document.getElementById("refreshJobsBtn").addEventListener("click", loadJobs);
 document.getElementById("onlyNew").addEventListener("change", loadJobs);
@@ -1582,6 +850,44 @@ document.getElementById("statusFilter").addEventListener("change", loadJobs);
 document.getElementById("profileSelect").addEventListener("change", async (event) => {
   await activateProfile(event.target.value);
 });
+
+const _dedupModeSelect = document.getElementById("dedupModeSelect");
+if (_dedupModeSelect) {
+  _dedupModeSelect.addEventListener("change", async () => {
+    try {
+      await api("/api/preferences", {
+        method: "POST",
+        body: JSON.stringify({ key: "dedup_mode", value: _dedupModeSelect.value }),
+      });
+      showToast(t("settings.dedup.saved") || "Saved", "info");
+    } catch (err) {
+      showToast(`${t("toast.actionError")}: ${err.message}`, "error");
+    }
+  });
+}
+
+const _profileDeleteBtn = document.getElementById("profileDeleteBtn");
+if (_profileDeleteBtn) {
+  _profileDeleteBtn.addEventListener("click", async () => {
+    const sel = document.getElementById("profileSelect");
+    const id = sel?.value;
+    if (!id) return;
+    if (!window.confirm(t("profile.confirmDelete") || "Delete this CV?")) return;
+    try {
+      await api(`/api/profiles/${id}`, { method: "DELETE" });
+      showToast(t("profile.deleted") || "Profile deleted", "info");
+      await loadProfiles();
+      await Promise.allSettled([
+        loadRecommendations(),
+        loadAnalytics(),
+        loadSkillGap(),
+        loadReminders(),
+      ]);
+    } catch (err) {
+      showToast(`${t("profile.deleteFailed") || "Delete failed"}: ${err.message}`, "error");
+    }
+  });
+}
 
 document.getElementById("exportCsvBtn").addEventListener("click", async () => {
   try {
@@ -1622,6 +928,21 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
       modal.classList.remove("hidden");
       document.getElementById("mjTitolo").focus();
     });
+    const jobSearchImportBtn = document.getElementById("jobSearchImportBtn");
+    if (jobSearchImportBtn) {
+      jobSearchImportBtn.addEventListener("click", () => {
+        form.reset();
+        const iu = document.getElementById("mjImportUrl");
+        const pt = document.getElementById("mjPasteText");
+        if (iu) iu.value = "";
+        if (pt) pt.value = "";
+        modal.classList.remove("hidden");
+        if (iu) {
+          iu.scrollIntoView({ block: "center" });
+          iu.focus();
+        }
+      });
+    }
     modal.querySelectorAll("[data-close-manual]").forEach((b) => b.addEventListener("click", close));
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1688,9 +1009,33 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
   }
 }
 
+// Lift two blocks out of the dashboard so they work from any tab: the job
+// archive moves into its own #view-jobs tab, and the job-detail panel becomes a
+// shared right-side drawer. Reparenting keeps their existing listeners/children.
+function setupSharedLayout() {
+  const jobsView = document.getElementById("view-jobs");
+  const jobsSection = document.querySelector(".jobs-section");
+  if (jobsView && jobsSection && jobsSection.parentElement !== jobsView) {
+    jobsView.appendChild(jobsSection);
+  }
+  const detail = document.getElementById("jobDetailInline");
+  if (detail && detail.parentElement !== document.body) {
+    document.body.appendChild(detail);
+    detail.style.display = ""; // now controlled via .is-open, not inline display
+  }
+  document.getElementById("jobDetailBackdrop")?.addEventListener("click", closeJobDetail);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeJobDetail();
+  });
+}
+
 async function bootstrap() {
   await initI18n();
   refreshModelPickerLabel();
+  initJobDetail({ pinJobToActiveSession });
+  initJobList({ showJobDetail, performJobAction, toggleFavorite });
+  initScan({ getKeywords, getLocations, ensureProviderConfigured });
+  setupSharedLayout();
   activateView("dashboard");
   await loadHealth();
   await loadKeysStatus();
@@ -1699,6 +1044,8 @@ async function bootstrap() {
   await loadAnalytics();
   await loadUsage();
   await loadSkillGap();
+  await loadReminders();
+  await loadSavedSearches();
   await loadSchedulerStatus();
   await loadChatPrompts();
   // i18n is ready here, so the session dropdown / empty-state get localised
@@ -1718,10 +1065,7 @@ bootstrap().catch((error) => {
 
 const closeDetailBtn = document.getElementById('closeDetailBtn');
 if (closeDetailBtn) {
-    closeDetailBtn.addEventListener('click', () => {
-        const inlineDetail = document.getElementById('jobDetailInline');
-        if (inlineDetail) inlineDetail.style.display = 'none';
-    });
+    closeDetailBtn.addEventListener('click', closeJobDetail);
 }
 
 
@@ -1746,7 +1090,7 @@ function setupTagInput(containerId, inputId) {
     const input = document.getElementById(inputId);
     const tags = [];
 
-    if (!container || !input) return { getTags: () => [], addMultiple: () => false };
+    if (!container || !input) return { getTags: () => [], addMultiple: () => false, clear: () => {} };
 
     function renderTags() {
         container.querySelectorAll('.tag').forEach(el => el.remove());
@@ -1794,7 +1138,8 @@ function setupTagInput(containerId, inputId) {
             }
             if(added) renderTags();
             return added;
-        }
+        },
+        clear: () => { tags.length = 0; renderTags(); }
     };
 }
 

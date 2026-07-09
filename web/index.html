@@ -47,8 +47,9 @@
     <button type="button" id="navToggle" class="nav-toggle icon-btn" aria-label="Menu" aria-expanded="false"><span class="material-symbols-outlined">menu</span></button>
     <div class="brand"><span class="brand-icon material-symbols-outlined">work</span> Job Finder<span id="topbarVersion" class="version-chip"></span></div>
     <nav class="topnav" id="topnav">
-      <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> <span data-i18n="topbar.dashboard">Dashboard</span></button>
+      <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> <span data-i18n="topbar.dashboard">Dashboard</span><span id="remindersNavBadge" class="nav-badge hidden">0</span></button>
       <button type="button" class="nav-link" data-view="job-search"><span class="material-symbols-outlined">travel_explore</span> <span data-i18n="topbar.jobSearch">Job Search</span></button>
+      <button type="button" class="nav-link" data-view="jobs"><span class="material-symbols-outlined">work</span> <span data-i18n="topbar.jobs">Jobs</span></button>
       <button type="button" class="nav-link" data-view="profile"><span class="material-symbols-outlined">person</span> <span data-i18n="topbar.profile">Profile</span></button>
       <button type="button" class="nav-link" data-view="settings"><span class="material-symbols-outlined">settings</span> <span data-i18n="topbar.settings">Settings</span></button>
       <button type="button" class="nav-link" data-view="info"><span class="material-symbols-outlined">help</span> <span data-i18n="topbar.info">Info</span></button>
@@ -73,6 +74,8 @@
       <p data-i18n="quit.closed">Job Finder is closed. You can close this tab.</p>
     </div>
   </div>
+
+  <div id="jobDetailBackdrop" class="job-detail-backdrop hidden"></div>
 
   <div id="manualJobModal" class="mini-modal hidden" role="dialog" aria-modal="true">
     <div class="mini-modal-card">
@@ -165,7 +168,10 @@
             <span class="meta-icon material-symbols-outlined">person</span>
             <div>
               <p class="micro" data-i18n="hero.activeProfile">Active Profile</p>
-              <select id="profileSelect" class="profile-select"></select>
+              <div class="profile-select-row">
+                <select id="profileSelect" class="profile-select"></select>
+                <button type="button" id="profileDeleteBtn" class="icon-btn" data-i18n-title="profile.delete" title="Delete"><span class="material-symbols-outlined">delete</span></button>
+              </div>
             </div>
           </article>
         </div>
@@ -232,6 +238,7 @@
           <button id="generateCoverLetterBtn" class="secondary" data-i18n="offcanvas.generateCoverLetter">Generate Cover Letter</button>
           <button id="generateInterviewPrepBtn" class="secondary" data-i18n="offcanvas.generateInterviewPrep">Interview Prep</button>
           <button id="generateTailoredResumeBtn" class="secondary" data-i18n="offcanvas.generateTailoredResume">Tailor Resume</button>
+          <button id="generateRecruiterMsgBtn" class="secondary" data-i18n="offcanvas.generateRecruiterMsg">Recruiter message</button>
           <a id="detailLinkBtn" target="_blank" class="button secondary" style="display:none;align-items:center;justify-content:center;gap:4px;">
             <span class="material-symbols-outlined" style="font-size:18px">open_in_new</span> <span data-i18n="offcanvas.viewListing">Vedi Annuncio</span>
           </a>
@@ -254,6 +261,14 @@
               <span id="trCopyStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
             </div>
           </div>
+          <div id="recruiterMsgBox" class="generated-box" style="display:none;">
+            <h4 data-i18n="offcanvas.recruiterMsg">Recruiter message</h4>
+            <pre id="recruiterMsgOutput" class="output"></pre>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button id="copyRecruiterMsgBtn" class="secondary" data-i18n="offcanvas.copy">Copy</button>
+              <span id="rmCopyStatus" class="micro" style="margin-left:8px;color:var(--primary);"></span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -261,20 +276,34 @@
       <section class="recommendations-section">
         <div class="section-head">
           <h2 data-i18n="recommendations.title">Top Picks for You</h2>
-          <button id="refreshRecommendationsBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">refresh</span> <span data-i18n="recommendations.refresh">Refresh</span></button>
+          <button id="refreshRecommendationsBtn" type="button" class="ghost-btn" aria-label="Refresh" data-i18n-title="recommendations.refresh"><span class="material-symbols-outlined">refresh</span></button>
         </div>
         <div id="recommendationsGrid" class="recommendations-grid"></div>
+      </section>
+
+      <!-- Reminders & deadlines (F4) -->
+      <section id="remindersSection" class="reminders-section" style="display:none;">
+        <div class="section-head">
+          <h2 data-i18n="reminders.title">Reminders &amp; deadlines</h2>
+          <button id="refreshRemindersBtn" type="button" class="ghost-btn" aria-label="Refresh reminders"><span class="material-symbols-outlined">refresh</span></button>
+        </div>
+        <p class="micro" data-i18n="reminders.subtitle">Upcoming follow-ups and applications that have gone quiet.</p>
+        <div id="remindersList" class="reminders-list"></div>
       </section>
 
       <!-- Skill Gap -->
       <section id="skillGapSection" class="skill-gap-section" style="display:none;">
         <div class="section-head">
           <h2 data-i18n="skillGap.title">Skill Gap</h2>
-          <button id="refreshSkillGapBtn" type="button" class="ghost-btn" aria-label="Refresh skill gap"><span class="material-symbols-outlined">refresh</span></button>
+          <div class="section-head-actions">
+            <button id="skillGapLearnBtn" type="button" class="ghost-btn small"><span class="material-symbols-outlined">school</span> <span data-i18n="skillGap.learn.button">How to close them</span></button>
+            <button id="refreshSkillGapBtn" type="button" class="ghost-btn" aria-label="Refresh skill gap"><span class="material-symbols-outlined">refresh</span></button>
+          </div>
         </div>
         <p class="micro" data-i18n="skillGap.subtitle">Skills most often missing across your scored jobs — learn these to unlock more matches.</p>
         <div id="skillGapBars" class="skill-gap-bars"></div>
         <p id="skillGapEmpty" class="micro" data-i18n="skillGap.empty" style="display:none;">Scan and score some jobs to see your skill gaps.</p>
+        <div id="skillGapLearning" class="skill-gap-learning"></div>
       </section>
 
       <!-- Jobs Archive -->
@@ -440,8 +469,25 @@
             <strong data-i18n="settings.startScan">Start Scan</strong>
           </button>
         </form>
+
+        <div class="search-import-cta">
+          <button type="button" id="jobSearchImportBtn" class="ghost-btn"><span class="material-symbols-outlined">link</span> <span data-i18n="jobSearch.importCta">Import a job from a link</span></button>
+        </div>
+
+        <section class="search-section saved-searches-section">
+          <header class="search-section-head">
+            <h3><span class="material-symbols-outlined">bookmark</span> <span data-i18n="savedSearch.title">Saved searches</span></h3>
+            <button type="button" id="saveSearchBtn" class="ghost-btn small"><span class="material-symbols-outlined">bookmark_add</span> <span data-i18n="savedSearch.save">Save current</span></button>
+          </header>
+          <p class="micro" data-i18n="savedSearch.hint">Save the current filters as a preset and re-run them with one click.</p>
+          <div id="savedSearchList" class="saved-search-list"></div>
+          <p id="savedSearchEmpty" class="micro" data-i18n="savedSearch.empty" style="display:none;">No saved searches yet.</p>
+        </section>
       </article>
     </section>
+
+    <!-- Jobs (archive) View — the .jobs-section is moved here at runtime -->
+    <section id="view-jobs" class="view"></section>
 
     <!-- Profile View -->
     <section id="view-profile" class="view">
@@ -471,7 +517,8 @@
           <h3><span class="material-symbols-outlined">link</span> <span data-i18n="profile.linkedinProfile">LinkedIn Profile</span></h3>
           <p class="micro" data-i18n="profile.linkedinSub">Enhances AI context for better matching</p>
           <form id="linkedinForm" class="column">
-            <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." required />
+            <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/..." />
+            <textarea id="linkedinText" rows="4" data-i18n-placeholder="profile.linkedinPaste" placeholder="…or paste your profile text (used if LinkedIn can't be fetched)"></textarea>
             <button type="submit" class="secondary" data-i18n="profile.saveUrl">Save URL</button>
           </form>
           <pre id="linkedinStatus" class="output hidden"></pre>
@@ -517,6 +564,13 @@
       </div>
 
       <div id="profileContent" class="profile-grid hidden">
+        <article class="profile-block profile-history">
+          <header class="profile-block-head">
+            <h3 data-i18n="profile.history">CV history</h3>
+          </header>
+          <div id="profileHistory" class="profile-history-list"></div>
+        </article>
+
         <article class="profile-block">
           <header class="profile-block-head">
             <h3 data-i18n="profile.preferredRoles">Preferred roles</h3>
@@ -565,12 +619,6 @@
           <div id="profileMarkdown" class="markdown-render"></div>
         </article>
 
-        <article class="profile-block profile-history">
-          <header class="profile-block-head">
-            <h3 data-i18n="profile.history">CV history</h3>
-          </header>
-          <div id="profileHistory" class="profile-history-list"></div>
-        </article>
       </div>
     </section>
 
@@ -634,6 +682,19 @@
               <button type="button" id="autoscanRunNow" class="secondary" data-i18n="settings.features.runNow">Run now</button>
             </div>
           </div>
+        </article>
+
+        <article class="card-block card-block--wide">
+          <h3><span class="material-symbols-outlined">content_copy</span> <span data-i18n="settings.dedup.title">Duplicate jobs</span></h3>
+          <p class="micro" data-i18n="settings.dedup.subtitle">How the same role found on different sources (LinkedIn, Indeed) is grouped into one card.</p>
+          <label class="settings-field">
+            <span class="micro" data-i18n="settings.dedup.mode">Grouping</span>
+            <select id="dedupModeSelect" class="settings-select">
+              <option value="exact" data-i18n="settings.dedup.exact">Exact — title + company + full location</option>
+              <option value="city" data-i18n="settings.dedup.city">City — title + company + city (recommended)</option>
+              <option value="title_company" data-i18n="settings.dedup.titleCompany">Title + company — ignore location</option>
+            </select>
+          </label>
         </article>
 
       </div>
