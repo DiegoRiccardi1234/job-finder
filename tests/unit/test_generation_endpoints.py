@@ -67,9 +67,7 @@ def test_generation_404_when_job_missing(client: TestClient) -> None:
     assert client.post("/api/jobs/999999/interview-prep").status_code == 404
 
 
-def test_generation_403_when_feature_disabled(
-    client: TestClient, tmp_path: Path
-) -> None:
+def test_generation_403_when_feature_disabled(client: TestClient, tmp_path: Path) -> None:
     client.post("/api/preferences", json={"key": "feature_interview_prep", "value": "0"})
     job_id = _seed_job_with_analysis(tmp_path)
     resp = client.post(f"/api/jobs/{job_id}/interview-prep")

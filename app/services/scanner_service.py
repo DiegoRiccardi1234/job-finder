@@ -155,18 +155,25 @@ log = get_logger(__name__)
 # no hardcoded model id, so it survives OpenRouter's changing catalog. Chat and
 # letter generation keep the quality default (they don't pass this).
 _SCORING_POLICY: dict[str, Any] = {
+    # "Fastest among CAPABLE models." A pure speed bias picked 1-20B toys that
+    # scored job↔CV matches badly (a Product Owner at 8/10, empty analyses), so
+    # we keep a fast lean but with a quality floor: de-rank models that advertise
+    # a size under 40B, and reward capability again. Target: gpt-oss-120b:free
+    # (~4s, capable) over a 1.2B free model.
     "prefer_fast": True,
-    "prefer_quality": False,
+    "prefer_quality": True,
     "prefer_free": True,
-    "max_cost_tier": "low",
+    "max_cost_tier": "high",
+    "min_size_b": 40,
     "weights": {
-        "size": 4,
-        "speed": 25,
+        "size": 16,
+        "speed": 12,
         "family": 20,
         "instruct": 25,
         "chat": 10,
         "json": 12,
-        "reasoning": 0,
+        "reasoning": 4,
+        "small_penalty": -150,
     },
 }
 

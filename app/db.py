@@ -664,6 +664,26 @@ class Database:
         self.conn.commit()
 
     @_synchronized
+    def update_candidate_profile_fields(
+        self, profile_id: int, *, markdown: str | None = None, name: str | None = None
+    ) -> None:
+        """Update the raw CV markdown and/or the display name of a profile
+        (manual in-app editing). Only the provided fields are touched."""
+        sets: list[str] = []
+        params: list[Any] = []
+        if markdown is not None:
+            sets.append("markdown = ?")
+            params.append(markdown)
+        if name is not None:
+            sets.append("name = ?")
+            params.append(name)
+        if not sets:
+            return
+        params.append(profile_id)
+        self.conn.execute(f"UPDATE candidate_profiles SET {', '.join(sets)} WHERE id = ?", params)
+        self.conn.commit()
+
+    @_synchronized
     def delete_candidate_profile(self, profile_id: int) -> bool:
         cur = self.conn.execute("DELETE FROM candidate_profiles WHERE id = ?", (profile_id,))
         self.conn.commit()

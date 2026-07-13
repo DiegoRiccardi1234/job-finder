@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from app import rate_limit
@@ -17,9 +17,14 @@ from app.cv_ingest import (
     summarize_profile_with_llm,
     validate_cv_content,
 )
-from app.models import LinkedinSaveRequest, ProfileUpdate, RoleShortlistRequest
+from app.models import (
+    LinkedinSaveRequest,
+    ProfileFromTextRequest,
+    ProfileUpdate,
+    RoleShortlistRequest,
+)
 from app.services import roles_shortlist as roles_shortlist_svc
-from app.services.generation import generate_with_profile
+from app.services.generation import CV_POLICY, generate_with_profile
 from app.services.onboarding import onboarding_context
 
 if TYPE_CHECKING:
@@ -142,13 +147,31 @@ def build_router(container: AppContainer) -> APIRouter:
         active = container.db.get_preference("active_profile_id", "")
         return {"profile": profile, "active_profile_id": active}
 
+    def _resolve_lang(lang: str) -> str | None:
+        return (lang or container.db.get_preference("ui_language", "") or "").lower() or None
+
+    @router.get("/api/profile/cv-review")
+    def cv_review_cached() -> dict[str, Any]:
+        """Return the last CV review for the active profile (cached), so the panel
+        rehydrates on open instead of re-generating (and re-spending tokens)."""
+        profile = container.db.get_active_candidate_profile()
+        cached = container.db.get_preference("cv_review_cache", "")
+        if profile and cached:
+            try:
+                data = json.loads(cached)
+                if data.get("profile_id") == profile.get("id"):
+                    return {"cv_review": data.get("text", "")}
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return {"cv_review": ""}
+
     @router.post("/api/profile/cv-review")
-    def cv_review() -> dict[str, Any]:
+    def cv_review(lang: str = Query(default="")) -> dict[str, Any]:
         """AI review of the active CV with actionable improvement advice.
 
         Uses the onboarding answers (target sector/goal) so the advice is aimed
-        at what the user is looking for. Honors Privacy Mode: the CV is scrubbed
-        before the LLM call, the name restored in the returned text.
+        at what the user is looking for. Runs on a capable model (CV_POLICY) and
+        follows the UI language. Honors Privacy Mode. Result is cached per profile.
         """
         container.require_feature("cv_review")
         profile = container.db.get_active_candidate_profile()
@@ -164,10 +187,63 @@ def build_router(container: AppContainer) -> APIRouter:
                 extra_block=onboarding_context(container.db),
                 redact=container.feature_enabled("privacy_mode", True),
                 candidate_name=profile.get("name"),
+                language=_resolve_lang(lang),
+                policy_override=CV_POLICY,
             )
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"CV review failed: {e}") from e
+        container.db.set_preference(
+            "cv_review_cache", json.dumps({"profile_id": profile.get("id"), "text": content})
+        )
         return {"cv_review": content}
+
+    @router.post("/api/profile/cv-improve")
+    def cv_improve(lang: str = Query(default="")) -> dict[str, Any]:
+        """Generate an improved, goal-aligned rewrite of the active CV (markdown).
+
+        Runs on the capable CV model; restores real contacts (it's a document the
+        user will send). Honors Privacy Mode + onboarding goals + UI language.
+        """
+        container.require_feature("cv_review")
+        profile = container.db.get_active_candidate_profile()
+        if not profile:
+            raise HTTPException(status_code=404, detail="no_profile")
+        container.require_provider()
+        try:
+            content = generate_with_profile(
+                container.providers,
+                "cv_improve",
+                profile["markdown"],
+                {},
+                extra_block=onboarding_context(container.db),
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=profile.get("name"),
+                language=_resolve_lang(lang),
+                policy_override=CV_POLICY,
+                restore_contact_info=True,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"CV improve failed: {e}") from e
+        return {"cv_improved": content}
+
+    @router.post("/api/profile/from-text")
+    def profile_from_text(payload: ProfileFromTextRequest) -> dict[str, Any]:
+        """Create a new CV profile from raw markdown (e.g. the AI-improved CV) and
+        make it active. Summary is heuristic (no LLM) — fast; scoring uses the
+        markdown text directly anyway."""
+        markdown = (payload.markdown or "").strip()
+        if len(markdown) < 50:
+            raise HTTPException(status_code=400, detail="too_short")
+        summary = summarize_profile(markdown)
+        name = summary.get("name") or extract_candidate_name(markdown)
+        profile_id = container.db.save_candidate_profile(
+            source_name=payload.source_name or "CV (AI)",
+            markdown=markdown,
+            summary=summary,
+            name=name,
+        )
+        container.db.set_active_profile(profile_id)
+        return {"ok": True, "profile_id": profile_id, "active_profile_id": str(profile_id)}
 
     @router.patch("/api/profile")
     def update_profile(payload: ProfileUpdate) -> dict[str, Any]:
@@ -185,7 +261,20 @@ def build_router(container: AppContainer) -> APIRouter:
             summary["languages"] = [
                 lang.strip() for lang in payload.languages if lang and lang.strip()
             ]
+        if payload.name is not None and payload.name.strip():
+            summary["name"] = payload.name.strip()
         container.db.update_candidate_profile_summary(int(profile["id"]), summary)
+        # Manual edits to the display name / raw CV text (the latter feeds scoring).
+        if (payload.name is not None and payload.name.strip()) or payload.markdown is not None:
+            container.db.update_candidate_profile_fields(
+                int(profile["id"]),
+                markdown=payload.markdown.strip()
+                if (payload.markdown is not None and payload.markdown.strip())
+                else None,
+                name=payload.name.strip()
+                if (payload.name is not None and payload.name.strip())
+                else None,
+            )
         updated = container.db.get_active_candidate_profile()
         return {"ok": True, "profile": updated}
 

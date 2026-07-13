@@ -66,6 +66,15 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
     elif size_b >= 8:
         score += base_size_weight - 12
 
+    # Quality floor: models that advertise a small size in their name are too
+    # weak for nuanced work (job↔CV scoring, CV review). ``min_size_b`` de-ranks
+    # them so selection stays "fastest among CAPABLE models". Gated on size_b > 0
+    # so models that simply don't state a size aren't punished. Kept above -500
+    # (de-rank, not exclude) so choose_best_model still returns something.
+    min_size_b = int((policy or {}).get("min_size_b", 0) or 0)
+    if min_size_b and 0 < size_b < min_size_b:
+        score += _weight(policy, "small_penalty", -150)
+
     if "reason" in name:
         score += _weight(policy, "reasoning", 6)
     if "sonnet" in name:

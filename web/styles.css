@@ -1508,8 +1508,40 @@ pre {
   gap: var(--space-2);
 }
 .profile-block.profile-cv,
-.profile-block.profile-history {
+.profile-block.profile-history,
+.profile-block.profile-cv-tools {
   grid-column: 1 / -1;
+}
+.cv-tools-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.cv-tools-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.cv-tools-output-wrap {
+  margin-top: var(--space-3);
+}
+.cv-tools-output-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.cv-tools-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+#cvToolsOutput {
+  max-height: 460px;
+  overflow-y: auto;
 }
 .profile-block-head {
   display: flex;

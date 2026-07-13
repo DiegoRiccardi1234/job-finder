@@ -31,7 +31,7 @@
     "active": "Aktiv",
     "setActive": "Aktivieren",
     "activated": "Profil aktiviert",
-    "saved": "Profil gespeichert",
+    "saved": "Gespeichert",
     "saveFailed": "Speichern fehlgeschlagen",
     "loadFailed": "Profil-Laden fehlgeschlagen",
     "years": "Jahre",
@@ -75,7 +75,22 @@
     "linkedinPasteSaved": "Profiltext gespeichert",
     "linkedinFetched": "Profil abgerufen und gespeichert",
     "linkedinBlocked": "URL gespeichert — Profil konnte nicht abgerufen werden; füge den Text ein, um den KI-Kontext zu erweitern",
-    "year": "Jahr"
+    "year": "Jahr",
+    "cvImproveBtn": "Lebenslauf verbessern",
+    "cvReviewLabel": "CV-Analyse",
+    "cvImprovedLabel": "Verbesserter CV",
+    "cvSaveAsProfile": "Als neuen CV speichern",
+    "cvSaveConfirm": "Diesen verbesserten CV als aktives Profil speichern?",
+    "cvSaved": "Gespeichert",
+    "cvImprovedSource": "CV verbessert (KI)",
+    "cvTools": {
+      "title": "KI-CV-Tools"
+    },
+    "editCv": "Bearbeiten",
+    "editName": "Anzeigename",
+    "editCvText": "CV-Text (fließt ins KI-Scoring)",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
   },
   "jobSearch": {
     "title": "Job",

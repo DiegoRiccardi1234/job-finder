@@ -28,3 +28,18 @@ def test_job_has_analysis(tmp_path: Path) -> None:
         assert db.job_has_analysis(job_id) is True
     finally:
         db.close()
+
+
+def test_update_candidate_profile_fields(tmp_path: Path) -> None:
+    db = Database(tmp_path / "p.db")
+    try:
+        pid = db.save_candidate_profile(
+            source_name="cv.md", markdown="old text", summary={"name": "Old"}, name="Old"
+        )
+        db.update_candidate_profile_fields(pid, markdown="new CV text for scoring", name="New Name")
+        prof = db.get_candidate_profile(pid)
+        assert prof is not None
+        assert prof["markdown"] == "new CV text for scoring"
+        assert prof["name"] == "New Name"
+    finally:
+        db.close()

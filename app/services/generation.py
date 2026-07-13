@@ -30,7 +30,21 @@ MAX_TOKENS = {
     "interview_prep": 900,
     "resume_tailoring": 1300,
     "cv_review": 1200,
+    "cv_improve": 1600,
     "recruiter_outreach": 450,
+}
+
+# Quality-biased policy for the CV tools (review + improve): these are done
+# rarely and matter a lot, so pick a capable model (>=70B, e.g. gpt-oss-120b:free)
+# rather than the fast small one the scan scoring uses. Free-preferring for the
+# free-tier account. Passed as ``policy_override`` to generate_with_profile.
+CV_POLICY: dict[str, Any] = {
+    "prefer_fast": False,
+    "prefer_quality": True,
+    "prefer_free": True,
+    "max_cost_tier": "high",
+    "min_size_b": 70,
+    "weights": {"size": 20, "family": 40, "instruct": 30, "json": 12, "reasoning": 6},
 }
 
 # UI locale code -> language name for the optional "write in X" instruction.
@@ -148,6 +162,7 @@ def generate_with_profile(
     candidate_name: str | None = None,
     language: str | None = None,
     restore_contact_info: bool = False,
+    policy_override: dict[str, Any] | None = None,
 ) -> str:
     """Generate profile-tailored content for a job. Returns the text body.
 
@@ -170,7 +185,9 @@ def generate_with_profile(
         prompt = build_prompt(
             content_type, profile_markdown, job_info, extra_block=extra_block, language=language
         )
-        result = provider_manager.complete_json(prompt=prompt, max_tokens=budget)
+        result = provider_manager.complete_json(
+            prompt=prompt, max_tokens=budget, policy_override=policy_override
+        )
         content = _extract_content(result, content_type)
     except Exception:
         prose_prompt = build_prompt(
@@ -182,7 +199,9 @@ def generate_with_profile(
             language=language,
         )
         content = provider_manager.chat(
-            [{"role": "user", "content": prose_prompt}], max_tokens=budget
+            [{"role": "user", "content": prose_prompt}],
+            max_tokens=budget,
+            policy_override=policy_override,
         )
     content = restore_pii(content, token_map)
     if restore_contact_info and redact:

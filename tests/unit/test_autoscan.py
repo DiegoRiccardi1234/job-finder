@@ -63,9 +63,7 @@ def test_config_reflected_in_status(tmp_path: Path) -> None:
 def test_run_once_skips_without_provider(tmp_path: Path) -> None:
     db = Database(tmp_path / "s.db")
     try:
-        sched = AutoScanScheduler(
-            FakeContainer(db, has_provider=False), run_scan_fn=_fake_run_scan
-        )
+        sched = AutoScanScheduler(FakeContainer(db, has_provider=False), run_scan_fn=_fake_run_scan)
         assert sched.run_once() == {"status": "skipped", "reason": "no_provider"}
     finally:
         db.close()

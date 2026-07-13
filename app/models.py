@@ -101,6 +101,13 @@ class ProfileUpdate(BaseModel):
     preferred_roles: list[str] | None = None
     skills: list[str] | None = None
     languages: list[str] | None = None
+    name: str | None = None
+    markdown: str | None = None
+
+
+class ProfileFromTextRequest(BaseModel):
+    markdown: str
+    source_name: str | None = None
 
 
 class ChatRequest(BaseModel):

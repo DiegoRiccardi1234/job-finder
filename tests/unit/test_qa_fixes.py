@@ -102,6 +102,29 @@ def test_scoring_policy_returns_a_model_when_only_paid() -> None:
     assert choose_best_model(catalog, policy=_SCORING_POLICY) in catalog
 
 
+def test_scoring_policy_quality_floor_skips_tiny_models() -> None:
+    # The live regression: a fast bias picked a 1.2B/20B model that scored
+    # matches badly. The quality floor must pick the capable 120B instead.
+    catalog = [
+        "liquid/lfm-2.5-1.2b-instruct:free",
+        "openai/gpt-oss-20b:free",
+        "openai/gpt-oss-120b:free",
+    ]
+    assert choose_best_model(catalog, policy=_SCORING_POLICY) == "openai/gpt-oss-120b:free"
+
+
+def test_cv_policy_prefers_capable_free_model() -> None:
+    # CV tools (review/improve) must use a capable model, never a tiny one.
+    from app.services.generation import CV_POLICY
+
+    catalog = [
+        "liquid/lfm-2.5-1.2b-instruct:free",
+        "openai/gpt-oss-20b:free",
+        "openai/gpt-oss-120b:free",
+    ]
+    assert choose_best_model(catalog, policy=CV_POLICY) == "openai/gpt-oss-120b:free"
+
+
 # ── F-02: cerebras/groq complete_json degrades on a chatty reply ─────────────
 class _FakeClient:
     """Minimal stand-in for an OpenAI/Groq SDK client returning fixed content."""

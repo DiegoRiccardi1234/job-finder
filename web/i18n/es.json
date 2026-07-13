@@ -31,7 +31,7 @@
     "active": "Activo",
     "setActive": "Activar",
     "activated": "Perfil activado",
-    "saved": "Perfil guardado",
+    "saved": "Guardado",
     "saveFailed": "Error al guardar",
     "loadFailed": "Error al cargar el perfil",
     "years": "años",
@@ -75,7 +75,22 @@
     "linkedinPasteSaved": "Texto del perfil guardado",
     "linkedinFetched": "Perfil obtenido y guardado",
     "linkedinBlocked": "URL guardada — no se pudo obtener el perfil; pega el texto para enriquecer el contexto de IA",
-    "year": "año"
+    "year": "año",
+    "cvImproveBtn": "Mejorar mi CV",
+    "cvReviewLabel": "Revisión del CV",
+    "cvImprovedLabel": "CV mejorado",
+    "cvSaveAsProfile": "Guardar como nuevo CV",
+    "cvSaveConfirm": "¿Guardar este CV mejorado como perfil activo?",
+    "cvSaved": "Guardado",
+    "cvImprovedSource": "CV mejorado (IA)",
+    "cvTools": {
+      "title": "Herramientas CV IA"
+    },
+    "editCv": "Editar",
+    "editName": "Nombre",
+    "editCvText": "Texto del CV (usado por la IA)",
+    "save": "Guardar",
+    "cancel": "Cancelar"
   },
   "jobSearch": {
     "title": "Buscar",

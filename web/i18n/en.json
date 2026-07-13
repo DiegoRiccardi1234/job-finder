@@ -31,7 +31,7 @@
     "active": "Active",
     "setActive": "Set active",
     "activated": "Profile activated",
-    "saved": "Profile saved",
+    "saved": "Saved",
     "saveFailed": "Save failed",
     "loadFailed": "Profile load failed",
     "years": "years",
@@ -75,7 +75,22 @@
     "linkedinPasteSaved": "Profile text saved",
     "linkedinFetched": "Profile fetched and saved",
     "linkedinBlocked": "URL saved — couldn't fetch the profile; paste the text to enrich AI context",
-    "year": "year"
+    "year": "year",
+    "cvImproveBtn": "Improve my CV",
+    "cvReviewLabel": "CV review",
+    "cvImprovedLabel": "Improved CV",
+    "cvSaveAsProfile": "Save as new CV",
+    "cvSaveConfirm": "Save this improved CV as your active profile?",
+    "cvSaved": "Saved",
+    "cvImprovedSource": "AI-improved CV",
+    "cvTools": {
+      "title": "AI CV tools"
+    },
+    "editCv": "Edit",
+    "editName": "Display name",
+    "editCvText": "CV text (feeds AI scoring)",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "jobSearch": {
     "title": "Job",

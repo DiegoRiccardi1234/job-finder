@@ -523,12 +523,14 @@ class ProviderManager:
         max_tokens: int = 700,
         provider_name: str | None = None,
         model_name: str | None = None,
+        policy_override: dict[str, Any] | None = None,
     ) -> str:
         return self._run_with_failover(
             endpoint="chat",
             explicit_provider=provider_name,
             explicit_model=model_name,
             call=lambda p, m: p.chat(messages=messages, model=m, max_tokens=max_tokens),
+            policy_override=policy_override,
         )
 
 

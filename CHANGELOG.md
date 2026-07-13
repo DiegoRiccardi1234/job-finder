@@ -5,9 +5,11 @@
 A quality pass: much faster scans, a smarter model picker, and privacy/UX fixes.
 
 ### Added
+- **AI CV tools** — a dedicated panel on the Profile tab: **Review my CV** (prioritized, role-targeted advice, now rendered as clean formatted text and cached) and **Improve my CV** (an AI rewrite tuned to your target role, with your real contacts, that you can copy or save as a new active CV). Both run on a capable model.
+- **Edit your CV in-app** — change your display name and the CV text directly (the text feeds AI job scoring), no re-upload needed.
 - **Faster scans** — jobs are now scored in parallel instead of one at a time, so a scan finishes in seconds rather than minutes.
 - **Stop a scan for real** — the cancel button (and closing the tab) now stops the scan on the server too, so it stops using your AI quota immediately.
-- **Smarter model selection** — the app learns which of your provider's models actually work: it automatically avoids models that are rate-limited, return nothing, or aren't available on your plan, and prefers fast, free ones for scan scoring. A new **"Test models"** button in Settings benchmarks a provider's models (speed + reliability) and shows a ranked list.
+- **Smarter model selection** — the app learns which of your provider's models actually work: it automatically avoids models that are rate-limited, return nothing, or aren't available on your plan, and picks a fast *but capable* model for job scoring (a quality floor stops it choosing a model too small to match jobs well). A new **"Test models"** button in Settings benchmarks a provider's models (speed + reliability) and shows a ranked list.
 
 ### Fixed
 - **Privacy Mode now also covers the coach chat** — your CV's email, phone and address are stripped before the chat is sent to the AI provider (the coach still knows your name).

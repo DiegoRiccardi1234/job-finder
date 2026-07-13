@@ -32,13 +32,20 @@ export function truncate(value, max = 120) {
 }
 
 export function renderCoachMarkdown(raw) {
-  // Input is HTML-escaped first. Apply minimal markdown: **bold**, *italic*,
-  // `code`, and `-` bullet lists. Safe for untrusted content.
+  // Input is HTML-escaped first. Apply minimal markdown: #/##/### headings,
+  // **bold**, *italic*, `code`, and `-` bullet lists. Safe for untrusted content.
   const escaped = escapeHtml(raw || "");
   const lines = escaped.split(/\r?\n/);
   const html = [];
   let inList = false;
   for (const line of lines) {
+    const headingMatch = line.match(/^\s*(#{1,4})\s+(.*)$/);
+    if (headingMatch) {
+      if (inList) { html.push("</ul>"); inList = false; }
+      const level = Math.min(6, headingMatch[1].length + 2); // # -> h3, ## -> h4
+      html.push(`<h${level}>${headingMatch[2]}</h${level}>`);
+      continue;
+    }
     const bulletMatch = line.match(/^\s*-\s+(.*)$/);
     if (bulletMatch) {
       if (!inList) { html.push("<ul>"); inList = true; }

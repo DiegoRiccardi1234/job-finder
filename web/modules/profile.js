@@ -1,6 +1,6 @@
 import { syncFeatureToggles } from "./features.js";
-import { api, escapeHtml, showToast } from "./helpers.js";
-import { t } from "./i18n.js";
+import { api, escapeHtml, renderCoachMarkdown, showToast } from "./helpers.js";
+import { getCurrentLang, t } from "./i18n.js";
 
 const FIELDS = ["preferred_roles", "skills", "languages"];
 
@@ -239,24 +239,126 @@ function _updateAvatar(profile) {
   }
 }
 
-async function _runCvReview() {
-  const btn = document.getElementById("cvReviewBtn");
-  const out = document.getElementById("cvReviewOutput");
-  if (!btn || !out) return;
-  const orig = btn.textContent;
+// ── CV tools panel (AI review + AI improve), shared output + markdown render ──
+let _cvImprovedText = ""; // last "improve" output, for "Save as new CV"
+
+function _cvEls() {
+  return {
+    wrap: document.getElementById("cvToolsOutputWrap"),
+    out: document.getElementById("cvToolsOutput"),
+    label: document.getElementById("cvToolsLabel"),
+    save: document.getElementById("cvSaveAsProfileBtn"),
+  };
+}
+
+function _showCvOutput(labelText, markdown, { improved = false } = {}) {
+  const { wrap, out, label, save } = _cvEls();
+  if (!wrap || !out) return;
+  wrap.classList.remove("hidden");
+  if (label) label.textContent = labelText || "";
+  out.innerHTML = renderCoachMarkdown(markdown || "");
+  if (save) save.hidden = !improved;
+  _cvImprovedText = improved ? markdown || "" : "";
+}
+
+async function _runCvTool(kind) {
+  const btnId = kind === "improve" ? "cvImproveBtn" : "cvReviewBtn";
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const orig = btn.innerHTML;
   btn.disabled = true;
-  btn.textContent = t("toast.generating");
-  out.classList.remove("hidden");
-  out.textContent = t("toast.generating");
+  btn.innerHTML = `<span class="spinner-inline"></span> ${t("toast.generating")}`;
+  const { wrap, out, label } = _cvEls();
+  if (wrap) wrap.classList.remove("hidden");
+  if (label) label.textContent = t("toast.generating");
+  if (out) out.textContent = "";
   try {
-    const res = await api("/api/profile/cv-review", { method: "POST" });
-    out.textContent = res.cv_review || t("toast.noResult");
+    const lang = encodeURIComponent(getCurrentLang());
+    const path =
+      kind === "improve"
+        ? `/api/profile/cv-improve?lang=${lang}`
+        : `/api/profile/cv-review?lang=${lang}`;
+    const res = await api(path, { method: "POST" });
+    const text = (kind === "improve" ? res.cv_improved : res.cv_review) || t("toast.noResult");
+    _showCvOutput(
+      kind === "improve" ? t("profile.cvImprovedLabel") : t("profile.cvReviewLabel"),
+      text,
+      { improved: kind === "improve" },
+    );
   } catch (err) {
-    out.textContent = `${t("toast.genError")}: ${err.message}`;
+    _showCvOutput("", `${t("toast.genError")}: ${err.message}`);
     showToast(`${t("toast.genError")}: ${err.message}`, "error");
   } finally {
     btn.disabled = false;
-    btn.textContent = orig;
+    btn.innerHTML = orig;
+  }
+}
+
+async function _copyCvOutput() {
+  const { out } = _cvEls();
+  try {
+    await navigator.clipboard.writeText((out && out.textContent) || "");
+    showToast(t("offcanvas.copied") || "Copied", "info");
+  } catch (e) {
+    showToast(String(e), "error");
+  }
+}
+
+async function _saveImprovedAsProfile() {
+  if (!_cvImprovedText) return;
+  if (!window.confirm(t("profile.cvSaveConfirm") || "Save this improved CV as your active profile?"))
+    return;
+  try {
+    await api("/api/profile/from-text", {
+      method: "POST",
+      body: JSON.stringify({ markdown: _cvImprovedText, source_name: t("profile.cvImprovedSource") }),
+    });
+    showToast(t("profile.cvSaved") || "Saved", "info");
+    await loadProfile();
+  } catch (err) {
+    showToast(`${t("toast.genError")}: ${err.message}`, "error");
+  }
+}
+
+async function _rehydrateCvReview() {
+  try {
+    const res = await api("/api/profile/cv-review", { method: "GET" });
+    if (res && res.cv_review) _showCvOutput(t("profile.cvReviewLabel"), res.cv_review);
+  } catch (_) {
+    /* noop */
+  }
+}
+
+// ── Manual CV editing (name + raw text; the text feeds AI scoring) ───────────
+function _toggleCvEdit(show) {
+  const wrap = document.getElementById("cvEditWrap");
+  const md = document.getElementById("profileMarkdown");
+  const btn = document.getElementById("cvEditBtn");
+  if (!wrap || !md) return;
+  if (show) {
+    const summary = _state.profile?.summary_json || {};
+    document.getElementById("cvEditArea").value = _state.profile?.markdown || "";
+    document.getElementById("cvEditName").value = _state.profile?.name || summary.name || "";
+    wrap.classList.remove("hidden");
+    md.classList.add("hidden");
+    btn?.classList.add("hidden");
+  } else {
+    wrap.classList.add("hidden");
+    md.classList.remove("hidden");
+    btn?.classList.remove("hidden");
+  }
+}
+
+async function _saveCvEdit() {
+  const markdown = (document.getElementById("cvEditArea")?.value || "").trim();
+  const name = (document.getElementById("cvEditName")?.value || "").trim();
+  try {
+    await api("/api/profile", { method: "PATCH", body: JSON.stringify({ markdown, name }) });
+    showToast(t("profile.saved") || "Saved", "info");
+    _toggleCvEdit(false);
+    await loadProfile();
+  } catch (err) {
+    showToast(`${t("toast.genError")}: ${err.message}`, "error");
   }
 }
 
@@ -317,6 +419,10 @@ export async function loadProfile() {
     _renderMarkdown(_state.profile.markdown || "");
     _renderMeta(_state.profile);
     await _renderHistory();
+    // Reset the CV tools panel for this profile, then rehydrate its cached review.
+    document.getElementById("cvToolsOutputWrap")?.classList.add("hidden");
+    _cvImprovedText = "";
+    await _rehydrateCvReview();
   } catch (err) {
     showToast(`${t("profile.loadFailed") || "Profile load failed"}: ${err.message}`, "error");
   }
@@ -412,7 +518,31 @@ export function bindProfileEvents() {
     if (!target) return;
 
     if (target.id === "cvReviewBtn") {
-      await _runCvReview();
+      await _runCvTool("review");
+      return;
+    }
+    if (target.id === "cvImproveBtn") {
+      await _runCvTool("improve");
+      return;
+    }
+    if (target.id === "cvToolsCopyBtn") {
+      await _copyCvOutput();
+      return;
+    }
+    if (target.id === "cvSaveAsProfileBtn") {
+      await _saveImprovedAsProfile();
+      return;
+    }
+    if (target.id === "cvEditBtn") {
+      _toggleCvEdit(true);
+      return;
+    }
+    if (target.id === "cvEditCancelBtn") {
+      _toggleCvEdit(false);
+      return;
+    }
+    if (target.id === "cvEditSaveBtn") {
+      await _saveCvEdit();
       return;
     }
     if (target.classList.contains("chip-remove")) {
