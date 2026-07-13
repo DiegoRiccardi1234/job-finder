@@ -48,6 +48,9 @@ class AppSettings:
     delay_tra_ricerche: float
     location_default: str
     location_remote_default: str
+    # Default Indeed/Glassdoor country (a jobspy Country name/alias, e.g. "italy",
+    # "usa"). Overridable per-scan by the country selector.
+    country_default: str
     default_search_terms: list[str]
     cerebras_api_key: str | None
     groq_api_key: str | None
@@ -298,6 +301,7 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         delay_tra_ricerche=float(cfg.get("delay_tra_ricerche", 4.0)),
         location_default=str(cfg.get("location_default", "Torino, Italy")),
         location_remote_default=str(cfg.get("location_remote_default", "Italy")),
+        country_default=str(cfg.get("country_default", "italy")),
         default_search_terms=[str(x) for x in terms],
         cerebras_api_key=cerebras_api_key,
         groq_api_key=groq_api_key,

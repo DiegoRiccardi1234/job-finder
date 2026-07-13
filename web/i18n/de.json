@@ -318,7 +318,8 @@
       "cv": "CV-Tools",
       "auto": "Auto (empfohlen)",
       "saved": "Modell gespeichert"
-    }
+    },
+    "country": "Land"
   },
   "coach": {
     "title": "Career Coach",
@@ -430,7 +431,8 @@
       },
       "advanced": "Erweiterte Filter"
     },
-    "postScanRenderFailed": "Scan fertig (Zusammenfassung nicht darstellbar)."
+    "postScanRenderFailed": "Scan fertig (Zusammenfassung nicht darstellbar).",
+    "volumeWarning": "Großer Scan ({n} Suchen) — kann dauern."
   },
   "toast": {
     "enterKeyOrProvider": "Gib mindestens einen Schlüssel ein oder wähle einen primären Anbieter.",

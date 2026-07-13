@@ -73,6 +73,11 @@ class JobImportRequest(BaseModel):
 class ScanRequest(BaseModel):
     search_terms: list[str] = Field(default_factory=list)
     location: str | None = None
+    # Multi-location scan: scrape each location (city/region/"remote"). When
+    # empty, falls back to the single ``location`` (backward compat / saved searches).
+    locations: list[str] = Field(default_factory=list)
+    # Indeed/Glassdoor country (a jobspy Country name/alias). None → settings default.
+    country: str | None = None
     is_remote: bool = False
     sites: list[str] = Field(default_factory=lambda: ["linkedin", "indeed"])
     experience_levels: list[str] = Field(default_factory=list)

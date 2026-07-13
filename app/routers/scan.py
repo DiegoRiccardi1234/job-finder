@@ -22,6 +22,8 @@ def build_router(container: AppContainer) -> APIRouter:
         request: Request,
         search_terms: str = Query(default=""),
         location: str | None = Query(default=None),
+        locations: str = Query(default=""),
+        country: str | None = Query(default=None),
         is_remote: bool = Query(default=False),
         sites: str = Query(default="linkedin,indeed"),
         experience_levels: str = Query(default=""),
@@ -39,6 +41,8 @@ def build_router(container: AppContainer) -> APIRouter:
             [t.strip() for t in search_terms.split(",") if t.strip()] if search_terms else []
         )
         site_list = [s.strip() for s in sites.split(",") if s.strip()]
+        # Locations are pipe-separated (a location like "Torino, Italy" contains commas).
+        loc_list = [s.strip() for s in locations.split("|") if s.strip()] if locations else []
 
         def _split(csv: str) -> list[str]:
             return [s.strip() for s in csv.split(",") if s.strip()] if csv else []
@@ -46,6 +50,8 @@ def build_router(container: AppContainer) -> APIRouter:
         payload = ScanRequest(
             search_terms=term_list,
             location=location,
+            locations=loc_list,
+            country=country,
             is_remote=is_remote,
             sites=site_list,
             experience_levels=_split(experience_levels),
@@ -107,5 +113,25 @@ def build_router(container: AppContainer) -> APIRouter:
         if running:
             container.scan_control.cancel()
         return {"ok": True, "cancelling": running}
+
+    @router.get("/api/countries")
+    def list_countries() -> dict[str, Any]:
+        """Countries jobspy supports for Indeed/Glassdoor (the country selector).
+        Value = the canonical jobspy alias; label = a display name."""
+        try:
+            from jobspy.model import Country
+        except Exception:  # pragma: no cover - jobspy optional
+            return {"countries": [], "default": container.settings.country_default}
+        seen: set[str] = set()
+        out: list[dict[str, str]] = []
+        for c in Country:
+            raw = c.value[0] if isinstance(c.value, tuple) else c.value
+            value = str(raw).split(",")[0].strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            out.append({"value": value, "label": c.name.replace("_", " ").title()})
+        out.sort(key=lambda x: x["label"])
+        return {"countries": out, "default": container.settings.country_default}
 
     return router

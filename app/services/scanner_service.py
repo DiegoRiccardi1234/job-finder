@@ -177,6 +177,10 @@ _SCORING_POLICY: dict[str, Any] = {
     },
 }
 
+# Cap on locations per scan: a scan is terms x locations x ~20 jobs, so this
+# bounds the volume (and the free-tier LLM scoring time) for a multi-location run.
+_MAX_SCAN_LOCATIONS = 8
+
 try:
     from jobspy import scrape_jobs
 except ImportError:  # pragma: no cover
@@ -559,16 +563,28 @@ def run_scan(
 
     is_remote_effective = payload.is_remote or ("remote" in work_types)
 
-    location = payload.location or (
+    # Multi-location: scrape each location. Fall back to the single location (or
+    # the settings default) for backward compat / saved searches. Capped to keep
+    # a scan bounded (terms x locations x ~20 jobs each).
+    default_location = (
         settings.location_remote_default if is_remote_effective else settings.location_default
     )
+    locations_list = [loc.strip() for loc in (payload.locations or []) if loc and loc.strip()]
+    if not locations_list:
+        locations_list = [payload.location.strip()] if payload.location else [default_location]
+    if len(locations_list) > _MAX_SCAN_LOCATIONS:
+        locations_list = locations_list[:_MAX_SCAN_LOCATIONS]
+    country = (payload.country or settings.country_default or "italy").strip()
+    primary_location = locations_list[0]
     modalita = "Full Remote" if is_remote_effective else "In sede"
 
     augmented_terms = [_augment_search_term(t, exp_levels, work_types) for t in terms]
 
     jobspy_job_type = _resolve_jobspy_job_type(job_types)
 
-    db.set_preference("last_scan_location", location)
+    db.set_preference("last_scan_location", primary_location)
+    db.set_preference("last_scan_locations", json.dumps(locations_list, ensure_ascii=False))
+    db.set_preference("last_scan_country", country)
     db.set_preference("last_scan_is_remote", "1" if is_remote_effective else "0")
     db.set_preference("last_scan_terms", json.dumps(terms, ensure_ascii=False))
     db.set_preference(
@@ -579,15 +595,18 @@ def run_scan(
         ),
     )
 
-    run_id = db.begin_scan(location=location, is_remote=is_remote_effective, terms=terms)
+    run_id = db.begin_scan(location=primary_location, is_remote=is_remote_effective, terms=terms)
 
     started_at_ms = int(time.time() * 1000)
-    expected_total = max(1, len(terms) * max(1, settings.max_annunci))
+    total_batches = max(1, len(terms) * len(locations_list))
+    expected_total = max(1, total_batches * max(1, settings.max_annunci))
 
     yield {
         "status": "started",
         "terms": terms,
-        "location": location,
+        "location": primary_location,
+        "locations": locations_list,
+        "country": country,
         "is_remote": is_remote_effective,
         "filters": {
             "experience_levels": exp_levels,
@@ -642,16 +661,19 @@ def run_scan(
             "recruiter": recruiter,
         }
 
-    for idx, term in enumerate(terms):
+    # Flat (location, term) pairs so the existing single-loop body stays intact;
+    # batch_no drives global progress across the whole location x term grid.
+    scan_pairs = [(loc, ti, term) for loc in locations_list for ti, term in enumerate(terms)]
+    for batch_no, (location, idx, term) in enumerate(scan_pairs):
         if cancelled():
             break
-        if idx > 0:
+        if batch_no > 0:
             time.sleep(random.uniform(0.8, 2.4))
 
         effective_term = augmented_terms[idx] if idx < len(augmented_terms) else term
 
         elapsed_ms = int(time.time() * 1000) - started_at_ms
-        seen = idx * max(1, settings.max_annunci)
+        seen = batch_no * max(1, settings.max_annunci)
         eta_ms = int((elapsed_ms / max(1, seen)) * (expected_total - seen)) if seen > 0 else 0
         yield {
             "status": "progress",
@@ -671,7 +693,7 @@ def run_scan(
             "is_remote": is_remote_effective,
             "results_wanted": settings.max_annunci,
             "hours_old": settings.hours_old,
-            "country_indeed": "Italy",
+            "country_indeed": country,
         }
         if jobspy_job_type:
             scrape_kwargs["job_type"] = jobspy_job_type

@@ -404,7 +404,16 @@ async function sendChatMessage(message) {
       } else {
          const kwTags = getKeywords.addMultiple(result.action.keywords || []);
          const locTags = getLocations.addMultiple(result.action.locations || []);
-         if (kwTags || locTags) {
+         // Coach can also set the Indeed country (e.g. "cerca lavoro in Germania").
+         const countrySel = document.getElementById("scanCountry");
+         if (countrySel && result.action.country) {
+           const cv = String(result.action.country).toLowerCase();
+           if ([...countrySel.options].some((o) => o.value === cv)) {
+             countrySel.value = cv;
+             localStorage.setItem("scanCountry", cv);
+           }
+         }
+         if (kwTags || locTags || result.action.country) {
            showToast(t("toast.formFilled"), "info");
            activateView("job-search");
          }

@@ -318,7 +318,8 @@
       "cv": "Outils CV",
       "auto": "Auto (recommandé)",
       "saved": "Modèle enregistré"
-    }
+    },
+    "country": "Pays"
   },
   "coach": {
     "title": "Career Coach",
@@ -430,7 +431,8 @@
       },
       "advanced": "Filtres avancés"
     },
-    "postScanRenderFailed": "Scan terminé (résumé non affichable)."
+    "postScanRenderFailed": "Scan terminé (résumé non affichable).",
+    "volumeWarning": "Grande recherche ({n} requêtes) — cela peut prendre du temps."
   },
   "toast": {
     "enterKeyOrProvider": "Entrez au moins une clé ou choisissez un fournisseur principal.",

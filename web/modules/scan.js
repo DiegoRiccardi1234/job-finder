@@ -19,6 +19,43 @@ export function initScan(deps) {
   _deps = { ..._deps, ...deps };
   const form = document.getElementById("scanForm");
   if (form) form.addEventListener("submit", _onScanSubmit);
+  void _initCountrySelect();
+}
+
+// Map a browser locale region to a jobspy country value, for the first-run default.
+function _detectCountry(countries) {
+  const region = (navigator.language || "").toLowerCase().split("-")[1];
+  const map = {
+    it: "italy", us: "usa", gb: "uk", de: "germany", fr: "france", es: "spain",
+    pt: "portugal", nl: "netherlands", br: "brazil", in: "india", ca: "canada",
+    au: "australia", mx: "mexico", ch: "switzerland", at: "austria", be: "belgium",
+    ie: "ireland", pl: "poland", se: "sweden",
+  };
+  const guess = map[region];
+  return guess && countries.some((c) => c.value === guess) ? guess : "";
+}
+
+async function _initCountrySelect() {
+  const sel = document.getElementById("scanCountry");
+  if (!sel) return;
+  try {
+    const res = await fetch("/api/countries").then((r) => r.json());
+    const countries = Array.isArray(res.countries) ? res.countries : [];
+    if (!countries.length) return;
+    sel.innerHTML = countries
+      .map((c) => `<option value="${c.value}">${c.label}</option>`)
+      .join("");
+    // Default: last used → backend default → browser-locale guess → first.
+    const initial =
+      localStorage.getItem("scanCountry") ||
+      res.default ||
+      _detectCountry(countries) ||
+      countries[0].value;
+    if ([...sel.options].some((o) => o.value === initial)) sel.value = initial;
+    sel.addEventListener("change", () => localStorage.setItem("scanCountry", sel.value));
+  } catch (_) {
+    /* leave empty; scan falls back to the settings default country */
+  }
 }
 
 // Snapshot / restore the Job Search filter state — shared by saved searches (F7).
@@ -31,6 +68,7 @@ export function readScanConfig() {
   return {
     terms: getKeywords.getTags().slice(),
     location: getLocations.getTags().slice(),
+    country: document.getElementById("scanCountry")?.value || "",
     is_remote: document.getElementById("remoteToggle")?.checked || false,
     sites: checked("scanSites"),
     experience_levels: checked("scanExperience"),
@@ -48,6 +86,8 @@ export function applyScanConfig(cfg) {
   getLocations.clear();
   if (Array.isArray(cfg.terms)) getKeywords.addMultiple(cfg.terms);
   if (Array.isArray(cfg.location)) getLocations.addMultiple(cfg.location);
+  const cs = document.getElementById("scanCountry");
+  if (cs && cfg.country) cs.value = cfg.country;
   const remote = document.getElementById("remoteToggle");
   if (remote) remote.checked = !!cfg.is_remote;
   const setChecks = (name, values) => {
@@ -93,7 +133,7 @@ async function _onScanSubmit(event) {
   const siteCheckboxes = document.querySelectorAll('input[name="scanSites"]:checked');
   const selectedSites = Array.from(siteCheckboxes).map(cb => cb.value);
   const isRemote = document.getElementById("remoteToggle")?.checked || false;
-  const location = getLocations.getTags().join(", ");
+  const locationTags = getLocations.getTags();
 
   const expLevels = Array.from(document.querySelectorAll('input[name="scanExperience"]:checked')).map(cb => cb.value);
   const jobTypes = Array.from(document.querySelectorAll('input[name="scanJobType"]:checked')).map(cb => cb.value);
@@ -101,8 +141,19 @@ async function _onScanSubmit(event) {
 
   const params = new URLSearchParams();
   if (termsText) params.set("search_terms", termsText);
-  if (location) params.set("location", location);
+  // Locations are pipe-separated (a location like "Torino, Italy" contains commas),
+  // so the backend scans each one instead of joining them into a single bad query.
+  if (locationTags.length) params.set("locations", locationTags.join("|"));
+  const country = document.getElementById("scanCountry")?.value || "";
+  if (country) params.set("country", country);
   params.set("is_remote", isRemote);
+
+  // Multi-location warning: terms x locations x ~20 jobs each can be a long scan.
+  const nLoc = Math.max(1, locationTags.length);
+  const nTerms = Math.max(1, getKeywords.getTags().length);
+  if (nLoc * nTerms > 6) {
+    showToast(t("scan.volumeWarning", { n: nLoc * nTerms }) || `Large scan (${nLoc * nTerms} searches) — this may take a while.`, "info");
+  }
   params.set("sites", (selectedSites.length > 0 ? selectedSites : ["linkedin", "indeed"]).join(","));
   if (expLevels.length) params.set("experience_levels", expLevels.join(","));
   if (jobTypes.length) params.set("job_types", jobTypes.join(","));
