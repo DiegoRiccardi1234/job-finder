@@ -22,6 +22,7 @@ from app.providers.openai_compat import (
 )
 from app.providers.openai_provider import OpenAIProvider
 from app.providers.openrouter_provider import OpenRouterProvider
+from app.services import model_stats
 
 _RetryT = TypeVar("_RetryT")
 
@@ -351,13 +352,30 @@ class ProviderManager:
         """
         models = self.get_models(provider.name).get("models") or []
         if models:
-            ranked = rank_models(
-                models,
-                preferred_model=None if policy_override else self.settings.preferred_model,
-                policy=policy_override or self.settings.model_selection_policy,
-                penalized=self._penalized_model_ids(provider.name),
-                limit=limit,
-            )
+
+            def _rank(pool: list[str], pen: set[str], lim: int) -> list[str]:
+                return rank_models(
+                    pool,
+                    preferred_model=None if policy_override else self.settings.preferred_model,
+                    policy=policy_override or self.settings.model_selection_policy,
+                    penalized=pen,
+                    limit=lim,
+                )
+
+            penalized = self._penalized_model_ids(provider.name)
+            pool = models
+            # OpenRouter exposes free live health stats (uptime/latency, no
+            # inference). Fold models that are down RIGHT NOW into the penalized
+            # set so scoring rotates off them before hitting a 429. Bounded to the
+            # name-ranked shortlist so we never fetch stats for the whole catalog;
+            # empty health (non-OR / network down) leaves behaviour unchanged.
+            if provider.name == "openrouter":
+                shortlist = _rank(models, penalized, max(limit * 4, limit))
+                health = model_stats.get_model_health(provider, shortlist)
+                if health:
+                    penalized = penalized | model_stats.unhealthy_ids(health)
+                    pool = shortlist
+            ranked = _rank(pool, penalized, limit)
             if ranked:
                 return ranked
         try:
