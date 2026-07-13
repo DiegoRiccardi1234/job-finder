@@ -283,7 +283,9 @@
       "probing": "Teste…",
       "probeDone": "Test abgeschlossen",
       "probeError": "Test fehlgeschlagen",
-      "probeEmpty": "Keine Modelle zum Testen"
+      "probeEmpty": "Keine Modelle zum Testen",
+      "probeConfirm": "Beste bestätigen (nutzt KI)",
+      "probeConfirmDone": "Beste bestätigt"
     },
     "features": {
       "title": "Automatisierung",

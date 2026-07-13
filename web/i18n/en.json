@@ -283,7 +283,9 @@
       "probing": "Testing…",
       "probeDone": "Test complete",
       "probeError": "Test failed",
-      "probeEmpty": "No models to test"
+      "probeEmpty": "No models to test",
+      "probeConfirm": "Confirm top models (uses AI)",
+      "probeConfirmDone": "Top models confirmed"
     },
     "features": {
       "title": "Automation",

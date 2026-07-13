@@ -608,6 +608,10 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
         await probeProviderModels(name);
         return;
       }
+      if (target.classList.contains("provider-probe-confirm-btn")) {
+        await probeProviderModels(name, { confirm: true });
+        return;
+      }
     });
 
     providerCardsEl.addEventListener("change", async (event) => {

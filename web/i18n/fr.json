@@ -283,7 +283,9 @@
       "probing": "Test en cours…",
       "probeDone": "Test terminé",
       "probeError": "Échec du test",
-      "probeEmpty": "Aucun modèle à tester"
+      "probeEmpty": "Aucun modèle à tester",
+      "probeConfirm": "Confirmer les meilleurs (utilise l'IA)",
+      "probeConfirmDone": "Meilleurs confirmés"
     },
     "features": {
       "title": "Automatisation",

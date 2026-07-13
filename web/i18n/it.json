@@ -283,7 +283,9 @@
       "probing": "Test in corso…",
       "probeDone": "Test completato",
       "probeError": "Test fallito",
-      "probeEmpty": "Nessun modello da testare"
+      "probeEmpty": "Nessun modello da testare",
+      "probeConfirm": "Conferma i migliori (usa IA)",
+      "probeConfirmDone": "Migliori confermati"
     },
     "features": {
       "title": "Automazione",

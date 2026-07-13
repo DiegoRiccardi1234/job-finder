@@ -1223,6 +1223,16 @@ pre {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Model name takes the row; health/latency metrics stay compact on the right. */
+.provider-probe-results .probe-row .probe-model {
+  flex: 1;
+  min-width: 0;
+}
+.provider-probe-results .probe-row > span:not(.probe-model) {
+  flex: 0 0 auto;
+  min-width: 42px;
+  text-align: right;
+}
 .provider-card-head {
   display: flex;
   align-items: center;

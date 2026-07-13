@@ -327,6 +327,9 @@ function renderProviderCards(keys, providerMeta) {
             ${configured ? `<button type="button" class="ghost-btn provider-probe-btn" title="${t("settings.providers.probe")}">
               <span class="material-symbols-outlined">speed</span>
             </button>` : ""}
+            ${configured ? `<button type="button" class="ghost-btn provider-probe-confirm-btn" title="${t("settings.providers.probeConfirm")}">
+              <span class="material-symbols-outlined">verified</span>
+            </button>` : ""}
             ${configured ? `<button type="button" class="ghost-btn provider-remove-btn danger" data-provider-remove title="${t("settings.providers.removeKey")}">
               <span class="material-symbols-outlined">delete</span>
             </button>` : ""}
@@ -470,24 +473,45 @@ async function fetchProviderModels(name, force = false) {
   return res.json();
 }
 
-function _renderProbeResults(results, best) {
+function _fmtNum(val, suffix) {
+  return typeof val === "number" ? `${Math.round(val)}${suffix}` : "—";
+}
+
+function _renderProbeResults(results, best, mode) {
   if (!results.length) return t("settings.providers.probeEmpty");
   const rows = results
-    .slice(0, 12)
+    .slice(0, 14)
     .map((r) => {
-      const icon = r.json_ok ? "✅" : r.ok ? "⚠️" : "❌";
-      const detail = r.ok ? `${r.latency_ms} ms` : r.error || "error";
       const star = best && r.model === best ? " ⭐" : "";
-      return `<div class="probe-row"><span>${icon} ${escapeHtml(r.model)}${star}</span><span class="micro">${escapeHtml(String(detail))}</span></div>`;
+      let icon;
+      let cols;
+      if (mode === "stats") {
+        // Free health report: live uptime / latency / throughput (no inference).
+        const up = typeof r.up5m === "number" ? r.up5m : null;
+        const healthy = r.status === 0;
+        icon = !healthy ? "❌" : up !== null && up < 90 ? "⚠️" : "✅";
+        const upTxt = up !== null ? `${Math.round(up)}%` : "—";
+        cols =
+          `<span class="micro">${upTxt}</span>` +
+          `<span class="micro">${_fmtNum(r.lat_ms, " ms")}</span>` +
+          `<span class="micro">${_fmtNum(r.tput, " t/s")}</span>`;
+      } else {
+        // Confirm micro-probe: did the model return valid JSON for our schema.
+        icon = r.json_ok ? "✅" : r.ok ? "⚠️" : "❌";
+        const detail = r.ok ? `${r.latency_ms} ms` : r.error || "error";
+        cols = `<span class="micro">${escapeHtml(String(detail))}</span>`;
+      }
+      return `<div class="probe-row"><span class="probe-model">${icon} ${escapeHtml(r.model)}${star}</span>${cols}</div>`;
     })
     .join("");
   return `<div class="probe-list">${rows}</div>`;
 }
 
-// Benchmark the provider's models (POST .../probe): shows which actually respond
-// fast with valid JSON, and seeds the server-side penalty map so auto-selection
-// rotates off the dead/empty/gated ones.
-export async function probeProviderModels(name) {
+// Report a provider's models. Default = a FREE health report from OpenRouter's
+// live stats (uptime/latency, no inference, no quota). ``confirm`` micro-probes
+// the top few healthiest models with a tiny JSON call to confirm they return
+// valid JSON for our schema, seeding the server-side penalty map.
+export async function probeProviderModels(name, { confirm = false } = {}) {
   const card = _providerCardEl(name);
   const out = card?.querySelector(".provider-probe-results");
   _setProviderCardState(name, "fetching");
@@ -497,7 +521,8 @@ export async function probeProviderModels(name) {
     out.textContent = t("settings.providers.probing");
   }
   try {
-    const res = await fetch(`/api/providers/${encodeURIComponent(name)}/probe`, {
+    const url = `/api/providers/${encodeURIComponent(name)}/probe${confirm ? "?confirm=true" : ""}`;
+    const res = await fetch(url, {
       method: "POST",
       headers: { Accept: "application/json" },
     });
@@ -512,8 +537,10 @@ export async function probeProviderModels(name) {
     }
     const data = await res.json();
     const results = Array.isArray(data.results) ? data.results : [];
-    if (out) out.innerHTML = _renderProbeResults(results, data.best);
-    _setProviderStatusText(name, t("settings.providers.probeDone"), "ok");
+    const mode = data.mode || (confirm ? "probe" : "stats");
+    if (out) out.innerHTML = _renderProbeResults(results, data.best, mode);
+    const doneKey = confirm ? "settings.providers.probeConfirmDone" : "settings.providers.probeDone";
+    _setProviderStatusText(name, t(doneKey), "ok");
   } catch (err) {
     if (out) {
       out.hidden = false;
