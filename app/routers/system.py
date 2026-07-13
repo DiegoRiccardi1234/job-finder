@@ -25,12 +25,14 @@ def build_router(container: AppContainer) -> APIRouter:
 
     @router.get("/api/health")
     def health() -> dict[str, Any]:
+        # Note: the absolute DB path was intentionally dropped — the UI never
+        # used it and exposing a filesystem path in every page load is noise a
+        # reviewer flags. Preferences stay: several UI surfaces read them.
         return {
             "ok": True,
             "provider": container.providers.metadata(),
             "keys": container.keys_status(),
             "preferences": container.db.list_preferences(),
-            "db_path": str(container.settings.db_path),
         }
 
     @router.get("/api/usage/stats")

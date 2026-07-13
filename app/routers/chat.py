@@ -49,7 +49,10 @@ def build_router(container: AppContainer) -> APIRouter:
         return {"sessions": sessions}
 
     @router.post("/api/chat/sessions")
-    def create_chat_session(payload: ChatSessionCreateRequest) -> dict[str, Any]:
+    def create_chat_session(request: Request, payload: ChatSessionCreateRequest) -> dict[str, Any]:
+        rate_limit.check(request, bucket="chat_session", limit=10, window_seconds=60)
+        if len(container.db.list_chat_sessions()) >= 100:
+            raise HTTPException(status_code=409, detail="too_many_sessions")
         import secrets
 
         new_id = "s_" + secrets.token_hex(6)

@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+A quality pass: much faster scans, a smarter model picker, and privacy/UX fixes.
+
+### Added
+- **Faster scans** — jobs are now scored in parallel instead of one at a time, so a scan finishes in seconds rather than minutes.
+- **Stop a scan for real** — the cancel button (and closing the tab) now stops the scan on the server too, so it stops using your AI quota immediately.
+- **Smarter model selection** — the app learns which of your provider's models actually work: it automatically avoids models that are rate-limited, return nothing, or aren't available on your plan, and prefers fast, free ones for scan scoring. A new **"Test models"** button in Settings benchmarks a provider's models (speed + reliability) and shows a ranked list.
+
+### Fixed
+- **Privacy Mode now also covers the coach chat** — your CV's email, phone and address are stripped before the chat is sent to the AI provider (the coach still knows your name).
+- **Tailored résumé keeps your real contacts** — the generated résumé shows your real email/phone again instead of `[EMAIL]`/`[PHONE]` placeholders (the AI still never sees them).
+- **Interview prep reads cleanly** — it's now formatted text instead of a raw data blob.
+- **Profile** — the education line and the "1 year" label render correctly.
+- **Job Search "remote only" filter** now refreshes the list on its own.
+- A failed scan no longer wipes the "new" badges from the previous run, and two scans can no longer run at once.
+
+### Changed
+- CSV export downloads in your browser instead of writing a file into the app folder.
+- Accessibility: dialogs close with Escape and trap focus; the job link has a proper label; the chat input is disabled while a reply is loading.
+
 ## [1.6.0] — 2026-07-09
 
 A dedicated Jobs tab, a job-detail panel you can open from anywhere, application reminders, saved searches, kanban drag-and-drop, and more ways to let the AI help.

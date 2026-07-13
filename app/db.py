@@ -556,6 +556,15 @@ class Database:
         data["sources"] = _parse_sources(data.get("sources_json"))
         return data
 
+    def job_has_analysis(self, job_id: int) -> bool:
+        """Whether a job already carries an AI analysis — cheaper than get_job()
+        when the scan loop only needs to decide skip-vs-rescore."""
+        cur = self.conn.execute(
+            "SELECT 1 FROM jobs WHERE id = ? AND analysis_json IS NOT NULL AND analysis_json != ''",
+            (int(job_id),),
+        )
+        return cur.fetchone() is not None
+
     def get_job_with_analysis(self, job_id: int) -> dict[str, Any] | None:
         data = self.get_job(job_id)
         if not data:

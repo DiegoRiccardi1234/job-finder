@@ -744,9 +744,9 @@ def run_scan(
             if status in {"applied", "rejected", "archived"}:
                 continue
 
-            existing = db.get_job(job_id)
-            already_analyzed = bool(existing and existing.get("analysis_json"))
-            if already_analyzed and not is_new:
+            # A brand-new job has no analysis yet; only existing ones need the
+            # (lightweight) check — avoids a full get_job() per scraped row.
+            if not is_new and db.job_has_analysis(job_id):
                 continue
 
             to_score.append(
