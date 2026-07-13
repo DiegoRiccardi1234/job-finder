@@ -355,9 +355,16 @@ async function loadChatPrompts() {
   }
 }
 
+let _chatSending = false;
 async function sendChatMessage(message) {
   const text = String(message || "").trim();
-  if (!text) return;
+  if (!text || _chatSending) return; // ignore rapid double-sends
+
+  _chatSending = true;
+  const chatInputEl = document.getElementById("chatInput");
+  const chatSendBtn = document.querySelector("#chatForm button[type='submit'], #chatForm button");
+  if (chatInputEl) chatInputEl.disabled = true;
+  if (chatSendBtn) chatSendBtn.disabled = true;
 
   appendChat("user", text);
 
@@ -415,6 +422,11 @@ async function sendChatMessage(message) {
     } else {
       appendChat("assistant", `${t("toast.chatError")}: ${error.message}`);
     }
+  } finally {
+    _chatSending = false;
+    if (chatInputEl) chatInputEl.disabled = false;
+    if (chatSendBtn) chatSendBtn.disabled = false;
+    if (chatInputEl) chatInputEl.focus();
   }
 }
 
@@ -895,15 +907,21 @@ if (_profileDeleteBtn) {
   });
 }
 
-document.getElementById("exportCsvBtn").addEventListener("click", async () => {
-  try {
-    const result = await api("/api/export/csv", { method: "POST" });
-    showToast(t("toast.csvExported", { file: result.file }), "info");
-  } catch (error) {
-    const empty = /\b400\b|no jobs/i.test(error.message || "");
-    const msg = empty ? t("jobs.exportEmpty") : `${t("toast.exportError")}: ${error.message}`;
-    showToast(msg, "info");
+document.getElementById("exportCsvBtn").addEventListener("click", () => {
+  const hasJobs =
+    document.querySelectorAll(".jobs-section table tbody tr").length > 0 ||
+    document.querySelectorAll("#kanbanView [draggable='true']").length > 0;
+  if (!hasJobs) {
+    showToast(t("jobs.exportEmpty"), "info");
+    return;
   }
+  // Let the browser download the CSV instead of writing a file server-side.
+  const a = document.createElement("a");
+  a.href = "/api/export/csv";
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 });
 
 document.getElementById("deleteAllJobsBtn").addEventListener("click", async () => {
@@ -917,6 +935,35 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
   }
 });
 
+// Shared modal accessibility: Escape-to-close + Tab focus-trap. Focus is moved
+// into the modal on open by each caller, so keydown reaches this handler.
+function enableModalDismiss(modal, closeFn) {
+  if (!modal) return;
+  modal.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeFn();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusables = [
+      ...modal.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((el) => el.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+}
+
 // F5 — manually add a job (referrals, career-page finds). POSTs to the existing
 // /api/jobs/manual, which also AI-scores it against the active profile.
 {
@@ -925,6 +972,7 @@ document.getElementById("deleteAllJobsBtn").addEventListener("click", async () =
   const form = document.getElementById("manualJobForm");
   if (openBtn && modal && form) {
     const close = () => modal.classList.add("hidden");
+    enableModalDismiss(modal, close);
     openBtn.addEventListener("click", () => {
       form.reset();
       const iu = document.getElementById("mjImportUrl");
@@ -1223,6 +1271,8 @@ async function showFirstTimeTutorial() {
     overlay.remove();
     localStorage.setItem('tutorialSeen', '1');
   };
+  overlay.tabIndex = -1;
+  enableModalDismiss(overlay, close);
 
   const STEPS = [
     {
@@ -1304,6 +1354,7 @@ async function showFirstTimeTutorial() {
   };
 
   render();
+  overlay.focus(); // so Escape / Tab-trap work without a prior click
 
   // Poll setup_status while overlay is open so the Next button enables
   // the moment the user completes the current step in another tab.

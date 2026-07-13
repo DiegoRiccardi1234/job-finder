@@ -107,7 +107,7 @@ export async function loadJobs() {
       <td>${truncate(job.consiglio || "")}</td>
       <td>
         <button data-detail-id="${job.id}" class="secondary">${t("jobs.details")}</button>
-        ${job.link ? `<a href="${escapeHtml(job.link)}" target="_blank" rel="noopener" style="margin-left: 8px;">🔗</a>` : ""}
+        ${job.link ? `<a href="${escapeHtml(job.link)}" target="_blank" rel="noopener" style="margin-left: 8px;" title="${t("jobs.openPosting")}" aria-label="${t("jobs.openPosting")}">🔗</a>` : ""}
       </td>
       <td>
         <div class="mini">

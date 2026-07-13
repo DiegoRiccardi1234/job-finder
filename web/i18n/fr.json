@@ -192,7 +192,8 @@
     "loadError": "Impossible de charger les offres. Réessaie.",
     "exportEmpty": "Aucune offre à exporter.",
     "deleteAllTitle": "Supprimer toutes les offres",
-    "alsoOn": "Aussi sur"
+    "alsoOn": "Aussi sur",
+    "openPosting": "Ouvrir l'offre"
   },
   "kanbanCols": {
     "open": "Ouvert",

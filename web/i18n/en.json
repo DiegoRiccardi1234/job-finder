@@ -192,7 +192,8 @@
     "loadError": "Couldn't load jobs. Try again.",
     "exportEmpty": "No jobs to export.",
     "deleteAllTitle": "Delete all jobs",
-    "alsoOn": "Also on"
+    "alsoOn": "Also on",
+    "openPosting": "Open posting"
   },
   "kanbanCols": {
     "open": "Open",

@@ -192,7 +192,8 @@
     "loadError": "No se pudieron cargar los empleos. Reinténtalo.",
     "exportEmpty": "No hay empleos para exportar.",
     "deleteAllTitle": "Eliminar todos los empleos",
-    "alsoOn": "También en"
+    "alsoOn": "También en",
+    "openPosting": "Abrir oferta"
   },
   "kanbanCols": {
     "open": "Abierto",

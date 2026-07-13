@@ -192,7 +192,8 @@
     "loadError": "Impossibile caricare i lavori. Riprova.",
     "exportEmpty": "Nessun lavoro da esportare.",
     "deleteAllTitle": "Elimina tutti i lavori",
-    "alsoOn": "Anche su"
+    "alsoOn": "Anche su",
+    "openPosting": "Apri annuncio"
   },
   "kanbanCols": {
     "open": "Aperto",
