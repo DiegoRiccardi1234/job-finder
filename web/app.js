@@ -31,6 +31,7 @@ import {
   onSetPrimaryProvider,
   fetchAndRenderProviderModels,
   probeProviderModels,
+  onSaveModelOverride,
   populateChatModelSelector,
   populateChatProviderSelector,
   maybeOfferPersistChatOverride,
@@ -631,6 +632,11 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
       const saveBtn = card?.querySelector(".provider-save-btn");
       if (saveBtn) saveBtn.click();
     });
+  }
+  // Per-context model override selects (Settings "AI models" card).
+  for (const id of ["scoringModelSelect", "chatModelOverrideSelect", "cvModelSelect"]) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", () => onSaveModelOverride(id, el.value));
   }
 }
 

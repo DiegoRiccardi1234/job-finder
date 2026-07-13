@@ -171,3 +171,6 @@ class ProviderKeysRequest(BaseModel):
     mistral_api_key: str | None = None
     primary_provider: str | None = None
     preferred_model: str | None = None
+    scoring_model: str | None = None
+    chat_model: str | None = None
+    cv_model: str | None = None

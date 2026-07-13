@@ -36,6 +36,11 @@ class AppSettings:
     groq_key_file: Path
     llm_provider_order: list[str]
     preferred_model: str | None
+    # Per-context model overrides (empty/None = Auto). Pin a specific model for
+    # scan scoring / chat / CV tools; the provider is the primary.
+    scoring_model: str | None
+    chat_model: str | None
+    cv_model: str | None
     retention_days: int
     hours_old: int
     max_annunci: int
@@ -89,6 +94,9 @@ def save_local_provider_keys(
     mistral_api_key: str | None = None,
     primary_provider: str | None = None,
     preferred_model: str | None = None,
+    scoring_model: str | None = None,
+    chat_model: str | None = None,
+    cv_model: str | None = None,
 ) -> dict[str, Any]:
     data_dir.mkdir(parents=True, exist_ok=True)
     secrets_path = data_dir / LOCAL_SECRETS_FILE
@@ -126,17 +134,30 @@ def save_local_provider_keys(
         else:
             current.pop("primary_provider", None)
 
-    if preferred_model is not None:
-        value = preferred_model.strip()
+    # Global preferred model + per-context overrides (scan scoring / chat / CV
+    # tools). Non-empty string pins; empty string clears (back to Auto); None
+    # leaves untouched — same convention as the keys above.
+    for model_field, model_value in (
+        ("preferred_model", preferred_model),
+        ("scoring_model", scoring_model),
+        ("chat_model", chat_model),
+        ("cv_model", cv_model),
+    ):
+        if model_value is None:
+            continue
+        value = model_value.strip()
         if value:
-            current["preferred_model"] = value
+            current[model_field] = value
         else:
-            current.pop("preferred_model", None)
+            current.pop(model_field, None)
 
     secrets_path.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
     status = {f"{p}_configured": bool(current.get(f"{p}_api_key")) for p in SUPPORTED_PROVIDERS}
     status["primary_provider"] = current.get("primary_provider", "")
     status["preferred_model"] = current.get("preferred_model", "")
+    status["scoring_model"] = current.get("scoring_model", "")
+    status["chat_model"] = current.get("chat_model", "")
+    status["cv_model"] = current.get("cv_model", "")
     return status
 
 
@@ -267,6 +288,9 @@ def load_settings(workspace_dir: Path) -> AppSettings:
             or cfg.get("preferred_model")
             or os.getenv("LLM_MODEL")
         ),
+        scoring_model=local_secrets.get("scoring_model") or None,
+        chat_model=local_secrets.get("chat_model") or None,
+        cv_model=local_secrets.get("cv_model") or None,
         retention_days=int(cfg.get("retention_days", 15)),
         hours_old=int(cfg.get("hours_old", 336)),
         max_annunci=int(cfg.get("max_annunci", 20)),

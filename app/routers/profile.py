@@ -188,7 +188,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 redact=container.feature_enabled("privacy_mode", True),
                 candidate_name=profile.get("name"),
                 language=_resolve_lang(lang),
-                policy_override=CV_POLICY,
+                **container.providers.pin_kwargs(container.settings.cv_model, CV_POLICY),
             )
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"CV review failed: {e}") from e
@@ -219,7 +219,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 redact=container.feature_enabled("privacy_mode", True),
                 candidate_name=profile.get("name"),
                 language=_resolve_lang(lang),
-                policy_override=CV_POLICY,
+                **container.providers.pin_kwargs(container.settings.cv_model, CV_POLICY),
                 restore_contact_info=True,
             )
         except Exception as e:

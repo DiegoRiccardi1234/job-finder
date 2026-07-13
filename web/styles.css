@@ -1543,6 +1543,22 @@ pre {
   max-height: 460px;
   overflow-y: auto;
 }
+.model-override-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.model-override-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.model-override-select {
+  flex: 1;
+  max-width: 60%;
+}
 .profile-block-head {
   display: flex;
   align-items: center;

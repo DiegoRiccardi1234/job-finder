@@ -309,6 +309,15 @@
       "city": "Stadt — Titel + Firma + Stadt (empfohlen)",
       "titleCompany": "Titel + Firma — Ort ignorieren",
       "saved": "Gruppierung aktualisiert"
+    },
+    "models": {
+      "title": "KI-Modelle",
+      "subtitle": "Ein Modell pro Aufgabe festlegen, oder Auto lassen. Aus deinem Hauptanbieter.",
+      "scoring": "Jobsuche (Scoring)",
+      "chat": "Coach-Chat",
+      "cv": "CV-Tools",
+      "auto": "Auto (empfohlen)",
+      "saved": "Modell gespeichert"
     }
   },
   "coach": {

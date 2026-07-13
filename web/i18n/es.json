@@ -309,6 +309,15 @@
       "city": "Ciudad — título + empresa + ciudad (recomendado)",
       "titleCompany": "Título + empresa — ignorar ubicación",
       "saved": "Agrupación actualizada"
+    },
+    "models": {
+      "title": "Modelos IA",
+      "subtitle": "Fija un modelo por tarea, o deja Auto. Se llena desde tu proveedor principal.",
+      "scoring": "Búsqueda (scoring)",
+      "chat": "Chat coach",
+      "cv": "Herramientas CV",
+      "auto": "Auto (recomendado)",
+      "saved": "Modelo guardado"
     }
   },
   "coach": {

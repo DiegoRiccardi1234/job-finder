@@ -309,6 +309,15 @@
       "city": "City — title + company + city (recommended)",
       "titleCompany": "Title + company — ignore location",
       "saved": "Grouping updated"
+    },
+    "models": {
+      "title": "AI models",
+      "subtitle": "Pin a specific model per task, or leave Auto. Populated from your primary provider.",
+      "scoring": "Job search (scoring)",
+      "chat": "Coach chat",
+      "cv": "CV tools",
+      "auto": "Auto (recommended)",
+      "saved": "Model saved"
     }
   },
   "coach": {

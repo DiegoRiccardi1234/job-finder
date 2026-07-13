@@ -82,6 +82,9 @@ class AppContainer:
         }
         status["primary_provider"] = primary
         status["preferred_model"] = self.settings.preferred_model or ""
+        status["scoring_model"] = self.settings.scoring_model or ""
+        status["chat_model"] = self.settings.chat_model or ""
+        status["cv_model"] = self.settings.cv_model or ""
         return status
 
     def has_provider_configured(self) -> bool:

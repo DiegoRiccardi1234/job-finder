@@ -697,6 +697,25 @@
           <pre id="keysStatus" class="output hidden"></pre>
         </article>
 
+        <article class="card-block card-block--wide">
+          <h3><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="settings.models.title">AI models</span></h3>
+          <p class="micro" data-i18n="settings.models.subtitle">Pin a specific model per task, or leave Auto. Populated from your primary provider.</p>
+          <div class="model-override-list">
+            <label class="model-override-row">
+              <span class="micro" data-i18n="settings.models.scoring">Job search (scoring)</span>
+              <select id="scoringModelSelect" class="model-override-select"><option value="" data-i18n="settings.models.auto">Auto (recommended)</option></select>
+            </label>
+            <label class="model-override-row">
+              <span class="micro" data-i18n="settings.models.chat">Coach chat</span>
+              <select id="chatModelOverrideSelect" class="model-override-select"><option value="" data-i18n="settings.models.auto">Auto (recommended)</option></select>
+            </label>
+            <label class="model-override-row">
+              <span class="micro" data-i18n="settings.models.cv">CV tools</span>
+              <select id="cvModelSelect" class="model-override-select"><option value="" data-i18n="settings.models.auto">Auto (recommended)</option></select>
+            </label>
+          </div>
+        </article>
+
         <article class="card-block card-block--wide features-card">
           <h3><span class="material-symbols-outlined">schedule</span> <span data-i18n="settings.features.title">Automation</span></h3>
           <p class="micro" data-i18n="settings.features.subtitle">Scheduled scans and desktop notifications. Optional feature toggles now live in your Profile.</p>

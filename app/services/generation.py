@@ -163,6 +163,8 @@ def generate_with_profile(
     language: str | None = None,
     restore_contact_info: bool = False,
     policy_override: dict[str, Any] | None = None,
+    provider_name: str | None = None,
+    model_name: str | None = None,
 ) -> str:
     """Generate profile-tailored content for a job. Returns the text body.
 
@@ -186,7 +188,11 @@ def generate_with_profile(
             content_type, profile_markdown, job_info, extra_block=extra_block, language=language
         )
         result = provider_manager.complete_json(
-            prompt=prompt, max_tokens=budget, policy_override=policy_override
+            prompt=prompt,
+            max_tokens=budget,
+            provider_name=provider_name,
+            model_name=model_name,
+            policy_override=policy_override,
         )
         content = _extract_content(result, content_type)
     except Exception:
@@ -201,6 +207,8 @@ def generate_with_profile(
         content = provider_manager.chat(
             [{"role": "user", "content": prose_prompt}],
             max_tokens=budget,
+            provider_name=provider_name,
+            model_name=model_name,
             policy_override=policy_override,
         )
     content = restore_pii(content, token_map)

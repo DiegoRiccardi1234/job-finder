@@ -43,6 +43,9 @@ def build_router(container: AppContainer) -> APIRouter:
             mistral_api_key=payload.mistral_api_key,
             primary_provider=payload.primary_provider,
             preferred_model=payload.preferred_model,
+            scoring_model=payload.scoring_model,
+            chat_model=payload.chat_model,
+            cv_model=payload.cv_model,
         )
         container.reload_providers()
         return {

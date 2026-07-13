@@ -479,9 +479,19 @@ def analyze_offer(
         prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
     prompt = _analysis_prompt(prompt_markdown, titolo, azienda, descrizione, extra_context)
     try:
-        result = provider_manager.complete_json(
-            prompt=prompt, max_tokens=200, policy_override=_SCORING_POLICY
-        )
+        # Pin the user-chosen scoring model if set, else auto-select (speed-biased).
+        # getattr-guarded so test stubs without ``.settings`` still work.
+        settings = getattr(provider_manager, "settings", None)
+        scoring_model = getattr(settings, "scoring_model", None)
+        if scoring_model:
+            order = getattr(settings, "llm_provider_order", None) or []
+            call_kwargs: dict[str, Any] = {
+                "provider_name": order[0] if order else None,
+                "model_name": scoring_model,
+            }
+        else:
+            call_kwargs = {"policy_override": _SCORING_POLICY}
+        result = provider_manager.complete_json(prompt=prompt, max_tokens=200, **call_kwargs)
         if not isinstance(result, dict):
             return _fallback_analysis(
                 "invalid response",
@@ -536,8 +546,9 @@ def run_scan(
     onboarding = onboarding_context(db)
     candidate_name = profile.get("name") if profile else None
     log.info(
-        "Scan scoring model (speed-biased): %s",
-        provider_manager.preview_scoring_model(_SCORING_POLICY),
+        "Scan scoring model: %s",
+        settings.scoring_model
+        or f"auto → {provider_manager.preview_scoring_model(_SCORING_POLICY)}",
     )
 
     terms = payload.search_terms or settings.default_search_terms

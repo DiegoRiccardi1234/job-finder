@@ -492,6 +492,22 @@ class ProviderManager:
         assert last_exc is not None
         raise last_exc
 
+    def pin_kwargs(
+        self, model_id: str | None, policy_override: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Kwargs for complete_json/chat honoring a per-context model override.
+
+        If the user pinned a specific model (``model_id``), return an explicit
+        (primary provider, model) pin — a deliberate choice, so NO failover.
+        Otherwise fall back to the auto-selection ``policy_override``.
+        """
+        if model_id:
+            primary = (
+                self.settings.llm_provider_order[0] if self.settings.llm_provider_order else None
+            )
+            return {"provider_name": primary, "model_name": model_id}
+        return {"policy_override": policy_override}
+
     def complete_json(
         self,
         prompt: str,

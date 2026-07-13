@@ -166,6 +166,79 @@ async function _populateChatModelSelector(providerName) {
   }
 }
 
+// ── Per-context model overrides (Settings "AI models" card) ─────────────────
+function _fillOverrideSelect(sel, providerName, models, recommended, selectedValue) {
+  const autoBase = t("settings.models.auto") || "Auto (recommended)";
+  sel.innerHTML = `<option value="">${recommended ? `${autoBase} (→ ${recommended})` : autoBase}</option>`;
+  const add = (m) => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m === recommended ? `⭐ ${m}` : m;
+    sel.appendChild(opt);
+  };
+  const sep = (label) => {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = label;
+    opt.disabled = true;
+    sel.appendChild(opt);
+  };
+  if (providerName === "openrouter" && models.length > 30) {
+    const { free, paid } = _splitFreePaid(models);
+    if (free.length) {
+      sep(t("settings.providers.freeGroup") || "── Free ──");
+      free.forEach(add);
+    }
+    if (paid.length) {
+      sep(t("settings.providers.paidGroup") || "── Paid ──");
+      paid.forEach(add);
+    }
+  } else {
+    _sortModelsAlpha(models).forEach(add);
+  }
+  sel.value = selectedValue || "";
+  sel.disabled = models.length === 0;
+}
+
+export async function populateModelOverrides(keys) {
+  const rows = [
+    { el: document.getElementById("scoringModelSelect"), val: keys?.scoring_model || "" },
+    { el: document.getElementById("chatModelOverrideSelect"), val: keys?.chat_model || "" },
+    { el: document.getElementById("cvModelSelect"), val: keys?.cv_model || "" },
+  ].filter((r) => r.el);
+  if (!rows.length) return;
+  const primary = String(keys?.primary_provider || "").toLowerCase();
+  let models = [];
+  let recommended = null;
+  if (primary) {
+    try {
+      const data = _providerCardModelCache[primary] || (await fetchProviderModels(primary, false));
+      models = Array.isArray(data.models) ? data.models : [];
+      recommended = data.recommended || null;
+    } catch (_) {
+      /* leave Auto-only */
+    }
+  }
+  for (const { el, val } of rows) _fillOverrideSelect(el, primary, models, recommended, val);
+}
+
+const _OVERRIDE_FIELD = {
+  scoringModelSelect: "scoring_model",
+  chatModelOverrideSelect: "chat_model",
+  cvModelSelect: "cv_model",
+};
+
+export async function onSaveModelOverride(selectId, value) {
+  const field = _OVERRIDE_FIELD[selectId];
+  if (!field) return;
+  try {
+    await api("/api/providers/keys", { method: "POST", body: JSON.stringify({ [field]: value }) });
+    showToast(t("settings.models.saved") || "Saved", "info");
+  } catch (err) {
+    showToast(String(err?.message || err), "error");
+  }
+}
+
 // Build the chat provider-override <select> from PROVIDER_CATALOG so adding a
 // provider only needs one edit. Keeps the "Auto" option (value "") and its
 // data-i18n attribute, and preserves the current selection.
@@ -278,6 +351,7 @@ function renderProviderCards(keys, providerMeta) {
       _setProviderStatusText(p.name, t("settings.providers.addKey"));
     }
   }
+  void populateModelOverrides(keys);
 }
 
 function _setProviderStatusText(name, text, kind = "info") {
