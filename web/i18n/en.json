@@ -262,7 +262,12 @@
       "keyInvalid": "Invalid key, check it",
       "removeKey": "Remove key",
       "recommendedHint": "Recommended model for this provider",
-      "setPrimaryFirst": "Set this provider as primary to use this model."
+      "setPrimaryFirst": "Set this provider as primary to use this model.",
+      "probe": "Test models",
+      "probing": "Testing…",
+      "probeDone": "Test complete",
+      "probeError": "Test failed",
+      "probeEmpty": "No models to test"
     },
     "features": {
       "title": "Automation",

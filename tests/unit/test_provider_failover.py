@@ -165,8 +165,8 @@ def test_429_records_model_for_derank(tmp_path: Any) -> None:
     mgr = _mgr(tmp_path, {"openrouter": bad}, ["openrouter"], "openrouter")
     with pytest.raises(Exception):
         mgr.chat(messages=[{"role": "user", "content": "hi"}])
-    assert "model-x" in mgr._model_429_at
-    assert "model-x" in mgr._recent_429_models()
+    assert "openrouter::model-x" in mgr._model_penalty
+    assert "model-x" in mgr._penalized_model_ids("openrouter")
 
 
 class _MultiModelProvider(LLMProvider):

@@ -1197,6 +1197,32 @@ pre {
 .provider-card[data-state="warn"] .provider-status-text {
   color: #d99100;
 }
+.provider-probe-results {
+  margin-top: var(--space-2);
+}
+.provider-probe-results .probe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.provider-probe-results .probe-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.provider-probe-results .probe-row:nth-child(odd) {
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}
+.provider-probe-results .probe-row > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .provider-card-head {
   display: flex;
   align-items: center;

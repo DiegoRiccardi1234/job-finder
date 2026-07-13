@@ -251,6 +251,9 @@ function renderProviderCards(keys, providerMeta) {
           </label>
           <div class="provider-status">
             <span class="provider-status-text micro"></span>
+            ${configured ? `<button type="button" class="ghost-btn provider-probe-btn" title="${t("settings.providers.probe")}">
+              <span class="material-symbols-outlined">speed</span>
+            </button>` : ""}
             ${configured ? `<button type="button" class="ghost-btn provider-remove-btn danger" data-provider-remove title="${t("settings.providers.removeKey")}">
               <span class="material-symbols-outlined">delete</span>
             </button>` : ""}
@@ -258,6 +261,7 @@ function renderProviderCards(keys, providerMeta) {
               <span class="material-symbols-outlined">refresh</span>
             </button>
           </div>
+          <div class="provider-probe-results micro" hidden></div>
         </div>
       </article>
     `;
@@ -390,6 +394,61 @@ async function fetchProviderModels(name, force = false) {
     throw new Error(detail);
   }
   return res.json();
+}
+
+function _renderProbeResults(results, best) {
+  if (!results.length) return t("settings.providers.probeEmpty");
+  const rows = results
+    .slice(0, 12)
+    .map((r) => {
+      const icon = r.json_ok ? "✅" : r.ok ? "⚠️" : "❌";
+      const detail = r.ok ? `${r.latency_ms} ms` : r.error || "error";
+      const star = best && r.model === best ? " ⭐" : "";
+      return `<div class="probe-row"><span>${icon} ${escapeHtml(r.model)}${star}</span><span class="micro">${escapeHtml(String(detail))}</span></div>`;
+    })
+    .join("");
+  return `<div class="probe-list">${rows}</div>`;
+}
+
+// Benchmark the provider's models (POST .../probe): shows which actually respond
+// fast with valid JSON, and seeds the server-side penalty map so auto-selection
+// rotates off the dead/empty/gated ones.
+export async function probeProviderModels(name) {
+  const card = _providerCardEl(name);
+  const out = card?.querySelector(".provider-probe-results");
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.probing"));
+  if (out) {
+    out.hidden = false;
+    out.textContent = t("settings.providers.probing");
+  }
+  try {
+    const res = await fetch(`/api/providers/${encodeURIComponent(name)}/probe`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      let detail = "probe_failed";
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch (_) {
+        /* noop */
+      }
+      throw new Error(detail);
+    }
+    const data = await res.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+    if (out) out.innerHTML = _renderProbeResults(results, data.best);
+    _setProviderStatusText(name, t("settings.providers.probeDone"), "ok");
+  } catch (err) {
+    if (out) {
+      out.hidden = false;
+      out.textContent = `${t("settings.providers.probeError")}: ${err.message}`;
+    }
+    _setProviderStatusText(name, t("settings.providers.probeError"), "warn");
+  } finally {
+    _setProviderCardState(name, "configured");
+  }
 }
 
 async function fetchAndRenderProviderModels(name, force) {

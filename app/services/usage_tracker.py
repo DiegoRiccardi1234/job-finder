@@ -29,6 +29,7 @@ def record_usage(
     last_usage: dict[str, Any] | None,
     success: bool = True,
     error_type: str | None = None,
+    duration_ms: int | None = None,
 ) -> None:
     """Insert one row into ``usage_log``. Silently skipped when ``last_usage`` is empty.
 
@@ -50,8 +51,8 @@ def record_usage(
             """
             INSERT INTO usage_log
                 (ts, provider, model, endpoint, prompt_tokens, completion_tokens,
-                 total_tokens, success, error_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 total_tokens, success, error_type, duration_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.now(UTC).isoformat(timespec="seconds"),
@@ -63,6 +64,7 @@ def record_usage(
                 total_tokens,
                 1 if success else 0,
                 error_type,
+                duration_ms,
             ),
         )
         conn.commit()

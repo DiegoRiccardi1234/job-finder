@@ -30,6 +30,7 @@ import {
   onRemoveProviderKey,
   onSetPrimaryProvider,
   fetchAndRenderProviderModels,
+  probeProviderModels,
   populateChatModelSelector,
   populateChatProviderSelector,
   maybeOfferPersistChatOverride,
@@ -579,6 +580,10 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
       }
       if (target.classList.contains("provider-refresh-btn")) {
         await fetchAndRenderProviderModels(name, true);
+        return;
+      }
+      if (target.classList.contains("provider-probe-btn")) {
+        await probeProviderModels(name);
         return;
       }
     });

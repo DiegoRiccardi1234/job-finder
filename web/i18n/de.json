@@ -262,7 +262,12 @@
       "keyInvalid": "Ungültiger Schlüssel, bitte prüfen",
       "removeKey": "Schlüssel entfernen",
       "recommendedHint": "Empfohlenes Modell für diesen Anbieter",
-      "setPrimaryFirst": "Lege diesen Anbieter als primär fest, um dieses Modell zu verwenden."
+      "setPrimaryFirst": "Lege diesen Anbieter als primär fest, um dieses Modell zu verwenden.",
+      "probe": "Modelle testen",
+      "probing": "Teste…",
+      "probeDone": "Test abgeschlossen",
+      "probeError": "Test fehlgeschlagen",
+      "probeEmpty": "Keine Modelle zum Testen"
     },
     "features": {
       "title": "Automatisierung",

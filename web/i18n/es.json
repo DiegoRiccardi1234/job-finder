@@ -262,7 +262,12 @@
       "keyInvalid": "Clave no válida, verifícala",
       "removeKey": "Eliminar clave",
       "recommendedHint": "Modelo recomendado para este proveedor",
-      "setPrimaryFirst": "Define este proveedor como principal para usar este modelo."
+      "setPrimaryFirst": "Define este proveedor como principal para usar este modelo.",
+      "probe": "Probar modelos",
+      "probing": "Probando…",
+      "probeDone": "Prueba completada",
+      "probeError": "Prueba fallida",
+      "probeEmpty": "Sin modelos que probar"
     },
     "features": {
       "title": "Automatización",

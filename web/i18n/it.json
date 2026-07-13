@@ -262,7 +262,12 @@
       "keyInvalid": "Chiave non valida, controllala",
       "removeKey": "Rimuovi chiave",
       "recommendedHint": "Modello consigliato per questo provider",
-      "setPrimaryFirst": "Imposta questo provider come primario per usare questo modello."
+      "setPrimaryFirst": "Imposta questo provider come primario per usare questo modello.",
+      "probe": "Testa modelli",
+      "probing": "Test in corso…",
+      "probeDone": "Test completato",
+      "probeError": "Test fallito",
+      "probeEmpty": "Nessun modello da testare"
     },
     "features": {
       "title": "Automazione",
