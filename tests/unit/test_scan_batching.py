@@ -1,0 +1,166 @@
+"""Batch scoring: analyze_offers_batch (array parse + per-offer fallback) and
+the run_scan batch path (chunking, drain, score coercion)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import pytest
+
+from app.config import load_settings
+from app.db import Database
+from app.models import ScanRequest
+from app.services import scanner_service as ss
+
+_COLS = [
+    "title",
+    "company",
+    "description",
+    "location",
+    "site",
+    "job_url",
+    "min_amount",
+    "max_amount",
+]
+
+
+def _offer(titolo: str) -> dict[str, Any]:
+    return {"titolo": titolo, "azienda": "Co", "descrizione": "React and TypeScript role"}
+
+
+class _BatchPM:
+    """Provider-manager stub. ``payload`` is returned by complete_json (or raised
+    if it's an Exception). No ``.settings`` → analyze_offer(s) use policy_override."""
+
+    def __init__(self, payload: Any) -> None:
+        self.payload = payload
+
+    def preview_scoring_model(self, _policy: Any) -> str:
+        return "fake/model:free"
+
+    def complete_json(self, prompt: str, max_tokens: int = 700, **kwargs: Any) -> Any:
+        if isinstance(self.payload, Exception):
+            raise self.payload
+        return self.payload
+
+
+def test_batch_empty_offers_returns_empty() -> None:
+    assert ss.analyze_offers_batch(_BatchPM({}), "CV", []) == []
+
+
+def test_batch_happy_path_returns_all_in_order() -> None:
+    pm = _BatchPM({"valutazioni": [{"punteggio": 8}, {"punteggio": 3}, {"punteggio": 6}]})
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B"), _offer("C")])
+    assert [o["punteggio"] for o in out] == [8, 3, 6]
+
+
+def test_batch_short_array_falls_back_per_offer(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Model returned only 2 of 3 → the 3rd slot is filled by a single call.
+    pm = _BatchPM({"valutazioni": [{"punteggio": 8}, {"punteggio": 3}]})
+    sentinel = {"punteggio": 99, "_fallback": True}
+    monkeypatch.setattr(ss, "analyze_offer", lambda **k: sentinel)
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B"), _offer("C")])
+    assert out[0]["punteggio"] == 8
+    assert out[1]["punteggio"] == 3
+    assert out[2] is sentinel
+
+
+def test_batch_invalid_elements_fall_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A non-dict element and a dict missing "punteggio" both trigger fallback.
+    pm = _BatchPM({"valutazioni": [{"punteggio": 8}, "garbage", {"nope": 1}]})
+    sentinel = {"punteggio": 55}
+    monkeypatch.setattr(ss, "analyze_offer", lambda **k: sentinel)
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B"), _offer("C")])
+    assert out[0]["punteggio"] == 8
+    assert out[1] is sentinel  # non-dict
+    assert out[2] is sentinel  # dict without punteggio
+
+
+def test_batch_exception_falls_back_all(monkeypatch: pytest.MonkeyPatch) -> None:
+    pm = _BatchPM(RuntimeError("boom"))
+    sentinel = {"punteggio": 7}
+    monkeypatch.setattr(ss, "analyze_offer", lambda **k: sentinel)
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B")])
+    assert len(out) == 2
+    assert all(o is sentinel for o in out)
+
+
+def test_batch_non_dict_response_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    # complete_json returns a dict without the array key → all slots fall back.
+    pm = _BatchPM({"unexpected": "shape"})
+    sentinel = {"punteggio": 4}
+    monkeypatch.setattr(ss, "analyze_offer", lambda **k: sentinel)
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B")])
+    assert all(o is sentinel for o in out)
+
+
+# ── run_scan batch path (end-to-end) ─────────────────────────────────────────
+
+
+def _fake_df(n: int) -> pd.DataFrame:
+    rows = [
+        {
+            "title": f"React Developer {i}",
+            "company": f"Co{i}",
+            "description": "React and TypeScript role",
+            "location": "Torino",
+            "site": "linkedin",
+            "job_url": f"http://x/{i}",  # no linkedin.com host → no recruiter fetch
+            "min_amount": None,
+            "max_amount": None,
+        }
+        for i in range(n)
+    ]
+    return pd.DataFrame(rows, columns=_COLS)
+
+
+def _payload() -> ScanRequest:
+    return ScanRequest(search_terms=["react developer"], sites=["linkedin"], location="Torino")
+
+
+class _ScanBatchPM:
+    """PM that answers both batch prompts (array) and single prompts (object),
+    returning a non-int score to also exercise coercion."""
+
+    def __init__(self) -> None:
+        self.batch_calls = 0
+        self.single_calls = 0
+
+    def preview_scoring_model(self, _policy: Any) -> str:
+        return "fake/model:free"
+
+    def complete_json(self, prompt: str, max_tokens: int = 700, **kwargs: Any) -> Any:
+        n = prompt.count("--- OFFERTA ")
+        if n == 0:
+            self.single_calls += 1
+            return {"punteggio": "8/10"}
+        self.batch_calls += 1
+        return {"valutazioni": [{"punteggio": "8/10"} for _ in range(n)]}
+
+
+def test_run_scan_batch_scores_all_and_coerces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ss, "scrape_jobs", lambda **k: _fake_df(5))
+    pm = _ScanBatchPM()
+    settings = load_settings(tmp_path)
+    settings.delay_tra_ricerche = 0.0
+    settings.scan_concurrency = 3
+    settings.scan_batch_size = 2
+    db = Database(tmp_path / "s.db")
+    try:
+        events = list(ss.run_scan(db, settings, pm, _payload()))
+    finally:
+        db.close()
+
+    analyzed = [e for e in events if e.get("status") == "analyzed"]
+    complete = next(e for e in events if e.get("status") == "complete")
+    assert len(analyzed) == 5
+    assert complete["totale_analizzati"] == 5
+    # 5 jobs, batch_size 2 → units [2, 2, 1]: two batched calls + one single call.
+    assert pm.batch_calls == 2
+    assert pm.single_calls == 1
+    # "8/10" coerced to int 8 for every job.
+    assert all(e["job"]["score"] == 8 for e in analyzed)

@@ -53,6 +53,7 @@ def _settings(tmp_path: Path, concurrency: int = 3):
     s = load_settings(tmp_path)
     s.scan_concurrency = concurrency
     s.delay_tra_ricerche = 0.0
+    s.scan_batch_size = 1  # exercise the per-job path here; batching has its own suite
     return s
 
 

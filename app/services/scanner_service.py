@@ -280,26 +280,11 @@ def pre_filtro(titolo: str, descrizione: str) -> tuple[bool, str]:
     return False, ""
 
 
-def _analysis_prompt(
-    profile_markdown: str,
-    titolo: str,
-    azienda: str,
-    descrizione: str,
-    extra_context: str = "",
-) -> str:
-    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
-    return f"""Analizza questa offerta IT e rispondi SOLO con JSON valido, senza testo extra.
-
-CV candidato:
-{profile_markdown[:3500]}
-{extra}
-OFFERTA:
-Titolo: {titolo}
-Azienda: {azienda}
-Descrizione: {descrizione[:1800]}
-
-JSON richiesto:
-{{
+# Per-offer analysis schema, shared by the single-offer prompt and the batch
+# prompt so both stay identical (job_detail.js depends on this exact shape:
+# radar match_axes, skills_match, requisiti…). Plain string with literal braces
+# — inserted by concatenation, so no f-string escaping.
+_PER_OFFER_SCHEMA = """{
   "punteggio": <1-10>,
   "programmazione_richiesta": "Bassa|Media|Alta",
   "smart_working": "Sì|No|Non specificato",
@@ -317,20 +302,68 @@ JSON richiesto:
   "requisiti": ["max 5 requisiti chiave dell'offerta, brevi"],
   "responsabilita": ["max 5 responsabilità principali, brevi"],
   "benefit": ["max 5 benefit menzionati, brevi"],
-  "skills_match": {{
+  "skills_match": {
     "hai": ["skills che il candidato ha e l'offerta richiede"],
     "mancano": ["skills richieste che il candidato non ha"]
-  }},
+  },
   "livello_richiesto": "internship|entry|junior|mid|senior|lead",
-  "match_axes": {{
+  "match_axes": {
     "skills_match": <0-10>,
     "seniority_match": <0-10>,
     "remote_match": <0-10>,
     "salary_match": <0-10>,
     "contract_match": <0-10>
-  }}
-}}
-"""
+  }
+}"""
+
+
+def _analysis_prompt(
+    profile_markdown: str,
+    titolo: str,
+    azienda: str,
+    descrizione: str,
+    extra_context: str = "",
+) -> str:
+    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
+    return (
+        "Analizza questa offerta IT e rispondi SOLO con JSON valido, senza testo extra.\n\n"
+        f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
+        f"OFFERTA:\nTitolo: {titolo}\nAzienda: {azienda}\n"
+        f"Descrizione: {descrizione[:1800]}\n\n"
+        "JSON richiesto:\n" + _PER_OFFER_SCHEMA + "\n"
+    )
+
+
+def _batch_analysis_prompt(
+    profile_markdown: str,
+    offers: list[dict[str, Any]],
+    extra_context: str = "",
+) -> str:
+    """Prompt for scoring N offers for the SAME candidate in one LLM call.
+
+    The CV is sent once; offers are numbered 1..N; the model must return a JSON
+    object ``{"valutazioni": [ ...N objects... ]}`` in the same order, each with
+    the per-offer schema. Wrapped in an object (not a bare array) so the shared
+    ``complete_json`` extractor returns a dict as everywhere else.
+    """
+    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
+    n = len(offers)
+    blocks = [
+        f"--- OFFERTA {i} ---\n"
+        f"Titolo: {off['titolo']}\nAzienda: {off['azienda']}\n"
+        f"Descrizione: {str(off['descrizione'])[:1500]}"
+        for i, off in enumerate(offers, 1)
+    ]
+    offers_text = "\n\n".join(blocks)
+    return (
+        f"Analizza le {n} offerte IT qui sotto per lo STESSO candidato e rispondi "
+        "SOLO con JSON valido, senza testo extra.\n\n"
+        f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
+        f"OFFERTE ({n}):\n{offers_text}\n\n"
+        f'Rispondi con un oggetto JSON con una sola chiave "valutazioni" = array di '
+        f"ESATTAMENTE {n} oggetti, UNO per offerta nello STESSO ordine "
+        "(OFFERTA 1 -> primo elemento). Ogni oggetto ha questo schema:\n" + _PER_OFFER_SCHEMA + "\n"
+    )
 
 
 def _tokenize(text: str) -> set[str]:
@@ -464,6 +497,19 @@ def _fallback_analysis(
     }
 
 
+def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
+    """Provider/model kwargs for a scoring call: pin the user-chosen scoring
+    model if set (no failover), else auto-select via the speed-biased policy.
+    getattr-guarded so test stubs without ``.settings`` still work.
+    """
+    settings = getattr(provider_manager, "settings", None)
+    scoring_model = getattr(settings, "scoring_model", None)
+    if scoring_model:
+        order = getattr(settings, "llm_provider_order", None) or []
+        return {"provider_name": order[0] if order else None, "model_name": scoring_model}
+    return {"policy_override": _SCORING_POLICY}
+
+
 def analyze_offer(
     provider_manager: ProviderManager,
     profile_markdown: str,
@@ -483,19 +529,9 @@ def analyze_offer(
         prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
     prompt = _analysis_prompt(prompt_markdown, titolo, azienda, descrizione, extra_context)
     try:
-        # Pin the user-chosen scoring model if set, else auto-select (speed-biased).
-        # getattr-guarded so test stubs without ``.settings`` still work.
-        settings = getattr(provider_manager, "settings", None)
-        scoring_model = getattr(settings, "scoring_model", None)
-        if scoring_model:
-            order = getattr(settings, "llm_provider_order", None) or []
-            call_kwargs: dict[str, Any] = {
-                "provider_name": order[0] if order else None,
-                "model_name": scoring_model,
-            }
-        else:
-            call_kwargs = {"policy_override": _SCORING_POLICY}
-        result = provider_manager.complete_json(prompt=prompt, max_tokens=200, **call_kwargs)
+        result = provider_manager.complete_json(
+            prompt=prompt, max_tokens=200, **_scoring_call_kwargs(provider_manager)
+        )
         if not isinstance(result, dict):
             return _fallback_analysis(
                 "invalid response",
@@ -513,6 +549,70 @@ def analyze_offer(
             azienda=azienda,
             descrizione=descrizione,
         )
+
+
+def analyze_offers_batch(
+    provider_manager: ProviderManager,
+    profile_markdown: str,
+    offers: list[dict[str, Any]],
+    *,
+    privacy: bool = False,
+    extra_context: str = "",
+    candidate_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """Score N offers in one LLM call, returning exactly ``len(offers)`` analyses
+    in order. A batch that fails, returns non-JSON, or yields too few / invalid
+    elements degrades gracefully: each missing slot is filled by a per-offer
+    :func:`analyze_offer` (which itself falls back to a heuristic). Never raises.
+    """
+    if not offers:
+        return []
+
+    prompt_markdown = profile_markdown
+    if privacy:
+        prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
+
+    parsed: list[Any] = []
+    try:
+        prompt = _batch_analysis_prompt(prompt_markdown, offers, extra_context)
+        # Token budget = fixed reasoning headroom + per-offer output. The scoring
+        # target is gpt-oss-120b, a REASONING model that spends completion tokens
+        # thinking BEFORE emitting the array — a tight budget (e.g. 1k for 3
+        # offers) is fully consumed by reasoning, leaving an empty completion and
+        # voiding the batch. ~1600 base + 500/offer survives it (verified live:
+        # 3 offers returned a full valid array at ~3k tokens, empty at ~1k).
+        result = provider_manager.complete_json(
+            prompt=prompt,
+            max_tokens=500 * len(offers) + 1600,
+            **_scoring_call_kwargs(provider_manager),
+        )
+        if isinstance(result, dict):
+            raw = result.get("valutazioni") or result.get("evaluations") or result.get("results")
+            if isinstance(raw, list):
+                parsed = raw
+    except Exception as exc:
+        log.warning("Batch scoring failed (n=%d): %s; falling back per-offer", len(offers), exc)
+
+    out: list[dict[str, Any]] = []
+    for i, off in enumerate(offers):
+        item = parsed[i] if i < len(parsed) else None
+        if isinstance(item, dict) and "punteggio" in item:
+            out.append(item)
+        else:
+            # Missing / malformed slot: single-offer scoring for just this one.
+            out.append(
+                analyze_offer(
+                    provider_manager=provider_manager,
+                    profile_markdown=profile_markdown,
+                    titolo=off["titolo"],
+                    azienda=off["azienda"],
+                    descrizione=off["descrizione"],
+                    privacy=privacy,
+                    extra_context=extra_context,
+                    candidate_name=candidate_name,
+                )
+            )
+    return out
 
 
 def run_scan(
@@ -622,20 +722,11 @@ def run_scan(
     totale_scartati = 0
     new_flags_cleared = False
 
-    def _score_job(item: dict[str, Any]) -> dict[str, Any]:
-        """Score one offer (LLM) + best-effort recruiter fetch. Runs on a worker
-        thread; DB writes happen back on the generator thread."""
+    def _finalize_scored(item: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+        """Attach salary, coerce the score to int, best-effort recruiter fetch.
+        Shared by the single- and batch-scoring paths. Runs on a worker thread;
+        DB writes happen back on the generator thread."""
         row = item["row"]
-        analysis = analyze_offer(
-            provider_manager=provider_manager,
-            profile_markdown=profile_markdown,
-            titolo=item["titolo"],
-            azienda=item["azienda"],
-            descrizione=item["descrizione"],
-            privacy=privacy,
-            extra_context=onboarding,
-            candidate_name=candidate_name,
-        )
         analysis = dict(analysis)
         analysis["stipendio_min"] = row.get("min_amount") or "N/D"
         analysis["stipendio_max"] = row.get("max_amount") or "N/D"
@@ -660,6 +751,42 @@ def run_scan(
             "analysis": analysis,
             "recruiter": recruiter,
         }
+
+    def _score_job(item: dict[str, Any]) -> dict[str, Any]:
+        """Score one offer (one LLM call) + finalize."""
+        analysis = analyze_offer(
+            provider_manager=provider_manager,
+            profile_markdown=profile_markdown,
+            titolo=item["titolo"],
+            azienda=item["azienda"],
+            descrizione=item["descrizione"],
+            privacy=privacy,
+            extra_context=onboarding,
+            candidate_name=candidate_name,
+        )
+        return _finalize_scored(item, analysis)
+
+    def _score_batch(chunk: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Score a chunk of offers in one LLM call (per-offer fallback inside
+        analyze_offers_batch) + finalize each. Returns one result per offer."""
+        analyses = analyze_offers_batch(
+            provider_manager=provider_manager,
+            profile_markdown=profile_markdown,
+            offers=chunk,
+            privacy=privacy,
+            extra_context=onboarding,
+            candidate_name=candidate_name,
+        )
+        return [
+            _finalize_scored(item, analysis) for item, analysis in zip(chunk, analyses, strict=True)
+        ]
+
+    def _score_unit(unit: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Score a work unit: >1 offer → one batched call; a lone offer → single
+        call (avoids wasting a batch prompt on the last odd job)."""
+        if len(unit) > 1:
+            return _score_batch(unit)
+        return [_score_job(unit[0])]
 
     # Flat (location, term) pairs so the existing single-loop body stays intact;
     # batch_no drives global progress across the whole location x term grid.
@@ -801,46 +928,55 @@ def run_scan(
             )
 
         # Pass 2 (concurrent): score surviving jobs, emit each as it resolves.
+        # Jobs are chunked into work units of ``scan_batch_size`` (default >1 =
+        # one LLM call per N offers → fewer free-tier 429s, faster); each unit is
+        # one future. Concurrency bounds concurrent LLM *calls*, so batching cuts
+        # total calls. A drained unit yields one "analyzed" event per offer.
         if to_score and not cancelled():
-            workers = max(1, min(settings.scan_concurrency, len(to_score)))
+            batch_size = max(1, settings.scan_batch_size)
+            units = [to_score[i : i + batch_size] for i in range(0, len(to_score), batch_size)]
+            workers = max(1, min(settings.scan_concurrency, len(units)))
             pool = ThreadPoolExecutor(max_workers=workers)
             try:
-                futures = {pool.submit(_score_job, item): item for item in to_score}
+                futures = {pool.submit(_score_unit, unit): unit for unit in units}
                 for fut in as_completed(futures):
                     if cancelled():
                         break
                     try:
-                        result = fut.result()
-                    except Exception as exc:  # analyze_offer degrades internally
+                        results = fut.result()
+                    except Exception as exc:  # analyze_offer(s) degrade internally
                         log.warning("scoring task failed: %s", exc)
                         continue
-                    db.update_job_analysis(job_id=result["job_id"], analysis=result["analysis"])
-                    if result["recruiter"]:
-                        db.upsert_recruiter(result["job_id"], result["recruiter"])
-                    totale_analizzati += 1
+                    for result in results:
+                        db.update_job_analysis(job_id=result["job_id"], analysis=result["analysis"])
+                        if result["recruiter"]:
+                            db.upsert_recruiter(result["job_id"], result["recruiter"])
+                        totale_analizzati += 1
 
-                    elapsed_ms = int(time.time() * 1000) - started_at_ms
-                    seen_now = (idx * max(1, settings.max_annunci)) + totale_analizzati
-                    eta_ms = (
-                        int((elapsed_ms / max(1, seen_now)) * (expected_total - seen_now))
-                        if seen_now > 0
-                        else 0
-                    )
-                    yield {
-                        "status": "analyzed",
-                        "job": {
-                            "titolo": result["titolo"],
-                            "azienda": result["azienda"],
-                            "score": result["analysis"].get("punteggio", 0),
-                        },
-                        "current": seen_now,
-                        "total": expected_total,
-                        "percent": (
-                            min(99, int(seen_now * 100 / expected_total)) if expected_total else 0
-                        ),
-                        "elapsed_ms": elapsed_ms,
-                        "eta_ms": eta_ms,
-                    }
+                        elapsed_ms = int(time.time() * 1000) - started_at_ms
+                        seen_now = (idx * max(1, settings.max_annunci)) + totale_analizzati
+                        eta_ms = (
+                            int((elapsed_ms / max(1, seen_now)) * (expected_total - seen_now))
+                            if seen_now > 0
+                            else 0
+                        )
+                        yield {
+                            "status": "analyzed",
+                            "job": {
+                                "titolo": result["titolo"],
+                                "azienda": result["azienda"],
+                                "score": result["analysis"].get("punteggio", 0),
+                            },
+                            "current": seen_now,
+                            "total": expected_total,
+                            "percent": (
+                                min(99, int(seen_now * 100 / expected_total))
+                                if expected_total
+                                else 0
+                            ),
+                            "elapsed_ms": elapsed_ms,
+                            "eta_ms": eta_ms,
+                        }
             finally:
                 pool.shutdown(wait=False, cancel_futures=True)
 

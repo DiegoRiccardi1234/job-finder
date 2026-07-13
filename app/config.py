@@ -72,6 +72,10 @@ class AppSettings:
     # Max concurrent LLM scoring calls during a scan. Bounded so a burst doesn't
     # trip provider rate limits; DB writes stay serialized by the connection RLock.
     scan_concurrency: int = 4
+    # Jobs scored per LLM call during a scan. >=2 sends N offers in one request
+    # (fewer calls = less free-tier 429 exposure, ~4x faster in A/B testing); a
+    # short/invalid batch falls back to per-offer scoring. 1 = one job per call.
+    scan_batch_size: int = 3
 
 
 def _load_optional_json(path: Path) -> dict[str, Any]:
@@ -316,4 +320,5 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         glm_base_url=glm_base_url,
         model_selection_policy=merged_policy,
         scan_concurrency=max(1, int(cfg.get("scan_concurrency", 4))),
+        scan_batch_size=max(1, int(cfg.get("scan_batch_size", 3))),
     )
