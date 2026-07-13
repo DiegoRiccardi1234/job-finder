@@ -61,6 +61,9 @@ class AppSettings:
     # Tesseract language list passed to ``image_to_string(lang=...)`` (``+`` joined).
     # Default covers the 5 UI locales; the bundle ships ``eng+ita+spa+fra+deu+osd``.
     ocr_languages: str = "eng+ita+spa+fra+deu"
+    # Max concurrent LLM scoring calls during a scan. Bounded so a burst doesn't
+    # trip provider rate limits; DB writes stay serialized by the connection RLock.
+    scan_concurrency: int = 4
 
 
 def _load_optional_json(path: Path) -> dict[str, Any]:
@@ -284,4 +287,5 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         mistral_api_key=mistral_api_key,
         glm_base_url=glm_base_url,
         model_selection_policy=merged_policy,
+        scan_concurrency=max(1, int(cfg.get("scan_concurrency", 4))),
     )

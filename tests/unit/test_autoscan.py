@@ -18,12 +18,15 @@ class FakeContainer:
         self.settings = None
         self.providers = None
         self._has = has_provider
+        from app.services.scan_control import ScanControl
+
+        self.scan_control = ScanControl()
 
     def has_provider_configured(self) -> bool:
         return self._has
 
 
-def _fake_run_scan(db, settings, provider_manager, payload):
+def _fake_run_scan(db, settings, provider_manager, payload, cancel_check=None):
     job_id, _, _ = db.upsert_job({"titolo": "Hot role", "azienda": "X", "link": "l1"})
     db.update_job_analysis(job_id, {"punteggio": 9})
     yield {"status": "complete"}

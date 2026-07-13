@@ -61,7 +61,6 @@ class AutoScanScheduler:
         self._clock = clock
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._running = threading.Lock()
 
     # ---- config helpers ----
 
@@ -152,7 +151,9 @@ class AutoScanScheduler:
 
     def run_once(self) -> dict[str, Any]:
         """Run one scan synchronously and record new high-score highlights."""
-        if not self._running.acquire(blocking=False):
+        # Shared single-scan slot: never overlap a manual scan (they'd both call
+        # begin_scan and double-spend LLM quota).
+        if not self._container.scan_control.try_begin():
             return {"status": "already_running"}
         try:
             try:
@@ -164,6 +165,7 @@ class AutoScanScheduler:
                     settings=self._container.settings,
                     provider_manager=self._container.providers,
                     payload=payload,
+                    cancel_check=self._container.scan_control.is_cancelled,
                 ):
                     pass  # drain the generator; persistence happens inside run_scan
 
@@ -194,7 +196,7 @@ class AutoScanScheduler:
                 log.warning("autoscan run failed: %s", exc)
                 return {"status": "error", "error": str(exc)}
         finally:
-            self._running.release()
+            self._container.scan_control.end()
 
     def _maybe_native_notify(self, pending: dict[str, Any]) -> None:
         """Fire a native (tray) desktop notification for new high-scoring jobs.
@@ -251,7 +253,7 @@ class AutoScanScheduler:
             "enabled": self.enabled(),
             "interval_hours": interval,
             "threshold": self.threshold(),
-            "running": self._running.locked(),
+            "running": self._container.scan_control.running,
             "last_run_ts": last or None,
             "next_run_ts": (last + interval * 3600) if last else None,
             "pending": self.pending(),

@@ -33,6 +33,8 @@ def build_router(container: AppContainer) -> APIRouter:
         # must not kick off an unauthenticated, provider-less scrape loop.
         rate_limit.check(request, bucket="scan", limit=5, window_seconds=60)
         container.require_provider()
+        if container.scan_control.running:
+            raise HTTPException(status_code=409, detail="scan_in_progress")
         term_list = (
             [t.strip() for t in search_terms.split(",") if t.strip()] if search_terms else []
         )
@@ -55,16 +57,22 @@ def build_router(container: AppContainer) -> APIRouter:
         def event_generator() -> Iterator[str]:
             import json
 
+            if not container.scan_control.try_begin():
+                yield f"data: {json.dumps({'error': 'scan_in_progress'})}\n\n"
+                return
             try:
                 for event in run_scan(
                     db=container.db,
                     settings=container.settings,
                     provider_manager=container.providers,
                     payload=payload,
+                    cancel_check=container.scan_control.is_cancelled,
                 ):
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            finally:
+                container.scan_control.end()
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -72,17 +80,32 @@ def build_router(container: AppContainer) -> APIRouter:
     def scan(request: Request, payload: ScanRequest) -> dict[str, Any]:
         rate_limit.check(request, bucket="scan", limit=5, window_seconds=60)
         container.require_provider()
+        if not container.scan_control.try_begin():
+            raise HTTPException(status_code=409, detail="scan_in_progress")
         result = {}
-        for event in run_scan(
-            db=container.db,
-            settings=container.settings,
-            provider_manager=container.providers,
-            payload=payload,
-        ):
-            if "status" in event and event["status"] == "complete":
-                result = event
-            elif "error" in event:
-                raise HTTPException(status_code=500, detail=event["error"])
+        try:
+            for event in run_scan(
+                db=container.db,
+                settings=container.settings,
+                provider_manager=container.providers,
+                payload=payload,
+                cancel_check=container.scan_control.is_cancelled,
+            ):
+                if event.get("status") == "complete":
+                    result = event
+                elif "error" in event:
+                    raise HTTPException(status_code=500, detail=event["error"])
+        finally:
+            container.scan_control.end()
         return result
+
+    @router.post("/api/scan/cancel")
+    def scan_cancel() -> dict[str, Any]:
+        """Signal the in-flight scan to stop promptly (user hit stop / tab closed)
+        so it stops spending LLM quota. No-op when nothing is running."""
+        running = container.scan_control.running
+        if running:
+            container.scan_control.cancel()
+        return {"ok": True, "cancelling": running}
 
     return router

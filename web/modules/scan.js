@@ -221,6 +221,9 @@ async function _onScanSubmit(event) {
 
   document.getElementById("cancelScanBtn").onclick = () => {
     evtSource.close();
+    // Tell the server to stop too — closing the EventSource alone leaves the
+    // scan churning (and spending LLM quota) in the background.
+    fetch("/api/scan/cancel", { method: "POST" }).catch(() => {});
     overlay.style.display = "none";
     overlay.classList.remove("minimized");
     Promise.all([loadJobs(), loadRecommendations()]);

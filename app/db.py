@@ -141,11 +141,19 @@ class Database:
         )
         run_id = int(cur.lastrowid or 0)
         self.conn.commit()
+        # NB: previous "new" badges are cleared lazily via clear_new_flags() only
+        # once this run actually scrapes rows — a scan whose scrape fails entirely
+        # (e.g. an upstream selector regression) must not wipe the badges with
+        # nothing to replace them.
+        return run_id
 
-        # Le nuove card appartengono solo all'ultima scansione.
+    @_synchronized
+    def clear_new_flags(self) -> None:
+        """Reset the ``is_new`` badge on every job. Called once per scan, after
+        the first successful scrape, so genuinely-new jobs upserted afterwards
+        keep their badge while a failed scrape leaves the prior run's badges."""
         self.conn.execute("UPDATE jobs SET is_new = 0")
         self.conn.commit()
-        return run_id
 
     @_synchronized
     def finish_scan(

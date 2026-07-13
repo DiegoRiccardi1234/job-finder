@@ -36,6 +36,11 @@ class AppContainer:
         self.providers._db = self.db
         self.providers.initialize()
 
+        # Single-scan coordinator (manual scan + auto-scan share it) + cancel flag.
+        from app.services.scan_control import ScanControl
+
+        self.scan_control = ScanControl()
+
         # In-process scheduler for the optional auto-scan feature. Created
         # inert; started by the app lifespan, stopped on shutdown.
         from app.services.autoscan import AutoScanScheduler
