@@ -55,7 +55,9 @@ function _renderExperience(summary) {
   // Show a year count only when it's meaningful (>= 1). A recent grad with a few
   // months reads as just "Junior", not "Junior · 0 years".
   if (years !== undefined && years !== null && years !== "" && Number(years) >= 1) {
-    headline.push(`<span class="exp-years">${escapeHtml(String(years))} ${t("profile.years") || "years"}</span>`);
+    const yearWord =
+      Number(years) === 1 ? t("profile.year") || "year" : t("profile.years") || "years";
+    headline.push(`<span class="exp-years">${escapeHtml(String(years))} ${yearWord}</span>`);
   }
   if (headline.length) {
     parts.push(`<p class="exp-headline">${headline.join(" · ")}</p>`);
@@ -78,9 +80,17 @@ function _renderExperience(summary) {
     );
   }
   if (education) {
-    parts.push(
-      `<div class="exp-meta"><strong>${t("profile.education") || "Education"}:</strong> ${escapeHtml(String(education))}</div>`,
-    );
+    // education is either a graduation year (string/number) or an object
+    // {level, field} from the LLM summary — format the object, don't String() it.
+    const eduText =
+      education && typeof education === "object"
+        ? [education.level, education.field].filter(Boolean).join(" — ")
+        : String(education);
+    if (eduText) {
+      parts.push(
+        `<div class="exp-meta"><strong>${t("profile.education") || "Education"}:</strong> ${escapeHtml(eduText)}</div>`,
+      );
+    }
   }
   el.innerHTML = parts.length ? parts.join("\n") : `<p class="micro">${t("profile.emptyField") || "—"}</p>`;
 }

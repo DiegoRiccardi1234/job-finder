@@ -74,7 +74,8 @@
     "linkedinPaste": "…o pega el texto de tu perfil (se usa si no se puede obtener de LinkedIn)",
     "linkedinPasteSaved": "Texto del perfil guardado",
     "linkedinFetched": "Perfil obtenido y guardado",
-    "linkedinBlocked": "URL guardada — no se pudo obtener el perfil; pega el texto para enriquecer el contexto de IA"
+    "linkedinBlocked": "URL guardada — no se pudo obtener el perfil; pega el texto para enriquecer el contexto de IA",
+    "year": "año"
   },
   "jobSearch": {
     "title": "Buscar",

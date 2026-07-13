@@ -187,6 +187,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 job_info,
                 redact=container.feature_enabled("privacy_mode", True),
                 candidate_name=candidate_name,
+                restore_contact_info=True,
             )
             container.db.save_job_analysis_field(job_id, "tailored_resume", content)
         except Exception as e:

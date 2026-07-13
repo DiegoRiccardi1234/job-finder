@@ -843,6 +843,7 @@ document.getElementById("searchText").addEventListener("change", loadJobs);
 document.getElementById("minScore").addEventListener("change", loadJobs);
 document.getElementById("maxAgeDays").addEventListener("change", loadJobs);
 document.getElementById("statusFilter").addEventListener("change", loadJobs);
+document.getElementById("remoteOnly").addEventListener("change", loadJobs);
 {
   const usageRangeSel = document.getElementById("usageRange");
   if (usageRangeSel) usageRangeSel.addEventListener("change", () => loadUsage());

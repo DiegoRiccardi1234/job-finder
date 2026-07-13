@@ -74,7 +74,8 @@
     "linkedinPaste": "…ou collez le texte de votre profil (utilisé si LinkedIn ne peut pas être récupéré)",
     "linkedinPasteSaved": "Texte du profil enregistré",
     "linkedinFetched": "Profil récupéré et enregistré",
-    "linkedinBlocked": "URL enregistrée — impossible de récupérer le profil ; collez le texte pour enrichir le contexte IA"
+    "linkedinBlocked": "URL enregistrée — impossible de récupérer le profil ; collez le texte pour enrichir le contexte IA",
+    "year": "an"
   },
   "jobSearch": {
     "title": "Recherche",

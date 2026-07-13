@@ -74,7 +74,8 @@
     "linkedinPaste": "…oder füge deinen Profiltext ein (wird genutzt, wenn LinkedIn nicht abrufbar ist)",
     "linkedinPasteSaved": "Profiltext gespeichert",
     "linkedinFetched": "Profil abgerufen und gespeichert",
-    "linkedinBlocked": "URL gespeichert — Profil konnte nicht abgerufen werden; füge den Text ein, um den KI-Kontext zu erweitern"
+    "linkedinBlocked": "URL gespeichert — Profil konnte nicht abgerufen werden; füge den Text ein, um den KI-Kontext zu erweitern",
+    "year": "Jahr"
   },
   "jobSearch": {
     "title": "Job",

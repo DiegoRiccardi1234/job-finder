@@ -74,7 +74,8 @@
     "linkedinPaste": "…oppure incolla il testo del tuo profilo (usato se LinkedIn non è recuperabile)",
     "linkedinPasteSaved": "Testo profilo salvato",
     "linkedinFetched": "Profilo recuperato e salvato",
-    "linkedinBlocked": "URL salvato — impossibile recuperare il profilo; incolla il testo per arricchire il contesto AI"
+    "linkedinBlocked": "URL salvato — impossibile recuperare il profilo; incolla il testo per arricchire il contesto AI",
+    "year": "anno"
   },
   "jobSearch": {
     "title": "Cerca",

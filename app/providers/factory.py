@@ -306,7 +306,9 @@ class ProviderManager:
         except Exception as exc:
             log.debug("usage record skipped: %s", exc)
 
-    def _ranked_models_for(self, provider: LLMProvider, limit: int) -> list[str]:
+    def _ranked_models_for(
+        self, provider: LLMProvider, limit: int, policy_override: dict[str, Any] | None = None
+    ) -> list[str]:
         """Up to ``limit`` models to try on ``provider``, best-first.
 
         Recent-429 models are de-ranked (sunk to the bottom) so a single request
@@ -314,13 +316,18 @@ class ProviderManager:
         another provider. Uses the 5-min cached catalog (``get_models``) so this
         adds no per-request network call on the happy path. Falls back to a
         single best-effort model when no live catalog is available.
+
+        ``policy_override`` (e.g. the speed-biased scan-scoring policy) re-ranks
+        the live catalog for one call and ignores the global ``preferred_model``
+        pin, so scoring can pick a fast small model while chat/generation keep the
+        quality default. Fully churn-safe — it ranks whatever the provider serves.
         """
         models = self.get_models(provider.name).get("models") or []
         if models:
             ranked = rank_models(
                 models,
-                preferred_model=self.settings.preferred_model,
-                policy=self.settings.model_selection_policy,
+                preferred_model=None if policy_override else self.settings.preferred_model,
+                policy=policy_override or self.settings.model_selection_policy,
                 penalized=self._recent_429_models(),
                 limit=limit,
             )
@@ -342,7 +349,10 @@ class ProviderManager:
     _INTRA_PROVIDER_MODELS = 3
 
     def _failover_candidates(
-        self, explicit_provider: str | None, explicit_model: str | None
+        self,
+        explicit_provider: str | None,
+        explicit_model: str | None,
+        policy_override: dict[str, Any] | None = None,
     ) -> list[tuple[LLMProvider, str]]:
         """Ordered ``[(provider, model)]`` to attempt for one request.
 
@@ -361,7 +371,7 @@ class ProviderManager:
                 return []
             if explicit_model:
                 return [(provider, explicit_model)]
-            return [(provider, m) for m in self._ranked_models_for(provider, K)]
+            return [(provider, m) for m in self._ranked_models_for(provider, K, policy_override)]
 
         candidates: list[tuple[LLMProvider, str]] = []
         seen_pairs: set[tuple[str, str]] = set()
@@ -374,7 +384,7 @@ class ProviderManager:
                 seen_pairs.add(pair)
 
         if self.active_provider is not None:
-            for model in self._ranked_models_for(self.active_provider, K):
+            for model in self._ranked_models_for(self.active_provider, K, policy_override):
                 add(self.active_provider, model)
             seen_providers.add(self.active_provider.name)
 
@@ -392,7 +402,7 @@ class ProviderManager:
                 usable = False
             if not usable:
                 continue
-            for model in self._ranked_models_for(provider, 1):
+            for model in self._ranked_models_for(provider, 1, policy_override):
                 add(provider, model)
             seen_providers.add(name)
         return candidates
@@ -417,8 +427,9 @@ class ProviderManager:
         explicit_provider: str | None,
         explicit_model: str | None,
         call: Callable[[LLMProvider, str], _RetryT],
+        policy_override: dict[str, Any] | None = None,
     ) -> _RetryT:
-        candidates = self._failover_candidates(explicit_provider, explicit_model)
+        candidates = self._failover_candidates(explicit_provider, explicit_model, policy_override)
         if not candidates:
             raise RuntimeError("No LLM provider available")
         last_exc: Exception | None = None
@@ -452,13 +463,24 @@ class ProviderManager:
         max_tokens: int = 700,
         provider_name: str | None = None,
         model_name: str | None = None,
+        policy_override: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return self._run_with_failover(
             endpoint="complete_json",
             explicit_provider=provider_name,
             explicit_model=model_name,
             call=lambda p, m: p.complete_json(prompt=prompt, model=m, max_tokens=max_tokens),
+            policy_override=policy_override,
         )
+
+    def preview_scoring_model(self, policy_override: dict[str, Any] | None = None) -> str:
+        """Best (provider, model) the next scoring call would try — for logging.
+
+        Returns just the model id of the first failover candidate under
+        ``policy_override``, or ``"none"`` when no provider is available.
+        """
+        candidates = self._failover_candidates(None, None, policy_override)
+        return candidates[0][1] if candidates else "none"
 
     def chat(
         self,

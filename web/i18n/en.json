@@ -74,7 +74,8 @@
     "linkedinPaste": "…or paste your profile text (used if LinkedIn can't be fetched)",
     "linkedinPasteSaved": "Profile text saved",
     "linkedinFetched": "Profile fetched and saved",
-    "linkedinBlocked": "URL saved — couldn't fetch the profile; paste the text to enrich AI context"
+    "linkedinBlocked": "URL saved — couldn't fetch the profile; paste the text to enrich AI context",
+    "year": "year"
   },
   "jobSearch": {
     "title": "Job",

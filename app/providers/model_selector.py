@@ -125,6 +125,16 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
     if prefer_fast and size_b >= 200:
         score -= 5
 
+    # prefer_free: hard-bias toward ":free" models. On a credit-less OpenRouter
+    # account every paid model returns 403, so scan scoring (which sets this) must
+    # never pick one — a big penalty on non-free models keeps selection on the
+    # free tier without inflating free_bonus (which would hoist rate-limited free
+    # models over genuinely better ones and feed 429 storms).
+    if bool((policy or {}).get("prefer_free", False)) and not name.endswith(":free"):
+        # Big enough to always lose to any ":free" model, small enough to stay
+        # above the -500 hard-avoid cutoff so an all-paid catalog still ranks.
+        score += _weight(policy, "paid_penalty", -300)
+
     return score
 
 

@@ -146,6 +146,28 @@ from app.services.recruiter_scrape import fetch_recruiter
 
 log = get_logger(__name__)
 
+# Speed-biased model policy for scan scoring. Scoring a job (0-10 + JSON) barely
+# needs model quality but is high-volume, so we bias hard toward fast/small
+# models (flash/turbo/instant, size-penalised) and drop the global preferred_model
+# pin. Passed as ``policy_override`` so it re-ranks the provider's LIVE catalog —
+# no hardcoded model id, so it survives OpenRouter's changing catalog. Chat and
+# letter generation keep the quality default (they don't pass this).
+_SCORING_POLICY: dict[str, Any] = {
+    "prefer_fast": True,
+    "prefer_quality": False,
+    "prefer_free": True,
+    "max_cost_tier": "low",
+    "weights": {
+        "size": 4,
+        "speed": 25,
+        "family": 20,
+        "instruct": 25,
+        "chat": 10,
+        "json": 12,
+        "reasoning": 0,
+    },
+}
+
 try:
     from jobspy import scrape_jobs
 except ImportError:  # pragma: no cover
@@ -448,7 +470,9 @@ def analyze_offer(
         prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
     prompt = _analysis_prompt(prompt_markdown, titolo, azienda, descrizione, extra_context)
     try:
-        result = provider_manager.complete_json(prompt=prompt, max_tokens=500)
+        result = provider_manager.complete_json(
+            prompt=prompt, max_tokens=500, policy_override=_SCORING_POLICY
+        )
         if not isinstance(result, dict):
             return _fallback_analysis(
                 "invalid response",
@@ -498,6 +522,10 @@ def run_scan(
     privacy = db.get_preference("feature_privacy_mode", "1") not in ("0", "false", "off", "")
     onboarding = onboarding_context(db)
     candidate_name = profile.get("name") if profile else None
+    log.info(
+        "Scan scoring model (speed-biased): %s",
+        provider_manager.preview_scoring_model(_SCORING_POLICY),
+    )
 
     terms = payload.search_terms or settings.default_search_terms
     exp_levels = list(payload.experience_levels or [])

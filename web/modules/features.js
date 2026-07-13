@@ -277,10 +277,8 @@ export function initFeatures({ loadJobs }) {
       showToast(`${t("toast.actionError")}: ${error.message}`, "error");
     }
   };
-  ["featureToggleList", "profileFeatureToggleList"].forEach((id) => {
-    const list = document.getElementById(id);
-    if (list) list.addEventListener("change", onFeatureToggle);
-  });
+  const featureToggleList = document.getElementById("profileFeatureToggleList");
+  if (featureToggleList) featureToggleList.addEventListener("change", onFeatureToggle);
 
   const refreshSkillGapBtn = document.getElementById("refreshSkillGapBtn");
   if (refreshSkillGapBtn) {

@@ -16,7 +16,7 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.services.pii import redact_pii, restore_pii
+from app.services.pii import redact_pii, restore_contacts, restore_pii
 
 if TYPE_CHECKING:
     from app.providers.factory import ProviderManager
@@ -94,13 +94,46 @@ def build_prompt(
     return f"{task}\n{extra}\nCV candidato:\n{profile_markdown[:3500]}\n\n{offer_block}{lang_line}{tail}"
 
 
+def _stringify_content(value: Any) -> str:
+    """Render an LLM content value as readable plain text / markdown.
+
+    Weak models sometimes return a nested object/array for a field the prompt
+    asked to be a string (e.g. interview-prep sections). A plain ``str(dict)``
+    would surface a Python repr (``{'## Domande': [...]}``) to the user, so we
+    walk the structure into readable text instead. The frontend renders this as
+    ``textContent`` (features.js), so markdown-ish plain text is enough.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        parts = [_stringify_content(item) for item in value]
+        return "\n".join(p for p in parts if p)
+    if isinstance(value, dict):
+        parts = []
+        for key, val in value.items():
+            label = str(key).strip()
+            body = _stringify_content(val)
+            if not label:
+                parts.append(body)
+            elif label.startswith("#"):
+                parts.append(f"{label}\n{body}")
+            else:
+                parts.append(f"{label}: {body}" if "\n" not in body else f"**{label}**\n{body}")
+        return "\n\n".join(p for p in parts if p)
+    return str(value)
+
+
 def _extract_content(result: Any, content_type: str) -> str:
     if isinstance(result, dict):
         value = result.get("content") or result.get(content_type)
         if value is None and result:
             value = next(iter(result.values()), "")
-        return str(value or "")
-    return str(result)
+        return _stringify_content(value)
+    return _stringify_content(result)
 
 
 def generate_with_profile(
@@ -114,6 +147,7 @@ def generate_with_profile(
     redact: bool = False,
     candidate_name: str | None = None,
     language: str | None = None,
+    restore_contact_info: bool = False,
 ) -> str:
     """Generate profile-tailored content for a job. Returns the text body.
 
@@ -127,6 +161,7 @@ def generate_with_profile(
     502, we retry once as a plain-text ``chat`` call and use that text directly.
     A genuine failure (no provider, network) still propagates from the fallback.
     """
+    original_markdown = profile_markdown
     token_map: dict[str, str] = {}
     if redact:
         profile_markdown, token_map = redact_pii(profile_markdown, candidate_name)
@@ -149,4 +184,9 @@ def generate_with_profile(
         content = provider_manager.chat(
             [{"role": "user", "content": prose_prompt}], max_tokens=budget
         )
-    return restore_pii(content, token_map)
+    content = restore_pii(content, token_map)
+    if restore_contact_info and redact:
+        # A tailored résumé is a document the user sends: put their real
+        # contacts back into the output (the LLM never saw them).
+        content = restore_contacts(content, original_markdown)
+    return content
