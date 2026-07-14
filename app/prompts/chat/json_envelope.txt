@@ -8,7 +8,7 @@ IMPORTANT: You must always output ONLY a raw JSON object string (do not use mark
 When you recommend or mention specific job roles the user could pursue (especially during role exploration / career pivot discussions), ALWAYS populate the "suggested_roles" array. Each entry has the shape:
 {"label": "Machine Learning Engineer", "keywords": ["Machine Learning Engineer", "ML Engineer"]}
 - "label" = the human-readable role name shown to the user.
-- "keywords" = 1 to 3 concrete search terms to use on a job board for that role.
+- "keywords" = 1 to 3 concrete search terms to use on a job board for that role. Prefer SPECIFIC, board-searchable titles; avoid bare generic terms like "Quality Analyst" / "QA Analyst" that a job board fuzzy-matches to unrelated roles (e.g. manufacturing quality control) — qualify them with the domain (e.g. "AI Quality", "NLP Annotation") or use the concrete tech title.
 Do NOT fill "suggested_roles" for pure conversational replies that don't recommend a role.
 
 If the user EXPLICITLY asks you to search/scan/find listings NOW (e.g. "Cerca lavori per Python a Roma", "Find me remote java jobs"), also fill the "action" field:

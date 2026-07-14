@@ -93,6 +93,45 @@ def _clean_text(val: Any) -> str:
     return "" if s.lower() in ("nan", "none") else s
 
 
+# Bilingual markers for the "requirements" section of a job posting. Used to keep
+# that section in the scoring prompt even when it sits past the char budget.
+_REQ_MARKERS = (
+    "requisiti",
+    "requirements",
+    "cosa cerchiamo",
+    "chi cerchiamo",
+    "chi sei",
+    "profilo ricercato",
+    "profilo ideale",
+    "your profile",
+    "who you are",
+    "qualifiche",
+    "competenze richieste",
+    "what we",
+    "what you",
+    "must have",
+    "esperienza richiesta",
+    "we are looking",
+)
+
+
+def _prep_description(desc: str, limit: int, head: int = 800) -> str:
+    """Fit a job description into ``limit`` chars for the scoring prompt WITHOUT
+    dropping the requirements. A plain ``desc[:limit]`` cuts off the "Requisiti"
+    block (which sits after the intro/responsibilities), so a Master/PhD role was
+    scored as junior. When the requirements marker falls beyond ``limit`` we keep
+    a head slice + the requirements window instead of the head alone."""
+    if not desc or len(desc) <= limit:
+        return desc
+    low = desc.lower()
+    pos = min((low.find(m) for m in _REQ_MARKERS if low.find(m) >= 0), default=-1)
+    if pos < 0 or pos + 40 <= limit:
+        return desc[:limit]  # requirements already inside the window (or none found)
+    head_part = desc[:head].rstrip()
+    tail = desc[pos : pos + max(0, limit - len(head_part) - 3)]
+    return f"{head_part}\n…\n{tail}"
+
+
 def _norm_remote(val: Any) -> bool | None:
     """Normalize jobspy's ``is_remote`` (True/False/NaN/missing) to bool|None."""
     if val is None or _is_nan(val):
@@ -287,6 +326,77 @@ TECH_KEYWORDS = {
     "learning",
 }
 
+# Domain vocabulary (bilingual it+en) for the relevance gate: a scraped job whose
+# title+description shares NONE of these — nor any of the candidate's own skill
+# tokens — is off-topic (kitchen/spa/food-QC/pharma) and dropped before wasting an
+# LLM scoring call. Deliberately excludes generic role words (analyst/engineer/
+# quality) so it keys on the actual tech/AI/data domain, not the fuzzy match.
+_DOMAIN_VOCAB = {
+    # AI / data / ML
+    "ai",
+    "ml",
+    "nlp",
+    "llm",
+    "genai",
+    "data",
+    "dati",
+    "dataset",
+    "analytics",
+    "analisi",
+    "machine",
+    "learning",
+    "apprendimento",
+    "deep",
+    "neural",
+    "rete",
+    "reti",
+    "model",
+    "modelli",
+    "modello",
+    "algorithm",
+    "algoritmo",
+    "algoritmi",
+    "intelligenza",
+    "artificiale",
+    "annotation",
+    "annotazione",
+    "labeling",
+    "etichettatura",
+    "linguistic",
+    "linguistica",
+    "linguistico",
+    "computational",
+    "computazionale",
+    "prompt",
+    "embedding",
+    # software / dev
+    "software",
+    "sviluppo",
+    "sviluppatore",
+    "developer",
+    "development",
+    "programmazione",
+    "programming",
+    "coding",
+    "informatica",
+    "informatico",
+    "backend",
+    "frontend",
+    "fullstack",
+    "api",
+    "database",
+    "cloud",
+    "devops",
+    "python",
+    "java",
+    "javascript",
+    "typescript",
+    "react",
+    "node",
+    "sql",
+    "docker",
+}
+
 
 def pre_filtro(titolo: str, descrizione: str) -> tuple[bool, str]:
     testo = (titolo + " " + descrizione).lower()
@@ -345,7 +455,7 @@ def _analysis_prompt(
         "Analizza questa offerta IT e rispondi SOLO con JSON valido, senza testo extra.\n\n"
         f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
         f"OFFERTA:\nTitolo: {titolo}\nAzienda: {azienda}\n"
-        f"Descrizione: {descrizione[:1800]}\n\n"
+        f"Descrizione: {_prep_description(descrizione, 2600)}\n\n"
         "JSON richiesto:\n" + _PER_OFFER_SCHEMA + "\n"
     )
 
@@ -367,7 +477,7 @@ def _batch_analysis_prompt(
     blocks = [
         f"--- OFFERTA {i} ---\n"
         f"Titolo: {off['titolo']}\nAzienda: {off['azienda']}\n"
-        f"Descrizione: {str(off['descrizione'])[:1500]}"
+        f"Descrizione: {_prep_description(str(off['descrizione']), 2200)}"
         for i, off in enumerate(offers, 1)
     ]
     offers_text = "\n\n".join(blocks)
@@ -692,6 +802,14 @@ def run_scan(
 
     profile = db.get_active_candidate_profile()
     profile_markdown = profile["markdown"] if profile else "Profile not loaded."
+    # Relevance vocabulary = domain base + the candidate's own skill tokens. A
+    # scraped job sharing none of it (kitchen/spa/food-QC…) is dropped before it
+    # wastes an LLM scoring call. Conservative: zero-overlap only.
+    _summary = profile.get("summary_json") if profile else None
+    _skills = _summary.get("skills") if isinstance(_summary, dict) else None
+    relevance_vocab = _DOMAIN_VOCAB | (
+        _tokenize(" ".join(str(s) for s in _skills)) if isinstance(_skills, list) else set()
+    )
 
     linkedin_url = db.get_preference("linkedin_url", "")
     if linkedin_url:
@@ -939,6 +1057,19 @@ def run_scan(
             # from jobspy's burst, so the transient throttle has usually cleared).
             if not descrizione and fonte == "linkedin" and link:
                 descrizione = fetch_linkedin_description(link)
+
+            # Relevance gate: drop a job whose text shares NOTHING with the
+            # candidate's domain/skills (e.g. a spa kitchen helper matched only
+            # because the search term said "QC"). Only fires on a non-empty
+            # description with zero overlap — conservative, and logged.
+            if (
+                descrizione
+                and relevance_vocab
+                and not (_tokenize(f"{titolo} {descrizione}") & relevance_vocab)
+            ):
+                totale_scartati += 1
+                log.info("RELEVANCE_SKIP: '%s' @ %s (zero domain/skills overlap)", titolo, azienda)
+                continue
 
             skip, _reason = pre_filtro(titolo=titolo, descrizione=descrizione)
             if skip:

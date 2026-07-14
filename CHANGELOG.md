@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [1.7.3] — 2026-07-14
+
+Sharper matching: the AI reads the requirements even on long postings, and obviously off-topic jobs are dropped before they're scored.
+
+### Fixed
+- **Requirements are read even on long job descriptions** — the scorer used to only see the first ~1800 characters, so on a long posting the "Requirements" block (which comes after the intro and responsibilities) was cut off — a role asking for a Master/PhD or 5 years could still score a 9 for a junior. The description is now packed to keep the requirements section in view, so experience and qualifications actually count.
+- **Off-topic jobs are dropped before scoring** — a search for niche roles ("AI Quality Analyst", "Linguistic QA Analyst") made LinkedIn return unrelated Quality Control jobs (manufacturing, food, even a spa kitchen helper). Jobs whose text shares nothing with your skills/domain are now skipped before the AI scores them, so the archive stays on-topic and less AI quota is wasted. It only drops jobs with zero overlap, and logs each one.
+
+### Changed
+- **Removing a role from the search is now permanent** — deleting a keyword chip in Job Search also removes it from your saved roles, so it no longer re-appears on the next visit.
+- Role suggestions (from the CV and the coach) now prefer specific, board-searchable titles and avoid bare generic ones that match unrelated jobs.
+
 ## [1.7.2] — 2026-07-14
 
 Correctness: the AI now actually reads LinkedIn job descriptions before scoring.

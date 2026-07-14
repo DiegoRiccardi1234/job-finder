@@ -27,3 +27,16 @@ export async function addToShortlist(roles) {
     return clean;
   }
 }
+
+// Permanently drop a role from the saved shortlist so it stops re-appearing as a
+// keyword tag on reload. Wired to the keyword chip's remove button. Silent on
+// failure (no-op if the term wasn't a saved role).
+export async function removeFromShortlist(role) {
+  const clean = String(role || "").trim();
+  if (!clean) return;
+  try {
+    await api(`/api/roles/shortlist/${encodeURIComponent(clean)}`, { method: "DELETE" });
+  } catch (error) {
+    console.warn("role shortlist remove failed", error);
+  }
+}

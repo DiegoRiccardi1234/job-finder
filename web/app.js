@@ -1,6 +1,6 @@
 import { api, escapeHtml, setText, truncate, showToast, renderCoachMarkdown } from "./modules/helpers.js";
 import { initTheme } from "./modules/theme.js";
-import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistApi } from "./modules/shortlist.js";
+import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistApi, removeFromShortlist as _removeFromShortlistApi } from "./modules/shortlist.js";
 import { initI18n, t, loadLanguage, getCurrentLang, onLanguageChange } from "./modules/i18n.js";
 import { loadProfile as loadProfileView, bindProfileEvents, addRolesToProfile } from "./modules/profile.js";
 import { appState } from "./modules/state.js";
@@ -1158,7 +1158,7 @@ document.getElementById("viewKanbanBtn")?.addEventListener("click", e => {
 });
 
 // Tag Input UI Logic
-function setupTagInput(containerId, inputId) {
+function setupTagInput(containerId, inputId, onRemove) {
     const container = document.getElementById(containerId);
     const input = document.getElementById(inputId);
     const tags = [];
@@ -1176,8 +1176,9 @@ function setupTagInput(containerId, inputId) {
             removeBtn.className = 'remove-tag material-symbols-outlined';
             removeBtn.textContent = 'close';
             removeBtn.onclick = () => {
-                tags.splice(index, 1);
+                const [removed] = tags.splice(index, 1);
                 renderTags();
+                if (typeof onRemove === 'function') onRemove(removed);
             };
             
             tagEl.appendChild(removeBtn);
@@ -1216,7 +1217,7 @@ function setupTagInput(containerId, inputId) {
     };
 }
 
-const getKeywords = setupTagInput('keywordsContainer', 'keywordsInput');
+const getKeywords = setupTagInput('keywordsContainer', 'keywordsInput', (term) => { _removeFromShortlistApi(term); });
 const getLocations = setupTagInput('locationsContainer', 'locationsInput');
 window.getKeywords = getKeywords;
 

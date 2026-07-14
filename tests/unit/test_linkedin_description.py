@@ -225,3 +225,92 @@ def test_fetch_linkedin_description_empty_on_http_error(monkeypatch: pytest.Monk
 def test_fetch_linkedin_description_guards() -> None:
     assert rs.fetch_linkedin_description("") == ""
     assert rs.fetch_linkedin_description("https://example.com/job") == ""  # not linkedin
+
+
+# --- _prep_description: keep the requirements even past the char budget ------
+
+
+def test_prep_description_short_is_unchanged() -> None:
+    assert ss._prep_description("short jd", 2600) == "short jd"
+
+
+def test_prep_description_no_marker_head_truncates() -> None:
+    desc = "a" * 5000
+    assert ss._prep_description(desc, 1000) == "a" * 1000
+
+
+def test_prep_description_keeps_requirements_beyond_limit() -> None:
+    # Long intro/responsibilities push the requirements past the char budget —
+    # a plain desc[:limit] would drop them (the Spindox bug). They must survive.
+    intro = "Responsabilità: coordinare, gestire, supportare. " + ("x " * 1200)
+    reqs = "Requisiti: PhD o Laurea Magistrale in Data Science, 5 anni di esperienza."
+    out = ss._prep_description(intro + reqs, 1200, head=400)
+    assert "requisiti" in out.lower()
+    assert "phd" in out.lower()
+    assert len(out) <= 1300
+
+
+# --- relevance gate: drop off-topic jobs before scoring ----------------------
+
+
+class _ScoringPM:
+    def __init__(self) -> None:
+        self.scored = 0
+
+    def preview_scoring_model(self, _p: Any) -> str:
+        return "m"
+
+    def clear_model_penalties(self, reason: str | None = None) -> None:
+        pass
+
+    def complete_json(self, prompt: str, max_tokens: int = 700, **k: Any) -> Any:
+        self.scored += 1
+        n = prompt.count("--- OFFERTA ")
+        if n == 0:
+            return {"punteggio": 7}
+        return {"valutazioni": [{"punteggio": 7} for _ in range(n)]}
+
+
+def test_relevance_gate_drops_offtopic_keeps_tech(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    df = pd.DataFrame(
+        [
+            {
+                "title": "Aiuto Cuoco Spa",
+                "company": "QC Spa",
+                "description": "Lavapiatti e aiuto in cucina di un hotel termale, turni weekend.",
+                "location": "Aosta",
+                "site": "linkedin",
+                "job_url": "http://x/1",
+                "min_amount": None,
+                "max_amount": None,
+            },
+            {
+                "title": "AI Data Specialist",
+                "company": "Tech",
+                "description": "Python, machine learning, data annotation e NLP per modelli AI.",
+                "location": "Torino",
+                "site": "linkedin",
+                "job_url": "http://x/2",
+                "min_amount": None,
+                "max_amount": None,
+            },
+        ],
+        columns=_COLS,
+    )
+    monkeypatch.setattr(ss, "scrape_jobs", lambda **k: df)
+    settings = load_settings(tmp_path)
+    settings.delay_tra_ricerche = 0.0
+    pm = _ScoringPM()
+    db = Database(tmp_path / "s.db")
+    try:
+        events = list(
+            ss.run_scan(db, settings, pm, ScanRequest(search_terms=["x"], sites=["linkedin"]))
+        )
+    finally:
+        db.close()
+    complete = next(e for e in events if e.get("status") == "complete")
+    # kitchen job dropped by the relevance gate; only the AI job reaches scoring
+    assert complete["totale_analizzati"] == 1
+    assert complete["totale_scartati"] >= 1
