@@ -1,6 +1,21 @@
 import re
 from typing import Any
 
+# Quality floor for job<->CV scoring model selection: below this a free model is
+# too small to score matches with nuance. Shared by scanner_service._SCORING_POLICY
+# and the probe report's ``best`` pick so both agree on "too small". 26 keeps clean
+# mid-size models (e.g. gemma-4-26b, ~2% JSON truncation) eligible while excluding
+# sub-24B toys that scored job<->CV matches badly.
+SCORING_MIN_SIZE_B = 26
+
+
+def infer_size_b(model_name: str) -> int:
+    """Largest ``<N>b`` size advertised in a model id (parameters in billions),
+    or 0 when none is stated. Shared by the scorer's quality weighting and the
+    probe report's ``best`` pick so both agree on what counts as 'too small'."""
+    sizes = [int(x) for x in re.findall(r"(\d{1,4})b", model_name.lower())]
+    return max(sizes) if sizes else 0
+
 
 def _weight(policy: dict[str, Any] | None, key: str, default: int) -> int:
     if not policy:
@@ -54,8 +69,7 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
     elif "command-r" in name or "command" in name:
         score += _weight(policy, "family", 40) - 6
 
-    parsed_sizes = [int(x) for x in re.findall(r"(\d{1,4})b", name)]
-    size_b = max(parsed_sizes) if parsed_sizes else 0
+    size_b = infer_size_b(name)
     base_size_weight = _weight(policy, "size", 20)
     if size_b >= 200:
         score += base_size_weight + 8

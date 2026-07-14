@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 from app.providers.model_selector import (
+    SCORING_MIN_SIZE_B,
     choose_best_model,
     pick_default_model,
     rank_models,
     score_model_name,
 )
+
+
+def test_scoring_policy_quality_floor_is_26() -> None:
+    """The scan-scoring floor is 26B (not 40): a 26B model clears it with no
+    small_penalty, so clean mid-size models (gemma-4-26b) stay eligible, while a
+    24B model is still de-ranked. Guards the floor lowering in _SCORING_POLICY."""
+    from app.services.scanner_service import _SCORING_POLICY
+
+    assert SCORING_MIN_SIZE_B == 26
+    s26 = score_model_name("foo-26b-instruct", policy=_SCORING_POLICY)
+    s24 = score_model_name("foo-24b-instruct", policy=_SCORING_POLICY)
+    # identical except the -150 small_penalty that hits only the sub-floor 24B
+    assert s26 - s24 == 150
 
 
 def test_pick_default_returns_none_for_empty_list() -> None:

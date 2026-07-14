@@ -3,7 +3,13 @@ import re
 from typing import Any, cast
 
 from app.log import get_logger
-from app.providers.base import LLMProvider, extract_usage, is_unauthorized
+from app.providers.base import (
+    LLMProvider,
+    TruncatedCompletionError,
+    extract_usage,
+    is_truncated,
+    is_unauthorized,
+)
 from app.providers.model_selector import choose_best_model
 
 log = get_logger(__name__)
@@ -195,8 +201,15 @@ class CerebrasProvider(LLMProvider):
                 max_tokens=max_tokens,
             )
             self.last_usage = extract_usage(response)
+            # Cut-off reply (finish_reason=length): the JSON is truncated — raise
+            # so the factory penalises this model and fails over, instead of
+            # degrading to complete_text (which truncates the same way).
+            if is_truncated(response):
+                raise TruncatedCompletionError(resolved_model)
             content = (response.choices[0].message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
+        except TruncatedCompletionError:
+            raise
         except (json.JSONDecodeError, Exception) as exc:
             log.info("cerebras complete_json fallback (model=%s): %s", resolved_model, exc)
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)

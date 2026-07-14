@@ -4,7 +4,13 @@ from typing import Any, cast
 from urllib import parse, request
 
 from app.log import get_logger
-from app.providers.base import LLMProvider, extract_usage, is_unauthorized
+from app.providers.base import (
+    LLMProvider,
+    TruncatedCompletionError,
+    extract_usage,
+    is_truncated,
+    is_unauthorized,
+)
 from app.providers.model_selector import choose_best_model
 
 log = get_logger(__name__)
@@ -122,8 +128,15 @@ class GoogleProvider(LLMProvider):
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
             )
+            # Cut-off reply (finish_reason=length): the JSON is truncated — raise
+            # so the factory penalises this model and fails over, instead of
+            # degrading to complete_text (which truncates the same way).
+            if is_truncated(response):
+                raise TruncatedCompletionError(resolved_model)
             content = (response.choices[0].message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
+        except TruncatedCompletionError:
+            raise
         except Exception:
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)
             return _extract_json(text)

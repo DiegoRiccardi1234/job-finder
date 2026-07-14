@@ -48,6 +48,9 @@ class _FakePM:
     def preview_scoring_model(self, _policy: Any) -> str:
         return "fake/model:free"
 
+    def clear_model_penalties(self, reason: str | None = None) -> None:
+        pass
+
 
 def _settings(tmp_path: Path, concurrency: int = 3):
     s = load_settings(tmp_path)

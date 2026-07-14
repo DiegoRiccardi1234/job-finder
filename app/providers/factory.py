@@ -9,7 +9,7 @@ from typing import Any, TypeVar
 from app.config import AppSettings
 from app.log import get_logger
 from app.providers.anthropic_provider import AnthropicProvider
-from app.providers.base import LLMProvider, is_unauthorized
+from app.providers.base import LLMProvider, TruncatedCompletionError, is_unauthorized
 from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
@@ -49,6 +49,12 @@ _MODEL_PENALTY_COOLDOWNS = {
     "forbidden": _MODEL_429_COOLDOWN_SECONDS,
     "empty": 180.0,
     "json_fail": 180.0,
+    # Truncation (finish_reason=length) is a structural mismatch — the model
+    # burns the token budget on hidden reasoning before finishing the JSON — not
+    # a transient blip, so keep it de-ranked for the whole scan. run_scan clears
+    # "truncated" penalties at the start of each scan, so it's re-evaluated fresh
+    # next run (sticky within a scan, reset between).
+    "truncated": 3600.0,
 }
 
 
@@ -239,6 +245,18 @@ class ProviderManager:
         """De-rank a (provider, model) after an empirical failure. Also called by
         the model probe to seed penalties for dead/empty models."""
         self._model_penalty[f"{provider_name}::{model}"] = (_time.time(), reason)
+
+    def clear_model_penalties(self, reason: str | None = None) -> None:
+        """Drop empirical model penalties — all of them, or only those with the
+        given ``reason``. Called at scan start for ``"truncated"`` so each scan
+        re-evaluates models fresh (truncation is sticky WITHIN a scan via its long
+        cooldown, but reset between scans)."""
+        if reason is None:
+            self._model_penalty = {}
+        else:
+            self._model_penalty = {
+                key: val for key, val in self._model_penalty.items() if val[1] != reason
+            }
 
     def _penalized_model_ids(self, provider_name: str) -> set[str]:
         """Model ids currently penalized for ``provider_name`` (stale entries
@@ -617,6 +635,10 @@ def _classify_failure(exc: Exception) -> str | None:
     """Map a failed LLM call to an empirical-penalty reason, or None when the
     failure shouldn't de-rank the model (transient network/5xx — retry handles
     those; 401 is handled separately at the provider level)."""
+    if isinstance(exc, TruncatedCompletionError):
+        # Checked before ValueError (its base): a max_tokens cutoff is a
+        # structural mismatch, not a generic "won't emit JSON".
+        return "truncated"
     if _is_rate_limited(exc):
         return "rate_limit"
     if _is_forbidden(exc):

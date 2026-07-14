@@ -40,6 +40,9 @@ class _BatchPM:
     def preview_scoring_model(self, _policy: Any) -> str:
         return "fake/model:free"
 
+    def clear_model_penalties(self, reason: str | None = None) -> None:
+        pass
+
     def complete_json(self, prompt: str, max_tokens: int = 700, **kwargs: Any) -> Any:
         if isinstance(self.payload, Exception):
             raise self.payload
@@ -130,6 +133,9 @@ class _ScanBatchPM:
 
     def preview_scoring_model(self, _policy: Any) -> str:
         return "fake/model:free"
+
+    def clear_model_penalties(self, reason: str | None = None) -> None:
+        pass
 
     def complete_json(self, prompt: str, max_tokens: int = 700, **kwargs: Any) -> Any:
         n = prompt.count("--- OFFERTA ")

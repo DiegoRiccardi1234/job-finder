@@ -13,7 +13,13 @@ import re
 from typing import Any, cast
 
 from app.log import get_logger
-from app.providers.base import LLMProvider, extract_usage, is_unauthorized
+from app.providers.base import (
+    LLMProvider,
+    TruncatedCompletionError,
+    extract_usage,
+    is_truncated,
+    is_unauthorized,
+)
 from app.providers.model_selector import choose_best_model
 
 log = get_logger(__name__)
@@ -126,8 +132,17 @@ class OpenAICompatibleProvider(LLMProvider):
                 # Not all compatible models support json_object; rely on prompt + fallback.
             )
             self.last_usage = extract_usage(response)
+            # Truncated (finish_reason=length) means the model hit max_tokens and
+            # the JSON is cut off (reasoning models burn the budget on hidden
+            # thinking before emitting valid JSON). Don't degrade to complete_text
+            # — it truncates the same way — raise so the factory penalises this
+            # model ("truncated") and fails over to a leaner one.
+            if is_truncated(response):
+                raise TruncatedCompletionError(resolved_model)
             content = (response.choices[0].message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
+        except TruncatedCompletionError:
+            raise
         except (json.JSONDecodeError, Exception) as exc:
             log.info("%s complete_json fallback (model=%s): %s", self.name, resolved_model, exc)
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)

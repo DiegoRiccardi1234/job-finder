@@ -142,6 +142,7 @@ from app.lifecycle import apply_post_scan_lifecycle
 from app.log import get_logger
 from app.models import ScanRequest
 from app.providers.factory import ProviderManager
+from app.providers.model_selector import SCORING_MIN_SIZE_B
 from app.services.onboarding import onboarding_context
 from app.services.pii import redact_pii
 from app.services.recruiter_scrape import fetch_recruiter
@@ -157,14 +158,18 @@ log = get_logger(__name__)
 _SCORING_POLICY: dict[str, Any] = {
     # "Fastest among CAPABLE models." A pure speed bias picked 1-20B toys that
     # scored job↔CV matches badly (a Product Owner at 8/10, empty analyses), so
-    # we keep a fast lean but with a quality floor: de-rank models that advertise
-    # a size under 40B, and reward capability again. Target: gpt-oss-120b:free
-    # (~4s, capable) over a 1.2B free model.
+    # we keep a fast lean but with a quality floor: de-rank models under
+    # SCORING_MIN_SIZE_B, and reward capability again. The floor is 26 (not 40)
+    # so clean mid-size models like gemma-4-26b stay eligible — the 40B floor was
+    # de-ranking the models that emit JSON reliably and favouring 120-550B
+    # reasoning giants that truncate it. ``reasoning`` weight is 0: for compact
+    # JSON scoring a hidden chain-of-thought is a liability, not a plus (and the
+    # runtime "truncated" penalty routes around whichever models actually cut off).
     "prefer_fast": True,
     "prefer_quality": True,
     "prefer_free": True,
     "max_cost_tier": "high",
-    "min_size_b": 40,
+    "min_size_b": SCORING_MIN_SIZE_B,
     "weights": {
         "size": 16,
         "speed": 12,
@@ -172,7 +177,7 @@ _SCORING_POLICY: dict[str, Any] = {
         "instruct": 25,
         "chat": 10,
         "json": 12,
-        "reasoning": 4,
+        "reasoning": 0,
         "small_penalty": -150,
     },
 }
@@ -636,6 +641,10 @@ def run_scan(
     if scrape_jobs is None:
         yield {"error": "python-jobspy not installed"}
         return
+
+    # Truncation penalties are sticky within a scan (long cooldown) but reset
+    # between scans, so a model that recovered gets another chance next run.
+    provider_manager.clear_model_penalties("truncated")
 
     profile = db.get_active_candidate_profile()
     profile_markdown = profile["markdown"] if profile else "Profile not loaded."

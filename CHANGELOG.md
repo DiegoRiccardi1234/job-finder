@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-07-14
+
+Reliability: scans no longer stall on models that cut off their answers.
+
+### Fixed
+- **Scans skip models that truncate their answers** — some free models (large "reasoning" models especially) spend their token budget on hidden thinking and return a JSON reply that's cut off mid-way. That used to make a scan retry the same model over and over — or silently fill the gaps one job at a time — and crawl (a full scan could take ~20 minutes). The app now detects a cut-off reply (`finish_reason=length`), drops that model for the rest of the scan, and routes scoring to a leaner model that answers cleanly, so a scan finishes in seconds again. Works across every provider that speaks the OpenAI API (OpenRouter, Cerebras, Google, OpenAI).
+- **"Test models" best pick now agrees with scoring** — the model highlighted in the free health report respects the same quality floor the scan scorer uses, so it never recommends a model too small (or too truncation-prone) for real work.
+
+### Changed
+- The scan-scoring quality floor is now ~26B (was 40B), so reliable mid-size models (e.g. gemma-class) that emit clean JSON stay eligible instead of being passed over for larger models that truncate.
+
 ## [1.7.0] — 2026-07-14
 
 A quality pass: much faster scans, a smarter model picker, and privacy/UX fixes.

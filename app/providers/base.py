@@ -53,6 +53,38 @@ def is_unauthorized(exc: Exception) -> bool:
     )
 
 
+def is_truncated(response: Any) -> bool:
+    """True when the model stopped at its max_tokens limit (output cut off).
+
+    Normalizes the two response shapes, mirroring how ``extract_usage`` handles
+    the object-vs-dict split: OpenAI-compatible SDK objects expose
+    ``choices[0].finish_reason == "length"``; Anthropic-style dict payloads use
+    ``stop_reason == "max_tokens"`` (handled here for completeness even though the
+    Anthropic provider doesn't wire this yet)."""
+    choices = getattr(response, "choices", None)
+    if choices:
+        return getattr(choices[0], "finish_reason", None) == "length"
+    if isinstance(response, dict):
+        return response.get("stop_reason") == "max_tokens"
+    return False
+
+
+class TruncatedCompletionError(ValueError):
+    """Raised when an LLM stopped because it hit ``max_tokens`` (``finish_reason
+    == "length"``): the output is cut off, so any JSON in it is untrustworthy.
+
+    Subclasses ``ValueError`` so existing ``except ValueError`` sites still catch
+    it, but the factory classifies it as its own ``"truncated"`` penalty reason —
+    a model that burns the token budget on hidden reasoning before emitting valid
+    JSON should be de-ranked, not merely retried. Carries the model id for logging.
+    """
+
+    def __init__(self, model: str = "") -> None:
+        self.model = model
+        detail = f" ({model})" if model else ""
+        super().__init__(f"completion truncated: finish_reason=length{detail}")
+
+
 class LLMProvider(ABC):
     name: str
     # Set to True by ``list_models``/``chat``/``complete_*`` when the provider

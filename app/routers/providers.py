@@ -9,12 +9,22 @@ from fastapi import APIRouter, HTTPException
 
 from app.config import SUPPORTED_PROVIDERS, save_local_provider_keys
 from app.models import ProviderKeysRequest
-from app.providers.model_selector import rank_models
+from app.providers.model_selector import SCORING_MIN_SIZE_B, infer_size_b, rank_models
 from app.services import model_stats
 from app.services.model_probe import penalty_reason, probe_models
 
 if TYPE_CHECKING:
     from app.container import AppContainer
+
+
+def _clears_quality_floor(model: str) -> bool:
+    """A model clears the floor when it advertises no size (unknown -> not
+    punished, same as the scorer) or a size at/above ``SCORING_MIN_SIZE_B``.
+    Uses the SAME shared floor as scan-scoring (``_SCORING_POLICY``) so the
+    report never headlines a model too weak for nuanced job<->CV scoring even
+    when it is the healthiest/fastest."""
+    size = infer_size_b(model)
+    return size == 0 or size >= SCORING_MIN_SIZE_B
 
 
 def _health_sort_key(model: str, health: dict[str, dict[str, Any]]) -> tuple[int, float, float]:
@@ -138,8 +148,17 @@ def build_router(container: AppContainer) -> APIRouter:
 
         if not confirm:
             results: list[dict[str, Any]] = [_stats_row(m, health) for m in candidates]
-            best = next((r["model"] for r in results if r.get("status") == 0), None) or (
-                candidates[0] if candidates else None
+            # Recommend the healthiest model that ALSO clears the quality floor,
+            # so the report never headlines a model too small for real work (the
+            # scan-scoring path de-ranks sub-floor sizes). ``candidates`` is
+            # already health-sorted, so this keeps "healthiest" semantics and
+            # merely skips the too-small ones; the displayed list still shows
+            # every size. Fall back to the plain healthiest, then to anything.
+            healthy = [m for m in candidates if health.get(m, {}).get("status") == 0]
+            best = (
+                next((m for m in healthy if _clears_quality_floor(m)), None)
+                or (healthy[0] if healthy else None)
+                or (candidates[0] if candidates else None)
             )
             mode = "stats"
         else:

@@ -112,5 +112,82 @@ def test_probe_confirm_micro_probes_top_three(
     assert all(r["json_ok"] for r in body["results"])
 
 
+def test_probe_best_respects_quality_floor(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The report's ``best`` must not headline a model too small for real work,
+    even when that tiny model is the healthiest/fastest — the scan-scoring path
+    de-ranks sub-floor sizes and the report has to agree, or it recommends a
+    model the scorer would never pick."""
+    _stub_cerebras(monkeypatch, ["tiny-3b-instruct", "big-70b-instruct"])
+    from app.services import model_stats
+
+    monkeypatch.setattr(
+        model_stats,
+        "get_model_health",
+        lambda prov, ids: {
+            # tiny is the healthiest/fastest -> old behaviour picked it as best
+            "tiny-3b-instruct": {
+                "status": 0,
+                "up5m": 100.0,
+                "up30m": 100.0,
+                "lat_ms": 90.0,
+                "tput": 90.0,
+            },
+            "big-70b-instruct": {
+                "status": 0,
+                "up5m": 100.0,
+                "up30m": 100.0,
+                "lat_ms": 300.0,
+                "tput": 50.0,
+            },
+        },
+    )
+
+    res = client.post("/api/providers/cerebras/probe")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["mode"] == "stats"
+    # both healthy; tiny is faster, but below the quality floor -> the capable
+    # 70B must be recommended instead.
+    assert body["best"] == "big-70b-instruct"
+    # the tiny model is still listed (a health report shows every size)
+    assert any(r["model"] == "tiny-3b-instruct" for r in body["results"])
+
+
+def test_probe_best_allows_mid_size_model(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With the lowered 26B floor, a clean 30B model is a valid ``best`` over a
+    tiny 3B — the report agrees with scan-scoring that mid-size models qualify."""
+    _stub_cerebras(monkeypatch, ["tiny-3b-instruct", "mid-30b-instruct"])
+    from app.services import model_stats
+
+    monkeypatch.setattr(
+        model_stats,
+        "get_model_health",
+        lambda prov, ids: {
+            "tiny-3b-instruct": {
+                "status": 0,
+                "up5m": 100.0,
+                "up30m": 100.0,
+                "lat_ms": 80.0,
+                "tput": 90.0,
+            },
+            "mid-30b-instruct": {
+                "status": 0,
+                "up5m": 100.0,
+                "up30m": 100.0,
+                "lat_ms": 300.0,
+                "tput": 50.0,
+            },
+        },
+    )
+
+    res = client.post("/api/providers/cerebras/probe")
+    assert res.status_code == 200
+    assert res.json()["best"] == "mid-30b-instruct"
+
+
 def test_probe_unknown_provider_404(client: TestClient) -> None:
     assert client.post("/api/providers/nope/probe").status_code == 404
