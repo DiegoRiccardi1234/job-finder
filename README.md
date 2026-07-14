@@ -86,6 +86,9 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Recruiter outreach message** (v1.6.0) — draft a short, personalized message to a posting's recruiter, in your UI language, with Privacy Mode applied.
 - **Configurable cross-source dedup** (v1.6.0) — the same role on LinkedIn and Indeed is grouped into one card with an "also on" badge; a Settings option controls the grouping (exact / by city / title+company).
 - **Richer LinkedIn context** (v1.6.0) — saving your LinkedIn profile best-effort fetches the page text (paste-the-text fallback when blocked); the text feeds AI scoring and letters.
+- **AI CV tools** (v1.7.0) — a dedicated Profile panel: **Review my CV** (prioritized, role-targeted advice, rendered as clean formatted text and cached) and **Improve my CV** (an AI rewrite tuned to your target role, keeping your real contacts, copy-ready or save-as-active). Plus **edit your CV in-app** — change your display name and CV text (which feeds AI scoring) without re-uploading.
+- **Faster, cheaper scans** (v1.7.0) — jobs are scored in parallel and **batched** (a few jobs per AI request, `scan_batch_size`, default 3), so a scan makes far fewer calls: on a free API tier that means fewer rate-limit failures (which otherwise drop a job to a rough keyword-only estimate) and a run that finishes in seconds. A malformed batch falls back to per-job scoring, so quality never degrades. The cancel button (and closing the tab) now stops the scan on the server too, freeing your AI quota immediately.
+- **Smarter model selection + live health** (v1.7.0) — the app learns which of your provider's models actually work and avoids ones that are rate-limited, return nothing, or aren't on your plan; a **quality floor** stops it picking a model too small to score jobs well. On OpenRouter it reads each model's **live health** (uptime/latency, published by OpenRouter, free to fetch — no extra AI requests) and steers scoring away from models that are down. The **"Test models"** button now shows that free health report (uptime · latency · throughput) spending **zero** AI quota; a separate **"Confirm top models"** optionally runs a tiny check on just the best few. Scoring/chat/CV models are individually overridable in Settings.
 - **Multilingual UI** — English, Italian, Spanish, French, German (100% key parity across locales).
 - **Responsive layout** (v1.4.2+) — mobile-friendly below 960px: hamburger nav, off-canvas Career Coach drawer, horizontally-scrollable tables, single-column dashboards. Desktop layout unchanged.
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI (Grok), Zhipu GLM, Mistral — configurable order, skips a dead (401) key, exponential backoff retry.
@@ -156,7 +159,7 @@ flowchart LR
         ScanSvc[scanner_service<br/>analyze_offer · run_scan]
         CV[cv_ingest<br/>PDF/DOCX/IMG → markdown<br/>OCR fallback · content validation]
         Roles[roles_shortlist<br/>dedup + persistence]
-        Mig[migrations<br/>001 init · 002 msg_type<br/>003 cv_hash]
+        Mig[migrations<br/>10 numbered steps<br/>idempotent runner]
     end
 
     subgraph LLM["ProviderManager (retry + backoff)"]
@@ -209,7 +212,7 @@ The chat service is split into single-responsibility modules:
 | OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF). Bundle ships **5 languages**: EN/IT/ES/FR/DE (~13 MB tessdata) |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 187 tests), Playwright (E2E) |
+| Testing | pytest (unit, 345 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — Tesseract bundled, auto-update over GitHub Releases |
@@ -244,9 +247,9 @@ web/
 ├── modules/                 Feature modules (helpers, theme, shortlist, i18n, profile)
 ├── styles/                  Per-feature CSS (chat.css extracted)
 ├── styles.css               Core stylesheet (glassmorphism + tokens)
-└── i18n/                    Per-locale JSON (en, it, es, fr, de — 450 keys each)
+└── i18n/                    Per-locale JSON (en, it, es, fr, de — 617 keys each)
 tests/
-├── unit/                    pytest suite (187 tests, FakeProviderManager fixture)
+├── unit/                    pytest suite (345 tests, FakeProviderManager fixture)
 └── e2e/                     Playwright specs (smoke, README screenshots, demo GIF)
 scripts/
 ├── check_i18n.py            i18n coverage audit (fails CI on missing keys)
@@ -436,6 +439,13 @@ Existing migrations:
 - `001_init.py` — initial 6-table schema.
 - `002_chat_message_type.py` — `chat_messages.content_type` column.
 - `003_candidate_profile_hash.py` — `candidate_profiles.content_hash` + index for upload dedup.
+- `004_usage_log.py` — `usage_log` table for token tracking.
+- `005_v130_multichat_pin_recruiter_name.py` — multi-chat sessions, pinned jobs, recruiter info, profile name.
+- `006_job_dedup.py` — `jobs.dedup_key` + `jobs.sources_json` for cross-source dedup.
+- `007_job_reminder.py` — `jobs.reminder_at` + `jobs.reminder_note` for application reminders.
+- `008_saved_searches.py` — `saved_searches` table for named scan presets.
+- `009_usage_latency.py` — `usage_log.duration_ms` for latency tracking.
+- `010_jobs_list_index.py` — composite index on `jobs(status, punteggio_ai, last_seen_at)`.
 
 ---
 

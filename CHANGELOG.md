@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-07-14
+
 A quality pass: much faster scans, a smarter model picker, and privacy/UX fixes.
 
 ### Added
