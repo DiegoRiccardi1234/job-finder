@@ -90,6 +90,7 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 - **Faster, cheaper scans** (v1.7.0) — jobs are scored in parallel and **batched** (a few jobs per AI request, `scan_batch_size`, default 3), so a scan makes far fewer calls: on a free API tier that means fewer rate-limit failures (which otherwise drop a job to a rough keyword-only estimate) and a run that finishes in seconds. A malformed batch falls back to per-job scoring, so quality never degrades. The cancel button (and closing the tab) now stops the scan on the server too, freeing your AI quota immediately.
 - **Smarter model selection + live health** (v1.7.0) — the app learns which of your provider's models actually work and avoids ones that are rate-limited, return nothing, or aren't on your plan; a **quality floor** stops it picking a model too small to score jobs well. On OpenRouter it reads each model's **live health** (uptime/latency, published by OpenRouter, free to fetch — no extra AI requests) and steers scoring away from models that are down. The **"Test models"** button now shows that free health report (uptime · latency · throughput) spending **zero** AI quota; a separate **"Confirm top models"** optionally runs a tiny check on just the best few. Scoring/chat/CV models are individually overridable in Settings.
 - **Truncation-aware scoring** (v1.7.1) — the scan now detects when a model cut off its answer (hit its token limit mid-JSON — common with large "reasoning" models on a busy free tier), drops it for the rest of the run, and scores with a leaner model that answers cleanly, so scans no longer crawl. The model quality floor was also tuned (~26B) so reliable mid-size models aren't passed over for larger ones that truncate. Works across all OpenAI-API providers (OpenRouter, Cerebras, Google, OpenAI).
+- **Reads LinkedIn job descriptions** (v1.7.2) — LinkedIn's search only returns job cards (title/company), so the AI used to score LinkedIn jobs blind: a role needing 3-5 years' experience could get a 9 for a junior profile. The scan now fetches each LinkedIn job's full description (Indeed already had it), so experience, seniority and required skills are actually weighed. A job whose description can't be fetched is flagged ("description unavailable") with a capped title-only estimate instead of a fabricated high score.
 - **Multilingual UI** — English, Italian, Spanish, French, German (100% key parity across locales).
 - **Responsive layout** (v1.4.2+) — mobile-friendly below 960px: hamburger nav, off-canvas Career Coach drawer, horizontally-scrollable tables, single-column dashboards. Desktop layout unchanged.
 - **Multi-LLM fallback** — Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI (Grok), Zhipu GLM, Mistral — configurable order, skips a dead (401) key, exponential backoff retry.
@@ -213,7 +214,7 @@ The chat service is split into single-responsibility modules:
 | OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF). Bundle ships **5 languages**: EN/IT/ES/FR/DE (~13 MB tessdata) |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (unit, 366 tests), Playwright (E2E) |
+| Testing | pytest (unit, 381 tests), Playwright (E2E) |
 | Quality | ruff, mypy strict, pre-commit, 59% line coverage |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — Tesseract bundled, auto-update over GitHub Releases |
@@ -250,7 +251,7 @@ web/
 ├── styles.css               Core stylesheet (glassmorphism + tokens)
 └── i18n/                    Per-locale JSON (en, it, es, fr, de — 617 keys each)
 tests/
-├── unit/                    pytest suite (366 tests, FakeProviderManager fixture)
+├── unit/                    pytest suite (381 tests, FakeProviderManager fixture)
 └── e2e/                     Playwright specs (smoke, README screenshots, demo GIF)
 scripts/
 ├── check_i18n.py            i18n coverage audit (fails CI on missing keys)

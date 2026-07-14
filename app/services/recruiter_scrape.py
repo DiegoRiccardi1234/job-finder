@@ -34,6 +34,35 @@ _HEADERS = {
 }
 
 
+def fetch_linkedin_description(job_url: str, timeout: float = 8.0) -> str:
+    """Best-effort re-fetch of a LinkedIn job's full description text.
+
+    jobspy occasionally 429s on a single job's detail fetch during its rapid
+    per-job burst, leaving that job description-less. This retries just that one
+    page (spaced out from the burst, so the transient throttle has usually
+    cleared) and parses the same markup block jobspy reads. Returns ``""`` on any
+    failure (guest signup wall, timeout, 4xx, missing selector) — never raises."""
+    if not job_url or httpx is None or BeautifulSoup is None:
+        return ""
+    if "linkedin.com" not in job_url:
+        return ""
+    try:
+        with httpx.Client(headers=_HEADERS, timeout=timeout, follow_redirects=True) as client:
+            resp = client.get(job_url)
+            if resp.status_code >= 400 or "linkedin.com/signup" in str(resp.url):
+                return ""
+            html = resp.text
+    except Exception as exc:
+        log.debug("linkedin description re-fetch failed for %s: %s", job_url, exc)
+        return ""
+
+    soup = BeautifulSoup(html, "html.parser")
+    div = soup.find("div", class_=lambda x: bool(x) and "show-more-less-html__markup" in x)
+    if div is None:
+        return ""
+    return str(div.get_text(separator="\n")).strip()
+
+
 def fetch_recruiter(job_url: str, timeout: float = 3.0) -> dict[str, Any] | None:
     """Return a dict with recruiter info, or ``None`` if not found / fetch failed.
 

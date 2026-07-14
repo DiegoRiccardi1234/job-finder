@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.7.2] — 2026-07-14
+
+Correctness: the AI now actually reads LinkedIn job descriptions before scoring.
+
+### Fixed
+- **LinkedIn jobs are scored on their real description, not just the title** — LinkedIn's search only returns job cards (title/company), so the app was scoring LinkedIn jobs blind: a role requiring 3-5 years of experience could get a 9 for a junior profile because the AI never saw the requirements. The scan now fetches each LinkedIn job's full description (Indeed already included it), so experience, seniority and required skills are actually weighed. This adds ~1.5s per LinkedIn job to a scan — a fair price for scores you can trust.
+- **No more `nan`/`None` leaking into scoring** — a missing field from the scraper used to become the literal text `"nan"`/`"None"` in the AI prompt; those are now cleaned to empty.
+
+### Changed
+- **A job whose description can't be fetched is flagged, not faked** — on the rare occasion LinkedIn blocks a single job's page (even after a retry), that job is marked "description unavailable — open the posting to judge" with a capped estimate from the title, so an unread job can never surface as a top "Apply now".
+
 ## [1.7.1] — 2026-07-14
 
 Reliability: scans no longer stall on models that cut off their answers.

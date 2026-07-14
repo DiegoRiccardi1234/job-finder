@@ -82,6 +82,17 @@ def _is_nan(val: Any) -> bool:
     return isinstance(val, float) and math.isnan(val)
 
 
+def _clean_text(val: Any) -> str:
+    """Coerce a jobspy cell to a clean string. ``str()`` of a pandas ``NaN`` or
+    ``None`` yields the literal ``"nan"``/``"None"`` which then poisons the LLM
+    prompt (and made LinkedIn jobs look like they had a description). Those and
+    blank strings collapse to ``""``."""
+    if val is None or _is_nan(val):
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() in ("nan", "none") else s
+
+
 def _norm_remote(val: Any) -> bool | None:
     """Normalize jobspy's ``is_remote`` (True/False/NaN/missing) to bool|None."""
     if val is None or _is_nan(val):
@@ -145,7 +156,7 @@ from app.providers.factory import ProviderManager
 from app.providers.model_selector import SCORING_MIN_SIZE_B
 from app.services.onboarding import onboarding_context
 from app.services.pii import redact_pii
-from app.services.recruiter_scrape import fetch_recruiter
+from app.services.recruiter_scrape import fetch_linkedin_description, fetch_recruiter
 
 log = get_logger(__name__)
 
@@ -502,6 +513,30 @@ def _fallback_analysis(
     }
 
 
+def _no_description_analysis(profile_markdown: str, titolo: str, azienda: str) -> dict[str, Any]:
+    """A job whose description couldn't be fetched (rare: LinkedIn blocked that
+    single page even after the retry). Score it heuristically from the title so
+    it still gets an ordering, but flag it honestly and CAP it — an unread job
+    must never surface as a top "Candidati subito"/9. Skips the LLM (no point
+    scoring blind, and it would hallucinate requirements)."""
+    result = _fallback_analysis(
+        "no_description",
+        profile_markdown=profile_markdown,
+        titolo=titolo,
+        azienda=azienda,
+        descrizione="",
+    )
+    result["punteggio"] = min(int(result.get("punteggio", 3) or 3), 6)
+    result["consiglio"] = "Valutabile" if result["punteggio"] >= 5 else "Salta"
+    result["riassunto"] = (
+        "Descrizione non disponibile — stima dal titolo. Apri l'annuncio per valutare."
+    )
+    result["punti_deboli_per_diego"] = (
+        "Descrizione non recuperata: requisiti ed esperienza richiesta non verificati."
+    )
+    return result
+
+
 def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
     """Provider/model kwargs for a scoring call: pin the user-chosen scoring
     model if set (no failover), else auto-select via the speed-biased policy.
@@ -526,6 +561,10 @@ def analyze_offer(
     extra_context: str = "",
     candidate_name: str | None = None,
 ) -> dict[str, Any]:
+    # No description (rare: LinkedIn blocked even the retry) → don't LLM-score it
+    # blind; return an honest, capped heuristic estimate instead.
+    if not descrizione.strip():
+        return _no_description_analysis(profile_markdown, titolo, azienda)
     # Privacy Mode: scrub the CV before it reaches the LLM. Scoring never needs
     # the name/contacts, so no restore — the token map is discarded. The local
     # keyword fallback below keeps the ORIGINAL markdown for a better match.
@@ -600,6 +639,11 @@ def analyze_offers_batch(
 
     out: list[dict[str, Any]] = []
     for i, off in enumerate(offers):
+        # A description-less offer can't be judged on merit — override whatever
+        # the batch guessed with the honest capped estimate (never a blind 9).
+        if not str(off.get("descrizione", "")).strip():
+            out.append(_no_description_analysis(profile_markdown, off["titolo"], off["azienda"]))
+            continue
         item = parsed[i] if i < len(parsed) else None
         if isinstance(item, dict) and "punteggio" in item:
             out.append(item)
@@ -833,6 +877,12 @@ def run_scan(
         }
         if jobspy_job_type:
             scrape_kwargs["job_type"] = jobspy_job_type
+        # LinkedIn's search API returns only job cards (no description); the text
+        # lives on each job's own page. Without this jobspy leaves LinkedIn jobs
+        # description-less and the AI scores them blind (title only). Costs one
+        # extra fetch per job (~1.6s); Indeed already includes descriptions.
+        if "linkedin" in payload.sites:
+            scrape_kwargs["linkedin_fetch_description"] = True
 
         try:
             df = scrape_jobs(**scrape_kwargs)
@@ -879,9 +929,16 @@ def run_scan(
         # Pass 1 (serial, DB-only): filter + upsert, collect jobs needing scoring.
         to_score: list[dict[str, Any]] = []
         for _, row in df.iterrows():
-            titolo = str(row.get("title", "N/A"))
-            azienda = str(row.get("company", "N/A"))
-            descrizione = str(row.get("description", ""))
+            titolo = _clean_text(row.get("title")) or "N/A"
+            azienda = _clean_text(row.get("company")) or "N/A"
+            descrizione = _clean_text(row.get("description"))
+            fonte = _clean_text(row.get("site"))
+            link = _clean_text(row.get("job_url"))
+            # LinkedIn's per-job description fetch occasionally 429s on a single
+            # job, leaving it description-less; retry that one page (spaced out
+            # from jobspy's burst, so the transient throttle has usually cleared).
+            if not descrizione and fonte == "linkedin" and link:
+                descrizione = fetch_linkedin_description(link)
 
             skip, _reason = pre_filtro(titolo=titolo, descrizione=descrizione)
             if skip:
@@ -905,9 +962,9 @@ def run_scan(
                 "titolo": titolo,
                 "azienda": azienda,
                 "descrizione": descrizione,
-                "sede": str(row.get("location", "")),
-                "fonte": str(row.get("site", "")),
-                "link": str(row.get("job_url", "")),
+                "sede": _clean_text(row.get("location")),
+                "fonte": fonte,
+                "link": link,
                 "ricerca_usata": term,
                 "modalita": modalita,
             }
