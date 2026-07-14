@@ -23,11 +23,27 @@ _ENABLED = os.environ.get("ENABLE_RATE_LIMIT", "1").lower() not in ("0", "false"
 
 _lock = threading.Lock()
 _buckets: dict[tuple[str, str], deque[float]] = {}
+# Periodic sweep of stale keys so ``_buckets`` doesn't grow unbounded (one deque
+# per distinct (ip, bucket) forever). Guarded by ``_lock`` via ``check``.
+_STALE_AFTER_SECONDS = 3600.0
+_SWEEP_INTERVAL_SECONDS = 300.0
+_last_sweep = 0.0
 
 
 def _client_ip(request: Request) -> str:
     client = request.client
     return client.host if client else "unknown"
+
+
+def _maybe_sweep(now: float) -> None:
+    """Drop buckets whose most recent hit is long past. Caller holds ``_lock``."""
+    global _last_sweep
+    if now - _last_sweep < _SWEEP_INTERVAL_SECONDS:
+        return
+    _last_sweep = now
+    stale = [k for k, q in _buckets.items() if not q or now - q[-1] > _STALE_AFTER_SECONDS]
+    for k in stale:
+        del _buckets[k]
 
 
 def check(request: Request, bucket: str, limit: int, window_seconds: float = 60.0) -> None:
@@ -38,6 +54,7 @@ def check(request: Request, bucket: str, limit: int, window_seconds: float = 60.
     now = time.monotonic()
     key = (ip, bucket)
     with _lock:
+        _maybe_sweep(now)
         queue = _buckets.setdefault(key, deque())
         while queue and now - queue[0] > window_seconds:
             queue.popleft()

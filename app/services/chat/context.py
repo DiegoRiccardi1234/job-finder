@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from app.db import Database
+from app.services.pii import redact_pii
 
 
 def _format_job_brief(job: dict[str, Any], idx: int) -> str:
@@ -104,6 +105,13 @@ def build_profile_context(db: Database) -> str:
     linkedin_url = db.get_preference("linkedin_url", "")
     if linkedin_url:
         profile_text += f"\nLinkedIn: {linkedin_url}"
+
+    # Privacy Mode (default ON): strip contact PII (email/phone/address/URL)
+    # before the CV context reaches the LLM. name=None keeps the candidate's
+    # name so the coach can still address them (no restore step in chat).
+    privacy = db.get_preference("feature_privacy_mode", "1") not in ("0", "false", "off", "")
+    if privacy:
+        profile_text = redact_pii(profile_text, None)[0]
 
     return profile_text
 

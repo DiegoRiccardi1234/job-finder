@@ -31,7 +31,7 @@
     "active": "Active",
     "setActive": "Set active",
     "activated": "Profile activated",
-    "saved": "Profile saved",
+    "saved": "Saved",
     "saveFailed": "Save failed",
     "loadFailed": "Profile load failed",
     "years": "years",
@@ -74,7 +74,23 @@
     "linkedinPaste": "…or paste your profile text (used if LinkedIn can't be fetched)",
     "linkedinPasteSaved": "Profile text saved",
     "linkedinFetched": "Profile fetched and saved",
-    "linkedinBlocked": "URL saved — couldn't fetch the profile; paste the text to enrich AI context"
+    "linkedinBlocked": "URL saved — couldn't fetch the profile; paste the text to enrich AI context",
+    "year": "year",
+    "cvImproveBtn": "Improve my CV",
+    "cvReviewLabel": "CV review",
+    "cvImprovedLabel": "Improved CV",
+    "cvSaveAsProfile": "Save as new CV",
+    "cvSaveConfirm": "Save this improved CV as your active profile?",
+    "cvSaved": "Saved",
+    "cvImprovedSource": "AI-improved CV",
+    "cvTools": {
+      "title": "AI CV tools"
+    },
+    "editCv": "Edit",
+    "editName": "Display name",
+    "editCvText": "CV text (feeds AI scoring)",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "jobSearch": {
     "title": "Job",
@@ -191,7 +207,8 @@
     "loadError": "Couldn't load jobs. Try again.",
     "exportEmpty": "No jobs to export.",
     "deleteAllTitle": "Delete all jobs",
-    "alsoOn": "Also on"
+    "alsoOn": "Also on",
+    "openPosting": "Open posting"
   },
   "kanbanCols": {
     "open": "Open",
@@ -261,7 +278,14 @@
       "keyInvalid": "Invalid key, check it",
       "removeKey": "Remove key",
       "recommendedHint": "Recommended model for this provider",
-      "setPrimaryFirst": "Set this provider as primary to use this model."
+      "setPrimaryFirst": "Set this provider as primary to use this model.",
+      "probe": "Test models",
+      "probing": "Testing…",
+      "probeDone": "Test complete",
+      "probeError": "Test failed",
+      "probeEmpty": "No models to test",
+      "probeConfirm": "Confirm top models (uses AI)",
+      "probeConfirmDone": "Top models confirmed"
     },
     "features": {
       "title": "Automation",
@@ -287,7 +311,17 @@
       "city": "City — title + company + city (recommended)",
       "titleCompany": "Title + company — ignore location",
       "saved": "Grouping updated"
-    }
+    },
+    "models": {
+      "title": "AI models",
+      "subtitle": "Pin a specific model per task, or leave Auto. Populated from your primary provider.",
+      "scoring": "Job search (scoring)",
+      "chat": "Coach chat",
+      "cv": "CV tools",
+      "auto": "Auto (recommended)",
+      "saved": "Model saved"
+    },
+    "country": "Country"
   },
   "coach": {
     "title": "Career Coach",
@@ -399,7 +433,8 @@
       },
       "advanced": "Advanced filters"
     },
-    "postScanRenderFailed": "Scan complete (summary couldn't render)."
+    "postScanRenderFailed": "Scan complete (summary couldn't render).",
+    "volumeWarning": "Large scan ({n} searches) — this may take a while."
   },
   "toast": {
     "enterKeyOrProvider": "Enter at least one key or choose a primary provider.",

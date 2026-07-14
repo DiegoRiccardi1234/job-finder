@@ -12,6 +12,48 @@ from app.services.chat.context import suggest_keywords_from_profile, suggest_loc
 from app.services.chat.intents import has_role_guidance_intent, has_search_intent
 from app.services.chat.state import get_ui_language
 
+# Country names (IT/EN + a few) → jobspy country value, so "cerca lavoro in
+# Germania" can pre-fill the scan country selector.
+_COUNTRY_NAMES: dict[str, str] = {
+    "italia": "italy",
+    "italy": "italy",
+    "germania": "germany",
+    "germany": "germany",
+    "deutschland": "germany",
+    "francia": "france",
+    "france": "france",
+    "spagna": "spain",
+    "spain": "spain",
+    "regno unito": "uk",
+    "inghilterra": "uk",
+    "united kingdom": "uk",
+    "stati uniti": "usa",
+    "usa": "usa",
+    "united states": "usa",
+    "portogallo": "portugal",
+    "portugal": "portugal",
+    "olanda": "netherlands",
+    "paesi bassi": "netherlands",
+    "netherlands": "netherlands",
+    "svizzera": "switzerland",
+    "switzerland": "switzerland",
+    "canada": "canada",
+    "australia": "australia",
+    "irlanda": "ireland",
+    "ireland": "ireland",
+    "belgio": "belgium",
+    "belgium": "belgium",
+}
+
+
+def _detect_country(message: str) -> str | None:
+    m = f" {message.lower()} "
+    for name, value in _COUNTRY_NAMES.items():
+        if f" {name} " in m or f"in {name}" in m:
+            return value
+    return None
+
+
 # message keys: top_picks_lead, top_picks_outro, no_jobs, role_guidance,
 # search_prepared, default_saved
 _MESSAGES: dict[str, dict[str, str]] = {
@@ -117,6 +159,9 @@ def fallback_answer(db: Database, message: str) -> tuple[str, dict[str, Any] | N
         keywords = suggest_keywords_from_profile(db)
         locations = suggest_locations(db)
         action = {"type": "FILL_SCAN_FORM", "keywords": keywords, "locations": locations}
+        _country = _detect_country(message)
+        if _country:
+            action["country"] = _country
         roles = ", ".join(keywords[:3])
         return _t(lang, "role_guidance", roles=roles), action
 
@@ -124,6 +169,9 @@ def fallback_answer(db: Database, message: str) -> tuple[str, dict[str, Any] | N
         keywords = suggest_keywords_from_profile(db)
         locations = suggest_locations(db)
         action = {"type": "FILL_SCAN_FORM", "keywords": keywords, "locations": locations}
+        _country = _detect_country(message)
+        if _country:
+            action["country"] = _country
         return _t(lang, "search_prepared", kw=", ".join(keywords), loc=", ".join(locations)), action
 
     return _t(lang, "default_saved"), None

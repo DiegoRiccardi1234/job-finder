@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-07-14
+
+A quality pass: much faster scans, a smarter model picker, and privacy/UX fixes.
+
+### Added
+- **AI CV tools** — a dedicated panel on the Profile tab: **Review my CV** (prioritized, role-targeted advice, now rendered as clean formatted text and cached) and **Improve my CV** (an AI rewrite tuned to your target role, with your real contacts, that you can copy or save as a new active CV). Both run on a capable model.
+- **Edit your CV in-app** — change your display name and the CV text directly (the text feeds AI job scoring), no re-upload needed.
+- **Faster scans** — jobs are now scored in parallel instead of one at a time, so a scan finishes in seconds rather than minutes.
+- **Batched scoring (fewer rate-limit failures)** — the scan now scores a few jobs per AI request instead of one each, so a scan makes far fewer calls: on a free API tier that means fewer "too many requests" errors (which otherwise drop a job to a rough keyword-only estimate) and a faster run. A batch that comes back malformed automatically falls back to per-job scoring, so quality never degrades. Tunable via `scan_batch_size` (default 3; set 1 for the old one-per-call behaviour).
+- **Stop a scan for real** — the cancel button (and closing the tab) now stops the scan on the server too, so it stops using your AI quota immediately.
+- **Smarter model selection** — the app learns which of your provider's models actually work: it automatically avoids models that are rate-limited, return nothing, or aren't available on your plan, and picks a fast *but capable* model for job scoring (a quality floor stops it choosing a model too small to match jobs well). On OpenRouter it also reads each model's **live health** (uptime/latency, published by OpenRouter and free to fetch — no extra AI requests) and steers scoring away from models that are down right now, so scans hit fewer errors. The **"Test models"** button in Settings now shows that free health report (uptime · latency · throughput) without spending any of your AI quota; a separate **"Confirm top models"** button optionally runs a tiny check on just the best few to verify they return valid answers.
+
+### Fixed
+- **Privacy Mode now also covers the coach chat** — your CV's email, phone and address are stripped before the chat is sent to the AI provider (the coach still knows your name).
+- **Tailored résumé keeps your real contacts** — the generated résumé shows your real email/phone again instead of `[EMAIL]`/`[PHONE]` placeholders (the AI still never sees them).
+- **Interview prep reads cleanly** — it's now formatted text instead of a raw data blob.
+- **Profile** — the education line and the "1 year" label render correctly.
+- **Job Search "remote only" filter** now refreshes the list on its own.
+- A failed scan no longer wipes the "new" badges from the previous run, and two scans can no longer run at once.
+
+### Changed
+- CSV export downloads in your browser instead of writing a file into the app folder.
+- Accessibility: dialogs close with Escape and trap focus; the job link has a proper label; the chat input is disabled while a reply is loading.
+
 ## [1.6.0] — 2026-07-09
 
 A dedicated Jobs tab, a job-detail panel you can open from anywhere, application reminders, saved searches, kanban drag-and-drop, and more ways to let the AI help.

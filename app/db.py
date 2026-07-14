@@ -141,11 +141,19 @@ class Database:
         )
         run_id = int(cur.lastrowid or 0)
         self.conn.commit()
+        # NB: previous "new" badges are cleared lazily via clear_new_flags() only
+        # once this run actually scrapes rows — a scan whose scrape fails entirely
+        # (e.g. an upstream selector regression) must not wipe the badges with
+        # nothing to replace them.
+        return run_id
 
-        # Le nuove card appartengono solo all'ultima scansione.
+    @_synchronized
+    def clear_new_flags(self) -> None:
+        """Reset the ``is_new`` badge on every job. Called once per scan, after
+        the first successful scrape, so genuinely-new jobs upserted afterwards
+        keep their badge while a failed scrape leaves the prior run's badges."""
         self.conn.execute("UPDATE jobs SET is_new = 0")
         self.conn.commit()
-        return run_id
 
     @_synchronized
     def finish_scan(
@@ -548,6 +556,15 @@ class Database:
         data["sources"] = _parse_sources(data.get("sources_json"))
         return data
 
+    def job_has_analysis(self, job_id: int) -> bool:
+        """Whether a job already carries an AI analysis — cheaper than get_job()
+        when the scan loop only needs to decide skip-vs-rescore."""
+        cur = self.conn.execute(
+            "SELECT 1 FROM jobs WHERE id = ? AND analysis_json IS NOT NULL AND analysis_json != ''",
+            (int(job_id),),
+        )
+        return cur.fetchone() is not None
+
     def get_job_with_analysis(self, job_id: int) -> dict[str, Any] | None:
         data = self.get_job(job_id)
         if not data:
@@ -644,6 +661,26 @@ class Database:
             "UPDATE candidate_profiles SET summary_json = ? WHERE id = ?",
             (json.dumps(summary, ensure_ascii=False), profile_id),
         )
+        self.conn.commit()
+
+    @_synchronized
+    def update_candidate_profile_fields(
+        self, profile_id: int, *, markdown: str | None = None, name: str | None = None
+    ) -> None:
+        """Update the raw CV markdown and/or the display name of a profile
+        (manual in-app editing). Only the provided fields are touched."""
+        sets: list[str] = []
+        params: list[Any] = []
+        if markdown is not None:
+            sets.append("markdown = ?")
+            params.append(markdown)
+        if name is not None:
+            sets.append("name = ?")
+            params.append(name)
+        if not sets:
+            return
+        params.append(profile_id)
+        self.conn.execute(f"UPDATE candidate_profiles SET {', '.join(sets)} WHERE id = ?", params)
         self.conn.commit()
 
     @_synchronized

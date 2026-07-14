@@ -31,7 +31,7 @@
     "active": "Aktiv",
     "setActive": "Aktivieren",
     "activated": "Profil aktiviert",
-    "saved": "Profil gespeichert",
+    "saved": "Gespeichert",
     "saveFailed": "Speichern fehlgeschlagen",
     "loadFailed": "Profil-Laden fehlgeschlagen",
     "years": "Jahre",
@@ -74,7 +74,23 @@
     "linkedinPaste": "…oder füge deinen Profiltext ein (wird genutzt, wenn LinkedIn nicht abrufbar ist)",
     "linkedinPasteSaved": "Profiltext gespeichert",
     "linkedinFetched": "Profil abgerufen und gespeichert",
-    "linkedinBlocked": "URL gespeichert — Profil konnte nicht abgerufen werden; füge den Text ein, um den KI-Kontext zu erweitern"
+    "linkedinBlocked": "URL gespeichert — Profil konnte nicht abgerufen werden; füge den Text ein, um den KI-Kontext zu erweitern",
+    "year": "Jahr",
+    "cvImproveBtn": "Lebenslauf verbessern",
+    "cvReviewLabel": "CV-Analyse",
+    "cvImprovedLabel": "Verbesserter CV",
+    "cvSaveAsProfile": "Als neuen CV speichern",
+    "cvSaveConfirm": "Diesen verbesserten CV als aktives Profil speichern?",
+    "cvSaved": "Gespeichert",
+    "cvImprovedSource": "CV verbessert (KI)",
+    "cvTools": {
+      "title": "KI-CV-Tools"
+    },
+    "editCv": "Bearbeiten",
+    "editName": "Anzeigename",
+    "editCvText": "CV-Text (fließt ins KI-Scoring)",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
   },
   "jobSearch": {
     "title": "Job",
@@ -191,7 +207,8 @@
     "loadError": "Jobs konnten nicht geladen werden. Erneut versuchen.",
     "exportEmpty": "Keine Jobs zum Exportieren.",
     "deleteAllTitle": "Alle Jobs löschen",
-    "alsoOn": "Auch auf"
+    "alsoOn": "Auch auf",
+    "openPosting": "Anzeige öffnen"
   },
   "kanbanCols": {
     "open": "Offen",
@@ -261,7 +278,14 @@
       "keyInvalid": "Ungültiger Schlüssel, bitte prüfen",
       "removeKey": "Schlüssel entfernen",
       "recommendedHint": "Empfohlenes Modell für diesen Anbieter",
-      "setPrimaryFirst": "Lege diesen Anbieter als primär fest, um dieses Modell zu verwenden."
+      "setPrimaryFirst": "Lege diesen Anbieter als primär fest, um dieses Modell zu verwenden.",
+      "probe": "Modelle testen",
+      "probing": "Teste…",
+      "probeDone": "Test abgeschlossen",
+      "probeError": "Test fehlgeschlagen",
+      "probeEmpty": "Keine Modelle zum Testen",
+      "probeConfirm": "Beste bestätigen (nutzt KI)",
+      "probeConfirmDone": "Beste bestätigt"
     },
     "features": {
       "title": "Automatisierung",
@@ -287,7 +311,17 @@
       "city": "Stadt — Titel + Firma + Stadt (empfohlen)",
       "titleCompany": "Titel + Firma — Ort ignorieren",
       "saved": "Gruppierung aktualisiert"
-    }
+    },
+    "models": {
+      "title": "KI-Modelle",
+      "subtitle": "Ein Modell pro Aufgabe festlegen, oder Auto lassen. Aus deinem Hauptanbieter.",
+      "scoring": "Jobsuche (Scoring)",
+      "chat": "Coach-Chat",
+      "cv": "CV-Tools",
+      "auto": "Auto (empfohlen)",
+      "saved": "Modell gespeichert"
+    },
+    "country": "Land"
   },
   "coach": {
     "title": "Career Coach",
@@ -399,7 +433,8 @@
       },
       "advanced": "Erweiterte Filter"
     },
-    "postScanRenderFailed": "Scan fertig (Zusammenfassung nicht darstellbar)."
+    "postScanRenderFailed": "Scan fertig (Zusammenfassung nicht darstellbar).",
+    "volumeWarning": "Großer Scan ({n} Suchen) — kann dauern."
   },
   "toast": {
     "enterKeyOrProvider": "Gib mindestens einen Schlüssel ein oder wähle einen primären Anbieter.",

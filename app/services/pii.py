@@ -74,3 +74,32 @@ def restore_pii(text: str, token_map: dict[str, str]) -> str:
     for token, value in token_map.items():
         text = text.replace(token, value)
     return text
+
+
+def restore_contacts(text: str, source_text: str) -> str:
+    """Replace fixed contact sentinels in ``text`` with the real values found in
+    ``source_text`` (the un-redacted CV).
+
+    Contacts are normally redacted for good — but a tailored résumé is a document
+    the user actually sends, so ``[EMAIL]``/``[PHONE]``/``[ADDRESS]``/``[URL]``
+    placeholders must become the candidate's real details. The LLM still never
+    saw them (redaction happens on the way in); this only touches the local
+    output. Uses the first match of each kind (a résumé header carries one set).
+    """
+    if not text or not source_text:
+        return text
+    for sentinel, pattern in (
+        ("[EMAIL]", _EMAIL_RE),
+        ("[URL]", _URL_RE),
+        ("[ADDRESS]", _ADDRESS_RE),
+    ):
+        if sentinel in text:
+            match = pattern.search(source_text)
+            if match:
+                text = text.replace(sentinel, match.group(0).strip())
+    if "[PHONE]" in text:
+        for match in _PHONE_RE.finditer(source_text):
+            if len(re.sub(r"\D", "", match.group(0))) >= 9:
+                text = text.replace("[PHONE]", match.group(0).strip())
+                break
+    return text

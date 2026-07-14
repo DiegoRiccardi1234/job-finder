@@ -73,6 +73,11 @@ class JobImportRequest(BaseModel):
 class ScanRequest(BaseModel):
     search_terms: list[str] = Field(default_factory=list)
     location: str | None = None
+    # Multi-location scan: scrape each location (city/region/"remote"). When
+    # empty, falls back to the single ``location`` (backward compat / saved searches).
+    locations: list[str] = Field(default_factory=list)
+    # Indeed/Glassdoor country (a jobspy Country name/alias). None → settings default.
+    country: str | None = None
     is_remote: bool = False
     sites: list[str] = Field(default_factory=lambda: ["linkedin", "indeed"])
     experience_levels: list[str] = Field(default_factory=list)
@@ -101,6 +106,13 @@ class ProfileUpdate(BaseModel):
     preferred_roles: list[str] | None = None
     skills: list[str] | None = None
     languages: list[str] | None = None
+    name: str | None = None
+    markdown: str | None = None
+
+
+class ProfileFromTextRequest(BaseModel):
+    markdown: str
+    source_name: str | None = None
 
 
 class ChatRequest(BaseModel):
@@ -164,3 +176,6 @@ class ProviderKeysRequest(BaseModel):
     mistral_api_key: str | None = None
     primary_provider: str | None = None
     preferred_model: str | None = None
+    scoring_model: str | None = None
+    chat_model: str | None = None
+    cv_model: str | None = None

@@ -22,6 +22,7 @@ from app.providers.openai_compat import (
 )
 from app.providers.openai_provider import OpenAIProvider
 from app.providers.openrouter_provider import OpenRouterProvider
+from app.services import model_stats
 
 _RetryT = TypeVar("_RetryT")
 
@@ -39,6 +40,16 @@ _KEY_INVALID_COOLDOWN_SECONDS = float(_os.environ.get("LLM_KEY_INVALID_COOLDOWN_
 # After a model returns a persistent 429 (rate limit), avoid auto-picking it for
 # this many seconds so selection rotates to another model.
 _MODEL_429_COOLDOWN_SECONDS = float(_os.environ.get("LLM_MODEL_429_COOLDOWN_SECONDS", "300"))
+# Per-reason cooldowns (seconds) for the empirical model-penalty map: after a
+# model fails a given way, auto-selection de-ranks it for this long so the next
+# request rotates to a healthier one. 429/403 are persistent (throttled / no
+# credits); empty-content and json_fail are softer/transient.
+_MODEL_PENALTY_COOLDOWNS = {
+    "rate_limit": _MODEL_429_COOLDOWN_SECONDS,
+    "forbidden": _MODEL_429_COOLDOWN_SECONDS,
+    "empty": 180.0,
+    "json_fail": 180.0,
+}
 
 
 class ProviderManager:
@@ -64,8 +75,11 @@ class ProviderManager:
         # When each provider was first observed key_invalid (for the re-probe
         # cooldown). Reset for free on reload_providers (new manager instance).
         self._key_invalid_since: dict[str, float] = {}
-        # When each model last returned a persistent 429 (for de-rank cooldown).
-        self._model_429_at: dict[str, float] = {}
+        # Empirical per-(provider, model) penalty for auto-selection de-ranking.
+        # Key = "provider::model", value = (timestamp, reason). Populated from
+        # real call outcomes (429/403/json_fail/empty) and by the model probe;
+        # in-memory with per-reason TTL so it self-heals across the session.
+        self._model_penalty: dict[str, tuple[float, str]] = {}
         # Set by AppContainer after the DB is open; ``_record_call`` uses it
         # to persist token usage. None = no-op (unit tests, isolated usage).
         self._db: Any = None
@@ -103,7 +117,7 @@ class ProviderManager:
                         models=models,
                         preferred_model=self.settings.preferred_model,
                         policy=self.settings.model_selection_policy,
-                        penalized=self._recent_429_models(),
+                        penalized=self._penalized_model_ids(provider_name),
                     )
             except Exception as exc:
                 log.info(
@@ -221,15 +235,27 @@ class ProviderManager:
             return False
         return True
 
-    def _recent_429_models(self) -> set[str]:
-        """Models seen persistently rate-limited within the cooldown window
-        (stale entries pruned). Auto model-selection de-ranks these."""
+    def record_model_penalty(self, provider_name: str, model: str, reason: str) -> None:
+        """De-rank a (provider, model) after an empirical failure. Also called by
+        the model probe to seed penalties for dead/empty models."""
+        self._model_penalty[f"{provider_name}::{model}"] = (_time.time(), reason)
+
+    def _penalized_model_ids(self, provider_name: str) -> set[str]:
+        """Model ids currently penalized for ``provider_name`` (stale entries
+        pruned per-reason). Fed to rank_models as ``penalized=`` to sink them
+        below healthy models without excluding them."""
         now = _time.time()
-        fresh = {
-            m for m, ts in self._model_429_at.items() if now - ts < _MODEL_429_COOLDOWN_SECONDS
-        }
-        self._model_429_at = {m: self._model_429_at[m] for m in fresh}
-        return fresh
+        fresh: dict[str, tuple[float, str]] = {}
+        penalized: set[str] = set()
+        prefix = f"{provider_name}::"
+        for key, (ts, reason) in self._model_penalty.items():
+            cooldown = _MODEL_PENALTY_COOLDOWNS.get(reason, _MODEL_429_COOLDOWN_SECONDS)
+            if now - ts < cooldown:
+                fresh[key] = (ts, reason)
+                if key.startswith(prefix):
+                    penalized.add(key[len(prefix) :])
+        self._model_penalty = fresh
+        return penalized
 
     def get_models(self, provider_name: str, force_refresh: bool = False) -> dict[str, Any]:
         """Return models + recommended for a single provider, cached for 5 min."""
@@ -282,6 +308,7 @@ class ProviderManager:
         endpoint: str,
         success: bool,
         error_type: str | None = None,
+        duration_ms: int | None = None,
     ) -> None:
         """Persist token usage to ``usage_log`` after a call. Best-effort.
 
@@ -302,11 +329,14 @@ class ProviderManager:
                 last_usage=getattr(provider, "last_usage", None),
                 success=success,
                 error_type=error_type,
+                duration_ms=duration_ms,
             )
         except Exception as exc:
             log.debug("usage record skipped: %s", exc)
 
-    def _ranked_models_for(self, provider: LLMProvider, limit: int) -> list[str]:
+    def _ranked_models_for(
+        self, provider: LLMProvider, limit: int, policy_override: dict[str, Any] | None = None
+    ) -> list[str]:
         """Up to ``limit`` models to try on ``provider``, best-first.
 
         Recent-429 models are de-ranked (sunk to the bottom) so a single request
@@ -314,16 +344,38 @@ class ProviderManager:
         another provider. Uses the 5-min cached catalog (``get_models``) so this
         adds no per-request network call on the happy path. Falls back to a
         single best-effort model when no live catalog is available.
+
+        ``policy_override`` (e.g. the speed-biased scan-scoring policy) re-ranks
+        the live catalog for one call and ignores the global ``preferred_model``
+        pin, so scoring can pick a fast small model while chat/generation keep the
+        quality default. Fully churn-safe — it ranks whatever the provider serves.
         """
         models = self.get_models(provider.name).get("models") or []
         if models:
-            ranked = rank_models(
-                models,
-                preferred_model=self.settings.preferred_model,
-                policy=self.settings.model_selection_policy,
-                penalized=self._recent_429_models(),
-                limit=limit,
-            )
+
+            def _rank(pool: list[str], pen: set[str], lim: int) -> list[str]:
+                return rank_models(
+                    pool,
+                    preferred_model=None if policy_override else self.settings.preferred_model,
+                    policy=policy_override or self.settings.model_selection_policy,
+                    penalized=pen,
+                    limit=lim,
+                )
+
+            penalized = self._penalized_model_ids(provider.name)
+            pool = models
+            # OpenRouter exposes free live health stats (uptime/latency, no
+            # inference). Fold models that are down RIGHT NOW into the penalized
+            # set so scoring rotates off them before hitting a 429. Bounded to the
+            # name-ranked shortlist so we never fetch stats for the whole catalog;
+            # empty health (non-OR / network down) leaves behaviour unchanged.
+            if provider.name == "openrouter":
+                shortlist = _rank(models, penalized, max(limit * 4, limit))
+                health = model_stats.get_model_health(provider, shortlist)
+                if health:
+                    penalized = penalized | model_stats.unhealthy_ids(health)
+                    pool = shortlist
+            ranked = _rank(pool, penalized, limit)
             if ranked:
                 return ranked
         try:
@@ -342,7 +394,10 @@ class ProviderManager:
     _INTRA_PROVIDER_MODELS = 3
 
     def _failover_candidates(
-        self, explicit_provider: str | None, explicit_model: str | None
+        self,
+        explicit_provider: str | None,
+        explicit_model: str | None,
+        policy_override: dict[str, Any] | None = None,
     ) -> list[tuple[LLMProvider, str]]:
         """Ordered ``[(provider, model)]`` to attempt for one request.
 
@@ -361,7 +416,7 @@ class ProviderManager:
                 return []
             if explicit_model:
                 return [(provider, explicit_model)]
-            return [(provider, m) for m in self._ranked_models_for(provider, K)]
+            return [(provider, m) for m in self._ranked_models_for(provider, K, policy_override)]
 
         candidates: list[tuple[LLMProvider, str]] = []
         seen_pairs: set[tuple[str, str]] = set()
@@ -374,7 +429,7 @@ class ProviderManager:
                 seen_pairs.add(pair)
 
         if self.active_provider is not None:
-            for model in self._ranked_models_for(self.active_provider, K):
+            for model in self._ranked_models_for(self.active_provider, K, policy_override):
                 add(self.active_provider, model)
             seen_providers.add(self.active_provider.name)
 
@@ -392,7 +447,7 @@ class ProviderManager:
                 usable = False
             if not usable:
                 continue
-            for model in self._ranked_models_for(provider, 1):
+            for model in self._ranked_models_for(provider, 1, policy_override):
                 add(provider, model)
             seen_providers.add(name)
         return candidates
@@ -417,23 +472,27 @@ class ProviderManager:
         explicit_provider: str | None,
         explicit_model: str | None,
         call: Callable[[LLMProvider, str], _RetryT],
+        policy_override: dict[str, Any] | None = None,
     ) -> _RetryT:
-        candidates = self._failover_candidates(explicit_provider, explicit_model)
+        candidates = self._failover_candidates(explicit_provider, explicit_model, policy_override)
         if not candidates:
             raise RuntimeError("No LLM provider available")
         last_exc: Exception | None = None
         for idx, (provider, model) in enumerate(candidates):
+            _t0 = _time.time()
             try:
                 result = _with_retry(
                     functools.partial(call, provider, model),
                     provider_label=provider.name,
                 )
             except Exception as exc:
+                elapsed_ms = int((_time.time() - _t0) * 1000)
                 last_exc = exc
-                if _is_rate_limited(exc):
-                    self._model_429_at[model] = _time.time()
+                reason = _classify_failure(exc)
+                if reason:
+                    self.record_model_penalty(provider.name, model, reason)
                 self._maybe_flag_key_invalid(provider, exc)
-                self._record_call(provider, model, endpoint, False, type(exc).__name__)
+                self._record_call(provider, model, endpoint, False, type(exc).__name__, elapsed_ms)
                 if idx < len(candidates) - 1:
                     log.warning(
                         "Provider %s failed (%s); failing over to next provider.",
@@ -441,10 +500,31 @@ class ProviderManager:
                         exc.__class__.__name__,
                     )
                 continue
-            self._record_call(provider, model, endpoint, True)
+            elapsed_ms = int((_time.time() - _t0) * 1000)
+            if _is_empty_result(result):
+                # Some free models 200 with empty content (reasoning-only) — a
+                # successful-but-useless reply. De-rank so we rotate off it next.
+                self.record_model_penalty(provider.name, model, "empty")
+            self._record_call(provider, model, endpoint, True, None, elapsed_ms)
             return result
         assert last_exc is not None
         raise last_exc
+
+    def pin_kwargs(
+        self, model_id: str | None, policy_override: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Kwargs for complete_json/chat honoring a per-context model override.
+
+        If the user pinned a specific model (``model_id``), return an explicit
+        (primary provider, model) pin — a deliberate choice, so NO failover.
+        Otherwise fall back to the auto-selection ``policy_override``.
+        """
+        if model_id:
+            primary = (
+                self.settings.llm_provider_order[0] if self.settings.llm_provider_order else None
+            )
+            return {"provider_name": primary, "model_name": model_id}
+        return {"policy_override": policy_override}
 
     def complete_json(
         self,
@@ -452,13 +532,24 @@ class ProviderManager:
         max_tokens: int = 700,
         provider_name: str | None = None,
         model_name: str | None = None,
+        policy_override: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return self._run_with_failover(
             endpoint="complete_json",
             explicit_provider=provider_name,
             explicit_model=model_name,
             call=lambda p, m: p.complete_json(prompt=prompt, model=m, max_tokens=max_tokens),
+            policy_override=policy_override,
         )
+
+    def preview_scoring_model(self, policy_override: dict[str, Any] | None = None) -> str:
+        """Best (provider, model) the next scoring call would try — for logging.
+
+        Returns just the model id of the first failover candidate under
+        ``policy_override``, or ``"none"`` when no provider is available.
+        """
+        candidates = self._failover_candidates(None, None, policy_override)
+        return candidates[0][1] if candidates else "none"
 
     def chat(
         self,
@@ -466,12 +557,14 @@ class ProviderManager:
         max_tokens: int = 700,
         provider_name: str | None = None,
         model_name: str | None = None,
+        policy_override: dict[str, Any] | None = None,
     ) -> str:
         return self._run_with_failover(
             endpoint="chat",
             explicit_provider=provider_name,
             explicit_model=model_name,
             call=lambda p, m: p.chat(messages=messages, model=m, max_tokens=max_tokens),
+            policy_override=policy_override,
         )
 
 
@@ -508,6 +601,40 @@ def _is_rate_limited(exc: Exception) -> bool:
         return True
     text = str(exc).lower()
     return "429" in text or "rate limit" in text or "too many requests" in text
+
+
+def _is_forbidden(exc: Exception) -> bool:
+    """True for a 403 — on a credit-less account paid models 403 ("key limit
+    exceeded"); such a model should be de-ranked, not retried."""
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    if status == 403:
+        return True
+    text = str(exc).lower()
+    return "403" in text or "forbidden" in text or "key limit exceeded" in text
+
+
+def _classify_failure(exc: Exception) -> str | None:
+    """Map a failed LLM call to an empirical-penalty reason, or None when the
+    failure shouldn't de-rank the model (transient network/5xx — retry handles
+    those; 401 is handled separately at the provider level)."""
+    if _is_rate_limited(exc):
+        return "rate_limit"
+    if _is_forbidden(exc):
+        return "forbidden"
+    if isinstance(exc, ValueError):  # "Nessun JSON trovato" — model won't emit JSON
+        return "json_fail"
+    return None
+
+
+def _is_empty_result(result: Any) -> bool:
+    """A successful-but-useless reply: empty/whitespace string or empty dict."""
+    if result is None:
+        return True
+    if isinstance(result, str):
+        return not result.strip()
+    if isinstance(result, dict):
+        return not result
+    return False
 
 
 def _call_with_timeout(fn: Callable[[], _RetryT], timeout: float) -> _RetryT:

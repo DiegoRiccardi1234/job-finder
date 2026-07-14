@@ -3,6 +3,8 @@ import math
 import random
 import re
 import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 # Common technical keywords. If a scrape for one of these returns zero rows,
@@ -146,6 +148,39 @@ from app.services.recruiter_scrape import fetch_recruiter
 
 log = get_logger(__name__)
 
+# Speed-biased model policy for scan scoring. Scoring a job (0-10 + JSON) barely
+# needs model quality but is high-volume, so we bias hard toward fast/small
+# models (flash/turbo/instant, size-penalised) and drop the global preferred_model
+# pin. Passed as ``policy_override`` so it re-ranks the provider's LIVE catalog —
+# no hardcoded model id, so it survives OpenRouter's changing catalog. Chat and
+# letter generation keep the quality default (they don't pass this).
+_SCORING_POLICY: dict[str, Any] = {
+    # "Fastest among CAPABLE models." A pure speed bias picked 1-20B toys that
+    # scored job↔CV matches badly (a Product Owner at 8/10, empty analyses), so
+    # we keep a fast lean but with a quality floor: de-rank models that advertise
+    # a size under 40B, and reward capability again. Target: gpt-oss-120b:free
+    # (~4s, capable) over a 1.2B free model.
+    "prefer_fast": True,
+    "prefer_quality": True,
+    "prefer_free": True,
+    "max_cost_tier": "high",
+    "min_size_b": 40,
+    "weights": {
+        "size": 16,
+        "speed": 12,
+        "family": 20,
+        "instruct": 25,
+        "chat": 10,
+        "json": 12,
+        "reasoning": 4,
+        "small_penalty": -150,
+    },
+}
+
+# Cap on locations per scan: a scan is terms x locations x ~20 jobs, so this
+# bounds the volume (and the free-tier LLM scoring time) for a multi-location run.
+_MAX_SCAN_LOCATIONS = 8
+
 try:
     from jobspy import scrape_jobs
 except ImportError:  # pragma: no cover
@@ -245,26 +280,11 @@ def pre_filtro(titolo: str, descrizione: str) -> tuple[bool, str]:
     return False, ""
 
 
-def _analysis_prompt(
-    profile_markdown: str,
-    titolo: str,
-    azienda: str,
-    descrizione: str,
-    extra_context: str = "",
-) -> str:
-    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
-    return f"""Analizza questa offerta IT e rispondi SOLO con JSON valido, senza testo extra.
-
-CV candidato:
-{profile_markdown[:3500]}
-{extra}
-OFFERTA:
-Titolo: {titolo}
-Azienda: {azienda}
-Descrizione: {descrizione[:1800]}
-
-JSON richiesto:
-{{
+# Per-offer analysis schema, shared by the single-offer prompt and the batch
+# prompt so both stay identical (job_detail.js depends on this exact shape:
+# radar match_axes, skills_match, requisiti…). Plain string with literal braces
+# — inserted by concatenation, so no f-string escaping.
+_PER_OFFER_SCHEMA = """{
   "punteggio": <1-10>,
   "programmazione_richiesta": "Bassa|Media|Alta",
   "smart_working": "Sì|No|Non specificato",
@@ -282,20 +302,68 @@ JSON richiesto:
   "requisiti": ["max 5 requisiti chiave dell'offerta, brevi"],
   "responsabilita": ["max 5 responsabilità principali, brevi"],
   "benefit": ["max 5 benefit menzionati, brevi"],
-  "skills_match": {{
+  "skills_match": {
     "hai": ["skills che il candidato ha e l'offerta richiede"],
     "mancano": ["skills richieste che il candidato non ha"]
-  }},
+  },
   "livello_richiesto": "internship|entry|junior|mid|senior|lead",
-  "match_axes": {{
+  "match_axes": {
     "skills_match": <0-10>,
     "seniority_match": <0-10>,
     "remote_match": <0-10>,
     "salary_match": <0-10>,
     "contract_match": <0-10>
-  }}
-}}
-"""
+  }
+}"""
+
+
+def _analysis_prompt(
+    profile_markdown: str,
+    titolo: str,
+    azienda: str,
+    descrizione: str,
+    extra_context: str = "",
+) -> str:
+    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
+    return (
+        "Analizza questa offerta IT e rispondi SOLO con JSON valido, senza testo extra.\n\n"
+        f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
+        f"OFFERTA:\nTitolo: {titolo}\nAzienda: {azienda}\n"
+        f"Descrizione: {descrizione[:1800]}\n\n"
+        "JSON richiesto:\n" + _PER_OFFER_SCHEMA + "\n"
+    )
+
+
+def _batch_analysis_prompt(
+    profile_markdown: str,
+    offers: list[dict[str, Any]],
+    extra_context: str = "",
+) -> str:
+    """Prompt for scoring N offers for the SAME candidate in one LLM call.
+
+    The CV is sent once; offers are numbered 1..N; the model must return a JSON
+    object ``{"valutazioni": [ ...N objects... ]}`` in the same order, each with
+    the per-offer schema. Wrapped in an object (not a bare array) so the shared
+    ``complete_json`` extractor returns a dict as everywhere else.
+    """
+    extra = f"\nPREFERENZE CANDIDATO:\n{extra_context}\n" if extra_context.strip() else ""
+    n = len(offers)
+    blocks = [
+        f"--- OFFERTA {i} ---\n"
+        f"Titolo: {off['titolo']}\nAzienda: {off['azienda']}\n"
+        f"Descrizione: {str(off['descrizione'])[:1500]}"
+        for i, off in enumerate(offers, 1)
+    ]
+    offers_text = "\n\n".join(blocks)
+    return (
+        f"Analizza le {n} offerte IT qui sotto per lo STESSO candidato e rispondi "
+        "SOLO con JSON valido, senza testo extra.\n\n"
+        f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
+        f"OFFERTE ({n}):\n{offers_text}\n\n"
+        f'Rispondi con un oggetto JSON con una sola chiave "valutazioni" = array di '
+        f"ESATTAMENTE {n} oggetti, UNO per offerta nello STESSO ordine "
+        "(OFFERTA 1 -> primo elemento). Ogni oggetto ha questo schema:\n" + _PER_OFFER_SCHEMA + "\n"
+    )
 
 
 def _tokenize(text: str) -> set[str]:
@@ -429,6 +497,19 @@ def _fallback_analysis(
     }
 
 
+def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
+    """Provider/model kwargs for a scoring call: pin the user-chosen scoring
+    model if set (no failover), else auto-select via the speed-biased policy.
+    getattr-guarded so test stubs without ``.settings`` still work.
+    """
+    settings = getattr(provider_manager, "settings", None)
+    scoring_model = getattr(settings, "scoring_model", None)
+    if scoring_model:
+        order = getattr(settings, "llm_provider_order", None) or []
+        return {"provider_name": order[0] if order else None, "model_name": scoring_model}
+    return {"policy_override": _SCORING_POLICY}
+
+
 def analyze_offer(
     provider_manager: ProviderManager,
     profile_markdown: str,
@@ -448,7 +529,9 @@ def analyze_offer(
         prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
     prompt = _analysis_prompt(prompt_markdown, titolo, azienda, descrizione, extra_context)
     try:
-        result = provider_manager.complete_json(prompt=prompt, max_tokens=500)
+        result = provider_manager.complete_json(
+            prompt=prompt, max_tokens=200, **_scoring_call_kwargs(provider_manager)
+        )
         if not isinstance(result, dict):
             return _fallback_analysis(
                 "invalid response",
@@ -468,20 +551,88 @@ def analyze_offer(
         )
 
 
+def analyze_offers_batch(
+    provider_manager: ProviderManager,
+    profile_markdown: str,
+    offers: list[dict[str, Any]],
+    *,
+    privacy: bool = False,
+    extra_context: str = "",
+    candidate_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """Score N offers in one LLM call, returning exactly ``len(offers)`` analyses
+    in order. A batch that fails, returns non-JSON, or yields too few / invalid
+    elements degrades gracefully: each missing slot is filled by a per-offer
+    :func:`analyze_offer` (which itself falls back to a heuristic). Never raises.
+    """
+    if not offers:
+        return []
+
+    prompt_markdown = profile_markdown
+    if privacy:
+        prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
+
+    parsed: list[Any] = []
+    try:
+        prompt = _batch_analysis_prompt(prompt_markdown, offers, extra_context)
+        # Token budget = fixed reasoning headroom + per-offer output. The scoring
+        # target is gpt-oss-120b, a REASONING model that spends completion tokens
+        # thinking BEFORE emitting the array — a tight budget (e.g. 1k for 3
+        # offers) is fully consumed by reasoning, leaving an empty completion and
+        # voiding the batch. ~1600 base + 500/offer survives it (verified live:
+        # 3 offers returned a full valid array at ~3k tokens, empty at ~1k).
+        result = provider_manager.complete_json(
+            prompt=prompt,
+            max_tokens=500 * len(offers) + 1600,
+            **_scoring_call_kwargs(provider_manager),
+        )
+        if isinstance(result, dict):
+            raw = result.get("valutazioni") or result.get("evaluations") or result.get("results")
+            if isinstance(raw, list):
+                parsed = raw
+    except Exception as exc:
+        log.warning("Batch scoring failed (n=%d): %s; falling back per-offer", len(offers), exc)
+
+    out: list[dict[str, Any]] = []
+    for i, off in enumerate(offers):
+        item = parsed[i] if i < len(parsed) else None
+        if isinstance(item, dict) and "punteggio" in item:
+            out.append(item)
+        else:
+            # Missing / malformed slot: single-offer scoring for just this one.
+            out.append(
+                analyze_offer(
+                    provider_manager=provider_manager,
+                    profile_markdown=profile_markdown,
+                    titolo=off["titolo"],
+                    azienda=off["azienda"],
+                    descrizione=off["descrizione"],
+                    privacy=privacy,
+                    extra_context=extra_context,
+                    candidate_name=candidate_name,
+                )
+            )
+    return out
+
+
 def run_scan(
     db: Database,
     settings: AppSettings,
     provider_manager: ProviderManager,
     payload: ScanRequest,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> Any:
     """Run a job scan and yield progress events for SSE streaming.
 
     For each requested search term, scrapes listings via python-jobspy,
-    deduplicates, applies the pre-filter blacklist, delegates per-job
-    analysis to :func:`analyze_offer`, and persists results. Yields dicts
-    describing status transitions (``scraped``, ``analyzed``, ``done``,
-    ``error``) that the caller forwards to the client as Server-Sent Events.
+    deduplicates, applies the pre-filter blacklist, scores the surviving jobs
+    concurrently via :func:`analyze_offer` (bounded by ``scan_concurrency``),
+    and persists results. Yields dicts describing status transitions
+    (``scraped``, ``analyzed``, ``cancelled``, ``complete``, ``error``) that the
+    caller forwards to the client as Server-Sent Events. ``cancel_check`` — when
+    it returns True the run stops promptly (user hit stop / tab closed).
     """
+    cancelled = cancel_check or (lambda: False)
     if scrape_jobs is None:
         yield {"error": "python-jobspy not installed"}
         return
@@ -498,6 +649,11 @@ def run_scan(
     privacy = db.get_preference("feature_privacy_mode", "1") not in ("0", "false", "off", "")
     onboarding = onboarding_context(db)
     candidate_name = profile.get("name") if profile else None
+    log.info(
+        "Scan scoring model: %s",
+        settings.scoring_model
+        or f"auto → {provider_manager.preview_scoring_model(_SCORING_POLICY)}",
+    )
 
     terms = payload.search_terms or settings.default_search_terms
     exp_levels = list(payload.experience_levels or [])
@@ -507,16 +663,28 @@ def run_scan(
 
     is_remote_effective = payload.is_remote or ("remote" in work_types)
 
-    location = payload.location or (
+    # Multi-location: scrape each location. Fall back to the single location (or
+    # the settings default) for backward compat / saved searches. Capped to keep
+    # a scan bounded (terms x locations x ~20 jobs each).
+    default_location = (
         settings.location_remote_default if is_remote_effective else settings.location_default
     )
+    locations_list = [loc.strip() for loc in (payload.locations or []) if loc and loc.strip()]
+    if not locations_list:
+        locations_list = [payload.location.strip()] if payload.location else [default_location]
+    if len(locations_list) > _MAX_SCAN_LOCATIONS:
+        locations_list = locations_list[:_MAX_SCAN_LOCATIONS]
+    country = (payload.country or settings.country_default or "italy").strip()
+    primary_location = locations_list[0]
     modalita = "Full Remote" if is_remote_effective else "In sede"
 
     augmented_terms = [_augment_search_term(t, exp_levels, work_types) for t in terms]
 
     jobspy_job_type = _resolve_jobspy_job_type(job_types)
 
-    db.set_preference("last_scan_location", location)
+    db.set_preference("last_scan_location", primary_location)
+    db.set_preference("last_scan_locations", json.dumps(locations_list, ensure_ascii=False))
+    db.set_preference("last_scan_country", country)
     db.set_preference("last_scan_is_remote", "1" if is_remote_effective else "0")
     db.set_preference("last_scan_terms", json.dumps(terms, ensure_ascii=False))
     db.set_preference(
@@ -527,15 +695,18 @@ def run_scan(
         ),
     )
 
-    run_id = db.begin_scan(location=location, is_remote=is_remote_effective, terms=terms)
+    run_id = db.begin_scan(location=primary_location, is_remote=is_remote_effective, terms=terms)
 
     started_at_ms = int(time.time() * 1000)
-    expected_total = max(1, len(terms) * max(1, settings.max_annunci))
+    total_batches = max(1, len(terms) * len(locations_list))
+    expected_total = max(1, total_batches * max(1, settings.max_annunci))
 
     yield {
         "status": "started",
         "terms": terms,
-        "location": location,
+        "location": primary_location,
+        "locations": locations_list,
+        "country": country,
         "is_remote": is_remote_effective,
         "filters": {
             "experience_levels": exp_levels,
@@ -549,15 +720,87 @@ def run_scan(
     totale_nuovi = 0
     totale_analizzati = 0
     totale_scartati = 0
+    new_flags_cleared = False
 
-    for idx, term in enumerate(terms):
-        if idx > 0:
+    def _finalize_scored(item: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+        """Attach salary, coerce the score to int, best-effort recruiter fetch.
+        Shared by the single- and batch-scoring paths. Runs on a worker thread;
+        DB writes happen back on the generator thread."""
+        row = item["row"]
+        analysis = dict(analysis)
+        analysis["stipendio_min"] = row.get("min_amount") or "N/D"
+        analysis["stipendio_max"] = row.get("max_amount") or "N/D"
+        raw_score = analysis.get("punteggio", 0)
+        try:
+            analysis["punteggio"] = int(raw_score)
+        except (TypeError, ValueError):
+            numbers = re.findall(r"\d+", str(raw_score))
+            analysis["punteggio"] = int(numbers[0]) if numbers else 0
+
+        recruiter = None
+        link = item["link"]
+        if link and "linkedin.com" in link and not db.get_recruiter(item["job_id"]):
+            try:
+                recruiter = fetch_recruiter(link, timeout=3.0)
+            except Exception as exc:
+                log.debug("recruiter scrape skipped for job %s: %s", item["job_id"], exc)
+        return {
+            "job_id": item["job_id"],
+            "titolo": item["titolo"],
+            "azienda": item["azienda"],
+            "analysis": analysis,
+            "recruiter": recruiter,
+        }
+
+    def _score_job(item: dict[str, Any]) -> dict[str, Any]:
+        """Score one offer (one LLM call) + finalize."""
+        analysis = analyze_offer(
+            provider_manager=provider_manager,
+            profile_markdown=profile_markdown,
+            titolo=item["titolo"],
+            azienda=item["azienda"],
+            descrizione=item["descrizione"],
+            privacy=privacy,
+            extra_context=onboarding,
+            candidate_name=candidate_name,
+        )
+        return _finalize_scored(item, analysis)
+
+    def _score_batch(chunk: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Score a chunk of offers in one LLM call (per-offer fallback inside
+        analyze_offers_batch) + finalize each. Returns one result per offer."""
+        analyses = analyze_offers_batch(
+            provider_manager=provider_manager,
+            profile_markdown=profile_markdown,
+            offers=chunk,
+            privacy=privacy,
+            extra_context=onboarding,
+            candidate_name=candidate_name,
+        )
+        return [
+            _finalize_scored(item, analysis) for item, analysis in zip(chunk, analyses, strict=True)
+        ]
+
+    def _score_unit(unit: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Score a work unit: >1 offer → one batched call; a lone offer → single
+        call (avoids wasting a batch prompt on the last odd job)."""
+        if len(unit) > 1:
+            return _score_batch(unit)
+        return [_score_job(unit[0])]
+
+    # Flat (location, term) pairs so the existing single-loop body stays intact;
+    # batch_no drives global progress across the whole location x term grid.
+    scan_pairs = [(loc, ti, term) for loc in locations_list for ti, term in enumerate(terms)]
+    for batch_no, (location, idx, term) in enumerate(scan_pairs):
+        if cancelled():
+            break
+        if batch_no > 0:
             time.sleep(random.uniform(0.8, 2.4))
 
         effective_term = augmented_terms[idx] if idx < len(augmented_terms) else term
 
         elapsed_ms = int(time.time() * 1000) - started_at_ms
-        seen = idx * max(1, settings.max_annunci)
+        seen = batch_no * max(1, settings.max_annunci)
         eta_ms = int((elapsed_ms / max(1, seen)) * (expected_total - seen)) if seen > 0 else 0
         yield {
             "status": "progress",
@@ -577,7 +820,7 @@ def run_scan(
             "is_remote": is_remote_effective,
             "results_wanted": settings.max_annunci,
             "hours_old": settings.hours_old,
-            "country_indeed": "Italy",
+            "country_indeed": country,
         }
         if jobspy_job_type:
             scrape_kwargs["job_type"] = jobspy_job_type
@@ -611,8 +854,21 @@ def run_scan(
                 ),
             }
 
-        yield {"status": "scraped", "term": term, "found": total_rows}
+        yield {
+            "status": "scraped",
+            "term": term,
+            "found": total_rows,
+            "site": ", ".join(payload.sites),
+        }
 
+        # Clear the previous run's "new" badges only now that a scrape actually
+        # returned rows (a fully-failed scan must not wipe them — see F-3).
+        if total_rows > 0 and not new_flags_cleared:
+            db.clear_new_flags()
+            new_flags_cleared = True
+
+        # Pass 1 (serial, DB-only): filter + upsert, collect jobs needing scoring.
+        to_score: list[dict[str, Any]] = []
         for _, row in df.iterrows():
             titolo = str(row.get("title", "N/A"))
             azienda = str(row.get("company", "N/A"))
@@ -655,72 +911,86 @@ def run_scan(
             if status in {"applied", "rejected", "archived"}:
                 continue
 
-            existing = db.get_job(job_id)
-            already_analyzed = bool(existing and existing.get("analysis_json"))
-            if already_analyzed and not is_new:
+            # A brand-new job has no analysis yet; only existing ones need the
+            # (lightweight) check — avoids a full get_job() per scraped row.
+            if not is_new and db.job_has_analysis(job_id):
                 continue
 
-            analysis = analyze_offer(
-                provider_manager=provider_manager,
-                profile_markdown=profile_markdown,
-                titolo=titolo,
-                azienda=azienda,
-                descrizione=descrizione,
-                privacy=privacy,
-                extra_context=onboarding,
-                candidate_name=candidate_name,
-            )
-
-            # Enrich with raw salary fields when available.
-            analysis = dict(analysis)
-            analysis["stipendio_min"] = row.get("min_amount") or "N/D"
-            analysis["stipendio_max"] = row.get("max_amount") or "N/D"
-
-            # Defensive parse: score field may come back as string or garbage.
-            raw_score = analysis.get("punteggio", 0)
-            try:
-                analysis["punteggio"] = int(raw_score)
-            except (TypeError, ValueError):
-                numbers = re.findall(r"\d+", str(raw_score))
-                analysis["punteggio"] = int(numbers[0]) if numbers else 0
-
-            db.update_job_analysis(job_id=job_id, analysis=analysis)
-            totale_analizzati += 1
-
-            link = payload_job.get("link") or ""
-            if link and "linkedin.com" in link and not db.get_recruiter(job_id):
-                try:
-                    recruiter = fetch_recruiter(link, timeout=3.0)
-                    if recruiter:
-                        db.upsert_recruiter(job_id, recruiter)
-                except Exception as exc:
-                    log.debug("recruiter scrape skipped for job %s: %s", job_id, exc)
-
-            elapsed_ms = int(time.time() * 1000) - started_at_ms
-            seen_now = (idx * max(1, settings.max_annunci)) + totale_analizzati
-            eta_ms = (
-                int((elapsed_ms / max(1, seen_now)) * (expected_total - seen_now))
-                if seen_now > 0
-                else 0
-            )
-            yield {
-                "status": "analyzed",
-                "job": {
+            to_score.append(
+                {
+                    "job_id": job_id,
                     "titolo": titolo,
                     "azienda": azienda,
-                    "score": analysis.get("punteggio", 0),
-                },
-                "current": seen_now,
-                "total": expected_total,
-                "percent": min(99, int(seen_now * 100 / expected_total)) if expected_total else 0,
-                "elapsed_ms": elapsed_ms,
-                "eta_ms": eta_ms,
-            }
-            time.sleep(settings.delay_tra_chiamate)
+                    "descrizione": descrizione,
+                    "row": row,
+                    "link": payload_job.get("link") or "",
+                }
+            )
 
+        # Pass 2 (concurrent): score surviving jobs, emit each as it resolves.
+        # Jobs are chunked into work units of ``scan_batch_size`` (default >1 =
+        # one LLM call per N offers → fewer free-tier 429s, faster); each unit is
+        # one future. Concurrency bounds concurrent LLM *calls*, so batching cuts
+        # total calls. A drained unit yields one "analyzed" event per offer.
+        if to_score and not cancelled():
+            batch_size = max(1, settings.scan_batch_size)
+            units = [to_score[i : i + batch_size] for i in range(0, len(to_score), batch_size)]
+            workers = max(1, min(settings.scan_concurrency, len(units)))
+            pool = ThreadPoolExecutor(max_workers=workers)
+            try:
+                futures = {pool.submit(_score_unit, unit): unit for unit in units}
+                for fut in as_completed(futures):
+                    if cancelled():
+                        break
+                    try:
+                        results = fut.result()
+                    except Exception as exc:  # analyze_offer(s) degrade internally
+                        log.warning("scoring task failed: %s", exc)
+                        continue
+                    for result in results:
+                        db.update_job_analysis(job_id=result["job_id"], analysis=result["analysis"])
+                        if result["recruiter"]:
+                            db.upsert_recruiter(result["job_id"], result["recruiter"])
+                        totale_analizzati += 1
+
+                        elapsed_ms = int(time.time() * 1000) - started_at_ms
+                        seen_now = (idx * max(1, settings.max_annunci)) + totale_analizzati
+                        eta_ms = (
+                            int((elapsed_ms / max(1, seen_now)) * (expected_total - seen_now))
+                            if seen_now > 0
+                            else 0
+                        )
+                        yield {
+                            "status": "analyzed",
+                            "job": {
+                                "titolo": result["titolo"],
+                                "azienda": result["azienda"],
+                                "score": result["analysis"].get("punteggio", 0),
+                            },
+                            "current": seen_now,
+                            "total": expected_total,
+                            "percent": (
+                                min(99, int(seen_now * 100 / expected_total))
+                                if expected_total
+                                else 0
+                            ),
+                            "elapsed_ms": elapsed_ms,
+                            "eta_ms": eta_ms,
+                        }
+            finally:
+                pool.shutdown(wait=False, cancel_futures=True)
+
+        if cancelled():
+            break
         time.sleep(settings.delay_tra_ricerche)
 
-    archiviati = apply_post_scan_lifecycle(db=db, retention_days=settings.retention_days)
+    was_cancelled = cancelled()
+    # Skip retention archiving on a cancelled run (partial data — don't prune).
+    archiviati = (
+        0
+        if was_cancelled
+        else apply_post_scan_lifecycle(db=db, retention_days=settings.retention_days)
+    )
     db.finish_scan(
         run_id=run_id,
         totale_trovati=totale_trovati,
@@ -740,4 +1010,5 @@ def run_scan(
         "archiviati": archiviati,
         "duration_ms": duration_ms,
         "percent": 100,
+        "cancelled": was_cancelled,
     }

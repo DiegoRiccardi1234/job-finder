@@ -181,5 +181,23 @@ class CerebrasProvider(LLMProvider):
     def complete_json(
         self, prompt: str, model: str | None = None, max_tokens: int = 700
     ) -> dict[str, Any]:
-        text = self.complete_text(prompt=prompt, model=model, max_tokens=max_tokens)
-        return _extract_json(text)
+        if not self.client:
+            raise RuntimeError("Cerebras not configured")
+        resolved_model = model or self._selected_model or self.select_model()
+        # Mirror OpenAICompatibleProvider: try a structured parse first, then fall
+        # back to prose + regex extraction so a chatty reply degrades gracefully
+        # instead of raising a bare ValueError straight into failover.
+        try:
+            response = self.client.chat.completions.create(
+                model=resolved_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=max_tokens,
+            )
+            self.last_usage = extract_usage(response)
+            content = (response.choices[0].message.content or "").strip()
+            return cast(dict[str, Any], json.loads(content))
+        except (json.JSONDecodeError, Exception) as exc:
+            log.info("cerebras complete_json fallback (model=%s): %s", resolved_model, exc)
+            text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)
+            return _extract_json(text)

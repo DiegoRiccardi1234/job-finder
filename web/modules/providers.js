@@ -166,6 +166,79 @@ async function _populateChatModelSelector(providerName) {
   }
 }
 
+// ── Per-context model overrides (Settings "AI models" card) ─────────────────
+function _fillOverrideSelect(sel, providerName, models, recommended, selectedValue) {
+  const autoBase = t("settings.models.auto") || "Auto (recommended)";
+  sel.innerHTML = `<option value="">${recommended ? `${autoBase} (→ ${recommended})` : autoBase}</option>`;
+  const add = (m) => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m === recommended ? `⭐ ${m}` : m;
+    sel.appendChild(opt);
+  };
+  const sep = (label) => {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = label;
+    opt.disabled = true;
+    sel.appendChild(opt);
+  };
+  if (providerName === "openrouter" && models.length > 30) {
+    const { free, paid } = _splitFreePaid(models);
+    if (free.length) {
+      sep(t("settings.providers.freeGroup") || "── Free ──");
+      free.forEach(add);
+    }
+    if (paid.length) {
+      sep(t("settings.providers.paidGroup") || "── Paid ──");
+      paid.forEach(add);
+    }
+  } else {
+    _sortModelsAlpha(models).forEach(add);
+  }
+  sel.value = selectedValue || "";
+  sel.disabled = models.length === 0;
+}
+
+export async function populateModelOverrides(keys) {
+  const rows = [
+    { el: document.getElementById("scoringModelSelect"), val: keys?.scoring_model || "" },
+    { el: document.getElementById("chatModelOverrideSelect"), val: keys?.chat_model || "" },
+    { el: document.getElementById("cvModelSelect"), val: keys?.cv_model || "" },
+  ].filter((r) => r.el);
+  if (!rows.length) return;
+  const primary = String(keys?.primary_provider || "").toLowerCase();
+  let models = [];
+  let recommended = null;
+  if (primary) {
+    try {
+      const data = _providerCardModelCache[primary] || (await fetchProviderModels(primary, false));
+      models = Array.isArray(data.models) ? data.models : [];
+      recommended = data.recommended || null;
+    } catch (_) {
+      /* leave Auto-only */
+    }
+  }
+  for (const { el, val } of rows) _fillOverrideSelect(el, primary, models, recommended, val);
+}
+
+const _OVERRIDE_FIELD = {
+  scoringModelSelect: "scoring_model",
+  chatModelOverrideSelect: "chat_model",
+  cvModelSelect: "cv_model",
+};
+
+export async function onSaveModelOverride(selectId, value) {
+  const field = _OVERRIDE_FIELD[selectId];
+  if (!field) return;
+  try {
+    await api("/api/providers/keys", { method: "POST", body: JSON.stringify({ [field]: value }) });
+    showToast(t("settings.models.saved") || "Saved", "info");
+  } catch (err) {
+    showToast(String(err?.message || err), "error");
+  }
+}
+
 // Build the chat provider-override <select> from PROVIDER_CATALOG so adding a
 // provider only needs one edit. Keeps the "Auto" option (value "") and its
 // data-i18n attribute, and preserves the current selection.
@@ -251,6 +324,12 @@ function renderProviderCards(keys, providerMeta) {
           </label>
           <div class="provider-status">
             <span class="provider-status-text micro"></span>
+            ${configured ? `<button type="button" class="ghost-btn provider-probe-btn" title="${t("settings.providers.probe")}">
+              <span class="material-symbols-outlined">speed</span>
+            </button>` : ""}
+            ${configured ? `<button type="button" class="ghost-btn provider-probe-confirm-btn" title="${t("settings.providers.probeConfirm")}">
+              <span class="material-symbols-outlined">verified</span>
+            </button>` : ""}
             ${configured ? `<button type="button" class="ghost-btn provider-remove-btn danger" data-provider-remove title="${t("settings.providers.removeKey")}">
               <span class="material-symbols-outlined">delete</span>
             </button>` : ""}
@@ -258,6 +337,7 @@ function renderProviderCards(keys, providerMeta) {
               <span class="material-symbols-outlined">refresh</span>
             </button>
           </div>
+          <div class="provider-probe-results micro" hidden></div>
         </div>
       </article>
     `;
@@ -274,6 +354,7 @@ function renderProviderCards(keys, providerMeta) {
       _setProviderStatusText(p.name, t("settings.providers.addKey"));
     }
   }
+  void populateModelOverrides(keys);
 }
 
 function _setProviderStatusText(name, text, kind = "info") {
@@ -390,6 +471,85 @@ async function fetchProviderModels(name, force = false) {
     throw new Error(detail);
   }
   return res.json();
+}
+
+function _fmtNum(val, suffix) {
+  return typeof val === "number" ? `${Math.round(val)}${suffix}` : "—";
+}
+
+function _renderProbeResults(results, best, mode) {
+  if (!results.length) return t("settings.providers.probeEmpty");
+  const rows = results
+    .slice(0, 14)
+    .map((r) => {
+      const star = best && r.model === best ? " ⭐" : "";
+      let icon;
+      let cols;
+      if (mode === "stats") {
+        // Free health report: live uptime / latency / throughput (no inference).
+        const up = typeof r.up5m === "number" ? r.up5m : null;
+        const healthy = r.status === 0;
+        icon = !healthy ? "❌" : up !== null && up < 90 ? "⚠️" : "✅";
+        const upTxt = up !== null ? `${Math.round(up)}%` : "—";
+        cols =
+          `<span class="micro">${upTxt}</span>` +
+          `<span class="micro">${_fmtNum(r.lat_ms, " ms")}</span>` +
+          `<span class="micro">${_fmtNum(r.tput, " t/s")}</span>`;
+      } else {
+        // Confirm micro-probe: did the model return valid JSON for our schema.
+        icon = r.json_ok ? "✅" : r.ok ? "⚠️" : "❌";
+        const detail = r.ok ? `${r.latency_ms} ms` : r.error || "error";
+        cols = `<span class="micro">${escapeHtml(String(detail))}</span>`;
+      }
+      return `<div class="probe-row"><span class="probe-model">${icon} ${escapeHtml(r.model)}${star}</span>${cols}</div>`;
+    })
+    .join("");
+  return `<div class="probe-list">${rows}</div>`;
+}
+
+// Report a provider's models. Default = a FREE health report from OpenRouter's
+// live stats (uptime/latency, no inference, no quota). ``confirm`` micro-probes
+// the top few healthiest models with a tiny JSON call to confirm they return
+// valid JSON for our schema, seeding the server-side penalty map.
+export async function probeProviderModels(name, { confirm = false } = {}) {
+  const card = _providerCardEl(name);
+  const out = card?.querySelector(".provider-probe-results");
+  _setProviderCardState(name, "fetching");
+  _setProviderStatusText(name, t("settings.providers.probing"));
+  if (out) {
+    out.hidden = false;
+    out.textContent = t("settings.providers.probing");
+  }
+  try {
+    const url = `/api/providers/${encodeURIComponent(name)}/probe${confirm ? "?confirm=true" : ""}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      let detail = "probe_failed";
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch (_) {
+        /* noop */
+      }
+      throw new Error(detail);
+    }
+    const data = await res.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+    const mode = data.mode || (confirm ? "probe" : "stats");
+    if (out) out.innerHTML = _renderProbeResults(results, data.best, mode);
+    const doneKey = confirm ? "settings.providers.probeConfirmDone" : "settings.providers.probeDone";
+    _setProviderStatusText(name, t(doneKey), "ok");
+  } catch (err) {
+    if (out) {
+      out.hidden = false;
+      out.textContent = `${t("settings.providers.probeError")}: ${err.message}`;
+    }
+    _setProviderStatusText(name, t("settings.providers.probeError"), "warn");
+  } finally {
+    _setProviderCardState(name, "configured");
+  }
 }
 
 async function fetchAndRenderProviderModels(name, force) {

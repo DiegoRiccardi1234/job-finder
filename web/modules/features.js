@@ -104,10 +104,10 @@ export function syncFeatureToggles() {
     const key = cb.dataset.feature;
     if (key in appState.featureFlags) cb.checked = appState.featureFlags[key] !== false;
   });
-  const cvReviewBtn = document.getElementById("cvReviewBtn");
-  if (cvReviewBtn) {
-    cvReviewBtn.style.display =
-      appState.featureFlags.cv_review === false ? "none" : "inline-block";
+  // The whole AI CV tools panel (Review + Improve) is gated by the cv_review flag.
+  const cvTools = document.querySelector(".profile-cv-tools");
+  if (cvTools) {
+    cvTools.style.display = appState.featureFlags.cv_review === false ? "none" : "";
   }
 }
 
@@ -277,10 +277,8 @@ export function initFeatures({ loadJobs }) {
       showToast(`${t("toast.actionError")}: ${error.message}`, "error");
     }
   };
-  ["featureToggleList", "profileFeatureToggleList"].forEach((id) => {
-    const list = document.getElementById(id);
-    if (list) list.addEventListener("change", onFeatureToggle);
-  });
+  const featureToggleList = document.getElementById("profileFeatureToggleList");
+  if (featureToggleList) featureToggleList.addEventListener("change", onFeatureToggle);
 
   const refreshSkillGapBtn = document.getElementById("refreshSkillGapBtn");
   if (refreshSkillGapBtn) {

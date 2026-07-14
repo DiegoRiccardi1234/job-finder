@@ -31,7 +31,7 @@
     "active": "Actif",
     "setActive": "Activer",
     "activated": "Profil activé",
-    "saved": "Profil enregistré",
+    "saved": "Enregistré",
     "saveFailed": "Échec de l'enregistrement",
     "loadFailed": "Échec du chargement du profil",
     "years": "ans",
@@ -74,7 +74,23 @@
     "linkedinPaste": "…ou collez le texte de votre profil (utilisé si LinkedIn ne peut pas être récupéré)",
     "linkedinPasteSaved": "Texte du profil enregistré",
     "linkedinFetched": "Profil récupéré et enregistré",
-    "linkedinBlocked": "URL enregistrée — impossible de récupérer le profil ; collez le texte pour enrichir le contexte IA"
+    "linkedinBlocked": "URL enregistrée — impossible de récupérer le profil ; collez le texte pour enrichir le contexte IA",
+    "year": "an",
+    "cvImproveBtn": "Améliorer mon CV",
+    "cvReviewLabel": "Analyse du CV",
+    "cvImprovedLabel": "CV amélioré",
+    "cvSaveAsProfile": "Enregistrer comme nouveau CV",
+    "cvSaveConfirm": "Enregistrer ce CV amélioré comme profil actif ?",
+    "cvSaved": "Enregistré",
+    "cvImprovedSource": "CV amélioré (IA)",
+    "cvTools": {
+      "title": "Outils CV IA"
+    },
+    "editCv": "Modifier",
+    "editName": "Nom affiché",
+    "editCvText": "Texte du CV (utilisé par l'IA)",
+    "save": "Enregistrer",
+    "cancel": "Annuler"
   },
   "jobSearch": {
     "title": "Recherche",
@@ -191,7 +207,8 @@
     "loadError": "Impossible de charger les offres. Réessaie.",
     "exportEmpty": "Aucune offre à exporter.",
     "deleteAllTitle": "Supprimer toutes les offres",
-    "alsoOn": "Aussi sur"
+    "alsoOn": "Aussi sur",
+    "openPosting": "Ouvrir l'offre"
   },
   "kanbanCols": {
     "open": "Ouvert",
@@ -261,7 +278,14 @@
       "keyInvalid": "Clé invalide, vérifiez-la",
       "removeKey": "Supprimer la clé",
       "recommendedHint": "Modèle recommandé pour ce fournisseur",
-      "setPrimaryFirst": "Définissez ce fournisseur comme principal pour utiliser ce modèle."
+      "setPrimaryFirst": "Définissez ce fournisseur comme principal pour utiliser ce modèle.",
+      "probe": "Tester les modèles",
+      "probing": "Test en cours…",
+      "probeDone": "Test terminé",
+      "probeError": "Échec du test",
+      "probeEmpty": "Aucun modèle à tester",
+      "probeConfirm": "Confirmer les meilleurs (utilise l'IA)",
+      "probeConfirmDone": "Meilleurs confirmés"
     },
     "features": {
       "title": "Automatisation",
@@ -287,7 +311,17 @@
       "city": "Ville — titre + entreprise + ville (recommandé)",
       "titleCompany": "Titre + entreprise — ignorer le lieu",
       "saved": "Regroupement mis à jour"
-    }
+    },
+    "models": {
+      "title": "Modèles IA",
+      "subtitle": "Fixez un modèle par tâche, ou laissez Auto. Depuis votre fournisseur principal.",
+      "scoring": "Recherche (scoring)",
+      "chat": "Chat coach",
+      "cv": "Outils CV",
+      "auto": "Auto (recommandé)",
+      "saved": "Modèle enregistré"
+    },
+    "country": "Pays"
   },
   "coach": {
     "title": "Career Coach",
@@ -399,7 +433,8 @@
       },
       "advanced": "Filtres avancés"
     },
-    "postScanRenderFailed": "Scan terminé (résumé non affichable)."
+    "postScanRenderFailed": "Scan terminé (résumé non affichable).",
+    "volumeWarning": "Grande recherche ({n} requêtes) — cela peut prendre du temps."
   },
   "toast": {
     "enterKeyOrProvider": "Entrez au moins une clé ou choisissez un fournisseur principal.",

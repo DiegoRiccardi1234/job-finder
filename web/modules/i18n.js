@@ -48,7 +48,9 @@ export function t(key, params = {}) {
     _reportMissingKey(key);
     return key;
   }
-  if (usedFallback && _currentLang !== "en") {
+  if (usedFallback && _currentLang !== "en" && Object.keys(_i18nStrings).length > 0) {
+    // Only a genuine gap when the locale dict is loaded but lacks the key — not
+    // a startup race where an early render beat loadLanguage() (dict still empty).
     _reportMissingKey(key);
   }
   return String(val).replace(/\{(\w+)\}/g, (_, p) =>

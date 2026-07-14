@@ -32,9 +32,7 @@ def test_pref_qa_rejected_when_explicitly_negated() -> None:
 
 def test_pref_data_requires_analytics_context() -> None:
     assert "prefer_role_data" not in extract_pref_updates("I push database updates daily")
-    assert (
-        extract_pref_updates("interested in data analyst roles").get("prefer_role_data") == "1"
-    )
+    assert extract_pref_updates("interested in data analyst roles").get("prefer_role_data") == "1"
 
 
 def test_search_intent_detection() -> None:

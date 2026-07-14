@@ -187,6 +187,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 job_info,
                 redact=container.feature_enabled("privacy_mode", True),
                 candidate_name=candidate_name,
+                restore_contact_info=True,
             )
             container.db.save_job_analysis_field(job_id, "tailored_resume", content)
         except Exception as e:
@@ -501,21 +502,26 @@ def build_router(container: AppContainer) -> APIRouter:
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    @router.post("/api/export/csv")
-    def export_csv() -> dict[str, Any]:
+    @router.get("/api/export/csv")
+    def export_csv() -> StreamingResponse:
+        """Stream all jobs as a CSV download (Content-Disposition attachment).
+
+        Previously wrote a file into the workspace dir and returned its path,
+        forcing the user to hunt the filesystem — now the browser just downloads.
+        """
+        from io import StringIO
+
         rows = container.db.export_jobs_for_csv()
-        if not rows:
-            raise HTTPException(status_code=400, detail="No jobs to export")
-
-        output_name = f"lavori_webapp_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-        output_path = container.workspace_dir / output_name
-        columns = list(rows[0].keys())
-
-        with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=columns, delimiter=";")
+        buf = StringIO()
+        if rows:
+            writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()), delimiter=";")
             writer.writeheader()
             writer.writerows(rows)
-
-        return {"ok": True, "file": str(output_path)}
+        filename = f"lavori_webapp_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        return StreamingResponse(
+            iter([buf.getvalue().encode("utf-8-sig")]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return router

@@ -409,6 +409,10 @@
               <span data-i18n="settings.locations">Locations:</span>
               <input type="text" id="locationsInput" data-i18n-placeholder="settings.tagPlaceholder" placeholder="Press enter...">
             </div>
+            <label class="field-label scan-country-field">
+              <span data-i18n="settings.country">Country:</span>
+              <select id="scanCountry" class="scan-country-select" title="Indeed country (LinkedIn uses the location text)"></select>
+            </label>
           </div>
 
           <div class="scan-quick-row">
@@ -509,8 +513,6 @@
             <button type="submit" class="secondary" data-i18n="profile.uploadCv">Upload CV</button>
           </form>
           <pre id="cvSummary" class="output hidden"></pre>
-          <button type="button" class="secondary" id="cvReviewBtn" data-i18n="profile.cvReviewBtn">Review my CV</button>
-          <pre id="cvReviewOutput" class="output hidden"></pre>
         </article>
 
         <article class="profile-action-card">
@@ -564,6 +566,26 @@
       </div>
 
       <div id="profileContent" class="profile-grid hidden">
+        <article class="profile-block profile-cv-tools">
+          <header class="profile-block-head cv-tools-head">
+            <h3><span class="material-symbols-outlined">auto_awesome</span> <span data-i18n="profile.cvTools.title">AI CV tools</span></h3>
+            <div class="cv-tools-actions">
+              <button type="button" class="secondary" id="cvReviewBtn" data-i18n="profile.cvReviewBtn">Review my CV</button>
+              <button type="button" class="secondary" id="cvImproveBtn" data-i18n="profile.cvImproveBtn">Improve my CV</button>
+            </div>
+          </header>
+          <div id="cvToolsOutputWrap" class="cv-tools-output-wrap hidden">
+            <div class="cv-tools-output-bar">
+              <span class="micro" id="cvToolsLabel"></span>
+              <div class="cv-tools-bar-actions">
+                <button type="button" class="secondary micro" id="cvSaveAsProfileBtn" data-i18n="profile.cvSaveAsProfile" hidden>Save as new CV</button>
+                <button type="button" class="ghost-btn" id="cvToolsCopyBtn" title="Copy" data-i18n-title="offcanvas.copy" aria-label="Copy"><span class="material-symbols-outlined">content_copy</span></button>
+              </div>
+            </div>
+            <div id="cvToolsOutput" class="markdown-render"></div>
+          </div>
+        </article>
+
         <article class="profile-block profile-history">
           <header class="profile-block-head">
             <h3 data-i18n="profile.history">CV history</h3>
@@ -615,8 +637,19 @@
           <header class="profile-block-head">
             <h3 data-i18n="profile.originalCv">CV (markdown)</h3>
             <span id="profileMeta" class="micro"></span>
+            <button type="button" class="ghost-btn micro" id="cvEditBtn" data-i18n="profile.editCv">Edit</button>
           </header>
           <div id="profileMarkdown" class="markdown-render"></div>
+          <div id="cvEditWrap" class="cv-edit-wrap hidden">
+            <label class="micro" data-i18n="profile.editName">Display name</label>
+            <input type="text" id="cvEditName" class="profile-add-input" />
+            <label class="micro" data-i18n="profile.editCvText">CV text (feeds AI scoring)</label>
+            <textarea id="cvEditArea" class="cv-edit-area" rows="18"></textarea>
+            <div class="cv-edit-actions">
+              <button type="button" class="secondary" id="cvEditSaveBtn" data-i18n="profile.save">Save</button>
+              <button type="button" class="ghost-btn" id="cvEditCancelBtn" data-i18n="profile.cancel">Cancel</button>
+            </div>
+          </div>
         </article>
 
       </div>
@@ -666,6 +699,25 @@
             <option value=""></option>
           </select>
           <pre id="keysStatus" class="output hidden"></pre>
+        </article>
+
+        <article class="card-block card-block--wide">
+          <h3><span class="material-symbols-outlined">smart_toy</span> <span data-i18n="settings.models.title">AI models</span></h3>
+          <p class="micro" data-i18n="settings.models.subtitle">Pin a specific model per task, or leave Auto. Populated from your primary provider.</p>
+          <div class="model-override-list">
+            <label class="model-override-row">
+              <span class="micro" data-i18n="settings.models.scoring">Job search (scoring)</span>
+              <select id="scoringModelSelect" class="model-override-select"><option value="" data-i18n="settings.models.auto">Auto (recommended)</option></select>
+            </label>
+            <label class="model-override-row">
+              <span class="micro" data-i18n="settings.models.chat">Coach chat</span>
+              <select id="chatModelOverrideSelect" class="model-override-select"><option value="" data-i18n="settings.models.auto">Auto (recommended)</option></select>
+            </label>
+            <label class="model-override-row">
+              <span class="micro" data-i18n="settings.models.cv">CV tools</span>
+              <select id="cvModelSelect" class="model-override-select"><option value="" data-i18n="settings.models.auto">Auto (recommended)</option></select>
+            </label>
+          </div>
         </article>
 
         <article class="card-block card-block--wide features-card">

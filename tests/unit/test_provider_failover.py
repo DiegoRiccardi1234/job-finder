@@ -90,7 +90,9 @@ def _mgr(tmp_path: Any, providers: dict[str, _StubProvider], order: list[str], a
 def test_chat_fails_over_when_active_provider_errors(tmp_path: Any) -> None:
     bad = _StubProvider("cerebras", exc=Exception("429 rate limit"))
     good = _StubProvider("openrouter", answer="from openrouter")
-    mgr = _mgr(tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "cerebras")
+    mgr = _mgr(
+        tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "cerebras"
+    )
 
     assert mgr.chat(messages=[{"role": "user", "content": "hi"}]) == "from openrouter"
     assert good.calls == 1
@@ -99,7 +101,9 @@ def test_chat_fails_over_when_active_provider_errors(tmp_path: Any) -> None:
 def test_complete_json_fails_over(tmp_path: Any) -> None:
     bad = _StubProvider("cerebras", exc=Exception("503 service unavailable"))
     good = _StubProvider("openrouter", answer="ok")
-    mgr = _mgr(tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "cerebras")
+    mgr = _mgr(
+        tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "cerebras"
+    )
 
     assert mgr.complete_json(prompt="x") == {"answer": "ok"}
 
@@ -107,7 +111,9 @@ def test_complete_json_fails_over(tmp_path: Any) -> None:
 def test_chat_flags_key_invalid_on_401_then_fails_over(tmp_path: Any) -> None:
     bad = _StubProvider("cerebras", exc=_Http401())
     good = _StubProvider("openrouter", answer="ok")
-    mgr = _mgr(tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "cerebras")
+    mgr = _mgr(
+        tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "cerebras"
+    )
 
     assert mgr.chat(messages=[{"role": "user", "content": "hi"}]) == "ok"
     assert bad.key_invalid is True
@@ -148,7 +154,9 @@ def test_key_invalid_cooldown_reprobes_after_window(tmp_path: Any, monkeypatch) 
     bad = _StubProvider("cerebras", exc=Exception("boom"))
     good = _StubProvider("openrouter", answer="ok")
     bad.key_invalid = True
-    mgr = _mgr(tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "openrouter")
+    mgr = _mgr(
+        tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "openrouter"
+    )
 
     names1 = [p.name for p, _m in mgr._failover_candidates(None, None)]
     assert "cerebras" not in names1  # within cooldown → excluded
@@ -165,8 +173,8 @@ def test_429_records_model_for_derank(tmp_path: Any) -> None:
     mgr = _mgr(tmp_path, {"openrouter": bad}, ["openrouter"], "openrouter")
     with pytest.raises(Exception):
         mgr.chat(messages=[{"role": "user", "content": "hi"}])
-    assert "model-x" in mgr._model_429_at
-    assert "model-x" in mgr._recent_429_models()
+    assert "openrouter::model-x" in mgr._model_penalty
+    assert "model-x" in mgr._penalized_model_ids("openrouter")
 
 
 class _MultiModelProvider(LLMProvider):
@@ -227,7 +235,9 @@ def test_explicit_provider_is_not_failed_over(tmp_path: Any) -> None:
     """An explicit provider request is honored — no silent switch to another."""
     bad = _StubProvider("cerebras", exc=Exception("boom"))
     good = _StubProvider("openrouter", answer="ok")
-    mgr = _mgr(tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "openrouter")
+    mgr = _mgr(
+        tmp_path, {"cerebras": bad, "openrouter": good}, ["cerebras", "openrouter"], "openrouter"
+    )
 
     with pytest.raises(Exception):
         mgr.chat(messages=[{"role": "user", "content": "hi"}], provider_name="cerebras")

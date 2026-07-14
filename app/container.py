@@ -36,6 +36,11 @@ class AppContainer:
         self.providers._db = self.db
         self.providers.initialize()
 
+        # Single-scan coordinator (manual scan + auto-scan share it) + cancel flag.
+        from app.services.scan_control import ScanControl
+
+        self.scan_control = ScanControl()
+
         # In-process scheduler for the optional auto-scan feature. Created
         # inert; started by the app lifespan, stopped on shutdown.
         from app.services.autoscan import AutoScanScheduler
@@ -77,6 +82,9 @@ class AppContainer:
         }
         status["primary_provider"] = primary
         status["preferred_model"] = self.settings.preferred_model or ""
+        status["scoring_model"] = self.settings.scoring_model or ""
+        status["chat_model"] = self.settings.chat_model or ""
+        status["cv_model"] = self.settings.cv_model or ""
         return status
 
     def has_provider_configured(self) -> bool:

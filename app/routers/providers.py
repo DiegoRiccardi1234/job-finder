@@ -1,14 +1,50 @@
 from __future__ import annotations
 
+import contextlib
+import json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
 from app.config import SUPPORTED_PROVIDERS, save_local_provider_keys
 from app.models import ProviderKeysRequest
+from app.providers.model_selector import rank_models
+from app.services import model_stats
+from app.services.model_probe import penalty_reason, probe_models
 
 if TYPE_CHECKING:
     from app.container import AppContainer
+
+
+def _health_sort_key(model: str, health: dict[str, dict[str, Any]]) -> tuple[int, float, float]:
+    """Sort key: healthy (status 0) first, then higher 5-min uptime, then lower
+    latency. Models with no stats sort last (treated as unknown, not down)."""
+    h = health.get(model)
+    if not h:
+        return (2, 0.0, float("inf"))
+    down = 0 if h.get("status") == 0 else 1
+    up5m = h.get("up5m")
+    lat = h.get("lat_ms")
+    return (
+        down,
+        -(float(up5m) if isinstance(up5m, (int, float)) else 0.0),
+        float(lat) if isinstance(lat, (int, float)) else float("inf"),
+    )
+
+
+def _stats_row(model: str, health: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    h = health.get(model) or {}
+    return {
+        "model": model,
+        "status": h.get("status"),
+        "up5m": h.get("up5m"),
+        "up30m": h.get("up30m"),
+        "lat_ms": h.get("lat_ms"),
+        "tput": h.get("tput"),
+        "ctx": h.get("ctx"),
+        "maxc": h.get("maxc"),
+    }
 
 
 def build_router(container: AppContainer) -> APIRouter:
@@ -38,6 +74,9 @@ def build_router(container: AppContainer) -> APIRouter:
             mistral_api_key=payload.mistral_api_key,
             primary_provider=payload.primary_provider,
             preferred_model=payload.preferred_model,
+            scoring_model=payload.scoring_model,
+            chat_model=payload.chat_model,
+            cv_model=payload.cv_model,
         )
         container.reload_providers()
         return {
@@ -61,5 +100,68 @@ def build_router(container: AppContainer) -> APIRouter:
             raise HTTPException(status_code=400, detail="key_missing")
         result = container.providers.get_models(name, force_refresh=bool(force_refresh))
         return {"ok": True, "provider": name, **result}
+
+    @router.post("/api/providers/{name}/probe")
+    def provider_probe(
+        name: str, confirm: bool = False, limit: int = 12, top: int = 3
+    ) -> dict[str, Any]:
+        """Report how a provider's models are doing.
+
+        Default (``confirm=False``): a FREE report built from OpenRouter's
+        published live health (uptime/latency/throughput) — zero inference, so it
+        doesn't spend the shared free daily request quota. ``confirm=True``:
+        micro-probe only the top ``top`` healthiest models with a tiny JSON call
+        (a few inference requests) to confirm they actually return valid JSON for
+        our schema, and seed the factory penalty map from the result.
+        """
+        if name not in SUPPORTED_PROVIDERS:
+            raise HTTPException(status_code=404, detail="unknown_provider")
+        provider = container.providers.providers.get(name)
+        if provider is None:
+            raise HTTPException(status_code=400, detail="key_missing")
+        if getattr(provider, "key_invalid", False):
+            raise HTTPException(status_code=400, detail="key_invalid")
+        if not provider.is_available():
+            raise HTTPException(status_code=400, detail="key_missing")
+
+        models = container.providers.get_models(name).get("models") or []
+        if not models:
+            raise HTTPException(status_code=400, detail="no_models")
+        # Most promising candidates first (free + fast bias), bounded.
+        ranked = rank_models(models, policy={"prefer_free": True, "prefer_fast": True})
+        candidates = ranked[: max(1, min(limit, 20))]
+        # Live health (OpenRouter only; {} elsewhere) — free, no inference.
+        health = model_stats.get_model_health(provider, candidates)
+        # Order by health so both the report and the confirm-probe surface the
+        # best-looking models first.
+        candidates.sort(key=lambda m: _health_sort_key(m, health))
+
+        if not confirm:
+            results: list[dict[str, Any]] = [_stats_row(m, health) for m in candidates]
+            best = next((r["model"] for r in results if r.get("status") == 0), None) or (
+                candidates[0] if candidates else None
+            )
+            mode = "stats"
+        else:
+            top_models = candidates[: max(1, min(top, 5))]
+            probe_results = probe_models(provider, top_models)
+            # Feed empirical signals back into auto-selection immediately.
+            for res in probe_results:
+                reason = penalty_reason(res)
+                if reason:
+                    container.providers.record_model_penalty(name, res["model"], reason)
+            results = probe_results
+            best = next((r["model"] for r in probe_results if r["json_ok"]), None)
+            mode = "probe"
+
+        payload = {
+            "ts": datetime.now(UTC).isoformat(timespec="seconds"),
+            "mode": mode,
+            "results": results,
+            "best": best,
+        }
+        with contextlib.suppress(Exception):  # persistence is best-effort
+            container.db.set_preference(f"model_probe_{name}", json.dumps(payload))
+        return {"ok": True, "provider": name, **payload}
 
     return router

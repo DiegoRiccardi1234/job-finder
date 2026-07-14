@@ -1,0 +1,116 @@
+"""POST /api/providers/{name}/probe — the default free stats report (no
+inference) vs the opt-in confirm micro-probe (top-3, inference)."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    (tmp_path / "web").mkdir(exist_ok=True)
+    (tmp_path / "data").mkdir(exist_ok=True)
+    monkeypatch.chdir(tmp_path)
+    for key in (
+        "CEREBRAS_API_KEY",
+        "GROQ_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        os.environ.pop(key, None)
+
+    from app.main import create_app
+
+    app = create_app(workspace_dir=tmp_path)
+    with TestClient(app) as tc:
+        yield tc
+
+
+def _stub_cerebras(monkeypatch: pytest.MonkeyPatch, models: list[str]) -> None:
+    from app.providers.cerebras_provider import CerebrasProvider
+
+    monkeypatch.setattr(CerebrasProvider, "is_available", lambda self: True, raising=False)
+    monkeypatch.setattr(CerebrasProvider, "list_models", lambda self: models, raising=False)
+
+
+def test_probe_default_is_stats_and_runs_no_inference(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_cerebras(monkeypatch, ["a-70b-instruct", "b-8b-instruct"])
+    from app.routers import providers as prov_router
+    from app.services import model_stats
+
+    monkeypatch.setattr(
+        model_stats,
+        "get_model_health",
+        lambda prov, ids: {
+            ids[0]: {
+                "status": 0,
+                "up5m": 100.0,
+                "up30m": 99.5,
+                "lat_ms": 200.0,
+                "tput": 70.0,
+                "ctx": 131072,
+                "maxc": 32768,
+            }
+        },
+    )
+
+    def _no_probe(*a: Any, **k: Any) -> Any:
+        raise AssertionError("probe_models must NOT run in stats mode")
+
+    monkeypatch.setattr(prov_router, "probe_models", _no_probe)
+
+    res = client.post("/api/providers/cerebras/probe")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["mode"] == "stats"
+    assert body["results"]
+    assert any(r.get("up5m") == 100.0 for r in body["results"])
+
+
+def test_probe_confirm_micro_probes_top_three(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_cerebras(monkeypatch, [f"m{i}-8b-instruct" for i in range(6)])
+    from app.routers import providers as prov_router
+    from app.services import model_stats
+
+    monkeypatch.setattr(model_stats, "get_model_health", lambda prov, ids: {})
+
+    seen: dict[str, list[str]] = {}
+
+    def fake_probe(provider: Any, model_ids: list[str]) -> list[dict[str, Any]]:
+        seen["ids"] = list(model_ids)
+        return [
+            {
+                "model": m,
+                "ok": True,
+                "json_ok": True,
+                "latency_ms": 90,
+                "empty": False,
+                "error": None,
+            }
+            for m in model_ids
+        ]
+
+    monkeypatch.setattr(prov_router, "probe_models", fake_probe)
+
+    res = client.post("/api/providers/cerebras/probe?confirm=true")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["mode"] == "probe"
+    assert len(seen["ids"]) <= 3  # only the top few get a real inference call
+    assert body["results"]
+    assert all(r["json_ok"] for r in body["results"])
+
+
+def test_probe_unknown_provider_404(client: TestClient) -> None:
+    assert client.post("/api/providers/nope/probe").status_code == 404

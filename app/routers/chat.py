@@ -25,13 +25,21 @@ def build_router(container: AppContainer) -> APIRouter:
     def chat(request: Request, payload: ChatRequest) -> ChatResponse:
         rate_limit.check(request, bucket="chat", limit=20, window_seconds=60)
         container.require_provider()
+        # Per-request popover choice wins; otherwise fall back to the Settings
+        # default chat model (pinned on the primary provider), else Auto.
+        provider = payload.provider
+        model = payload.model
+        if not model and container.settings.chat_model:
+            model = container.settings.chat_model
+            order = container.settings.llm_provider_order
+            provider = provider or (order[0] if order else None)
         result = handle_chat_message(
             db=container.db,
             provider_manager=container.providers,
             message=payload.message,
             session_id=payload.session_id,
-            provider=payload.provider,
-            model=payload.model,
+            provider=provider,
+            model=model,
         )
         return ChatResponse(**result)
 
@@ -49,7 +57,10 @@ def build_router(container: AppContainer) -> APIRouter:
         return {"sessions": sessions}
 
     @router.post("/api/chat/sessions")
-    def create_chat_session(payload: ChatSessionCreateRequest) -> dict[str, Any]:
+    def create_chat_session(request: Request, payload: ChatSessionCreateRequest) -> dict[str, Any]:
+        rate_limit.check(request, bucket="chat_session", limit=10, window_seconds=60)
+        if len(container.db.list_chat_sessions()) >= 100:
+            raise HTTPException(status_code=409, detail="too_many_sessions")
         import secrets
 
         new_id = "s_" + secrets.token_hex(6)

@@ -43,7 +43,12 @@ def test_list_jobs_remote_only_filters_by_modalita(tmp_path: Path) -> None:
     db = Database(tmp_path / "s.db")
     try:
         db.upsert_job(
-            {"titolo": "Dev", "azienda": "Acme", "link": "https://ex.com/r", "modalita": "Full Remote"}
+            {
+                "titolo": "Dev",
+                "azienda": "Acme",
+                "link": "https://ex.com/r",
+                "modalita": "Full Remote",
+            }
         )
         db.upsert_job(
             {"titolo": "Dev", "azienda": "Beta", "link": "https://ex.com/o", "modalita": "In sede"}
@@ -177,7 +182,12 @@ def test_dedup_key_modes() -> None:
 
 
 def test_upsert_honors_dedup_mode_pref(tmp_path: Path) -> None:
-    a = {"titolo": "Dev", "azienda": "Acme", "sede": "Milano, Lombardia, Italia", "link": "https://a/1"}
+    a = {
+        "titolo": "Dev",
+        "azienda": "Acme",
+        "sede": "Milano, Lombardia, Italia",
+        "link": "https://a/1",
+    }
     b = {"titolo": "Dev", "azienda": "Acme", "sede": "Milano, Italy", "link": "https://a/2"}
 
     db = Database(tmp_path / "city.db")
@@ -242,9 +252,7 @@ def test_cross_source_dedup_keeps_distinct_locations_separate(tmp_path: Path) ->
         db.upsert_job(
             {"titolo": "Sales", "azienda": "Acme", "sede": "Milano", "link": "https://a/1"}
         )
-        db.upsert_job(
-            {"titolo": "Sales", "azienda": "Acme", "sede": "Roma", "link": "https://a/2"}
-        )
+        db.upsert_job({"titolo": "Sales", "azienda": "Acme", "sede": "Roma", "link": "https://a/2"})
         assert len(db.list_jobs(limit=100)) == 2
     finally:
         db.close()

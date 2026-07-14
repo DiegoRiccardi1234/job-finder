@@ -66,6 +66,15 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
     elif size_b >= 8:
         score += base_size_weight - 12
 
+    # Quality floor: models that advertise a small size in their name are too
+    # weak for nuanced work (job↔CV scoring, CV review). ``min_size_b`` de-ranks
+    # them so selection stays "fastest among CAPABLE models". Gated on size_b > 0
+    # so models that simply don't state a size aren't punished. Kept above -500
+    # (de-rank, not exclude) so choose_best_model still returns something.
+    min_size_b = int((policy or {}).get("min_size_b", 0) or 0)
+    if min_size_b and 0 < size_b < min_size_b:
+        score += _weight(policy, "small_penalty", -150)
+
     if "reason" in name:
         score += _weight(policy, "reasoning", 6)
     if "sonnet" in name:
@@ -124,6 +133,16 @@ def score_model_name(model_name: str, policy: dict[str, Any] | None = None) -> i
         score += 6
     if prefer_fast and size_b >= 200:
         score -= 5
+
+    # prefer_free: hard-bias toward ":free" models. On a credit-less OpenRouter
+    # account every paid model returns 403, so scan scoring (which sets this) must
+    # never pick one — a big penalty on non-free models keeps selection on the
+    # free tier without inflating free_bonus (which would hoist rate-limited free
+    # models over genuinely better ones and feed 429 storms).
+    if bool((policy or {}).get("prefer_free", False)) and not name.endswith(":free"):
+        # Big enough to always lose to any ":free" model, small enough to stay
+        # above the -500 hard-avoid cutoff so an all-paid catalog still ranks.
+        score += _weight(policy, "paid_penalty", -300)
 
     return score
 
