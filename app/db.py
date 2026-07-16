@@ -37,6 +37,11 @@ def now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _escape_like(text: str) -> str:
+    """Escape LIKE metacharacters so user search text matches literally."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def make_job_hash(titolo: str, azienda: str, link: str) -> str:
     raw = f"{titolo.strip().lower()}|{azienda.strip().lower()}|{link.strip().lower()}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -500,9 +505,10 @@ class Database:
             query += " AND LOWER(COALESCE(modalita, '')) LIKE '%remot%'"
         if search_text:
             query += (
-                " AND (LOWER(titolo) LIKE ? OR LOWER(azienda) LIKE ? OR LOWER(descrizione) LIKE ?)"
+                " AND (LOWER(titolo) LIKE ? ESCAPE '\\' OR LOWER(azienda) LIKE ? ESCAPE '\\'"
+                " OR LOWER(descrizione) LIKE ? ESCAPE '\\')"
             )
-            like = f"%{search_text.strip().lower()}%"
+            like = f"%{_escape_like(search_text.strip().lower())}%"
             params.extend([like, like, like])
         if min_score is not None:
             query += " AND punteggio_ai >= ?"

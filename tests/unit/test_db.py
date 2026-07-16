@@ -381,3 +381,20 @@ def test_delete_all_jobs_removes_child_rows(tmp_path: Path) -> None:
             assert all(v == 0 for v in _child_counts(db, jid).values())
     finally:
         db.close()
+
+
+def test_list_jobs_search_escapes_like_metacharacters(tmp_path: Path) -> None:
+    """A literal % or _ in the search box must not act as a LIKE wildcard."""
+    db = Database(tmp_path / "d.db")
+    try:
+        db.upsert_job({"titolo": "50% part-time QA", "azienda": "A1", "link": "l1"})
+        db.upsert_job({"titolo": "50 hours QA", "azienda": "A2", "link": "l2"})
+        rows = db.list_jobs(search_text="50%")
+        assert [r["titolo"] for r in rows] == ["50% part-time QA"]
+
+        db.upsert_job({"titolo": "QA_lead", "azienda": "A3", "link": "l3"})
+        db.upsert_job({"titolo": "QAXlead", "azienda": "A4", "link": "l4"})
+        rows = db.list_jobs(search_text="qa_lead")
+        assert [r["titolo"] for r in rows] == ["QA_lead"]
+    finally:
+        db.close()

@@ -48,3 +48,17 @@ def test_load_settings_respects_primary_provider(tmp_path: Path) -> None:
     settings = load_settings(tmp_path)
     assert settings.llm_provider_order[0] == "openrouter"
     assert settings.openrouter_api_key == "sk-router"
+
+
+def test_load_optional_json_warns_on_corrupt_file(tmp_path: Path, caplog) -> None:
+    """A corrupt local_secrets.json used to silently wipe every key; at least
+    warn so the user knows why providers went unconfigured."""
+    import logging
+
+    from app.config import _load_optional_json
+
+    p = tmp_path / "local_secrets.json"
+    p.write_text("{not valid json", encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        assert _load_optional_json(p) == {}
+    assert any("local_secrets.json" in r.getMessage() for r in caplog.records)

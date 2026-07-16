@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -83,7 +84,10 @@ def _load_optional_json(path: Path) -> dict[str, Any]:
         return {}
     try:
         return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        # A corrupt secrets/config file silently unconfigures every provider —
+        # at least say why, so the user knows what to repair.
+        logging.getLogger(__name__).warning("Corrupt JSON config ignored: %s (%s)", path, exc)
         return {}
 
 
