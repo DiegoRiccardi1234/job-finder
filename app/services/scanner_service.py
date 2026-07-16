@@ -623,28 +623,50 @@ def _fallback_analysis(
     }
 
 
-def _no_description_analysis(profile_markdown: str, titolo: str, azienda: str) -> dict[str, Any]:
-    """A job whose description couldn't be fetched (rare: LinkedIn blocked that
-    single page even after the retry). Score it heuristically from the title so
-    it still gets an ordering, but flag it honestly and CAP it — an unread job
-    must never surface as a top "Candidati subito"/9. Skips the LLM (no point
-    scoring blind, and it would hallucinate requirements)."""
+# Below this many chars a description carries no requirements/seniority signal
+# (real case: an 82-char marketing blurb) — LLM-scoring it just hallucinates.
+# Such jobs take the honest capped path instead. Length measured post-clean.
+MIN_DESCRIPTION_CHARS = 300
+
+
+def _insufficient_description_analysis(
+    profile_markdown: str, titolo: str, azienda: str, descrizione: str = ""
+) -> dict[str, Any]:
+    """A job whose description is missing or too short to judge on merit
+    (LinkedIn blocked the page, or served a marketing blurb without the JD).
+    Score it heuristically from the little text available so it still gets an
+    ordering, but flag it honestly and CAP it — an unread job must never
+    surface as a top "Candidati subito"/9. Skips the LLM (no point scoring
+    blind, and it would hallucinate requirements)."""
     result = _fallback_analysis(
-        "no_description",
+        "insufficient_description",
         profile_markdown=profile_markdown,
         titolo=titolo,
         azienda=azienda,
-        descrizione="",
+        descrizione=descrizione,
     )
     result["punteggio"] = min(int(result.get("punteggio", 3) or 3), 6)
     result["consiglio"] = "Valutabile" if result["punteggio"] >= 5 else "Salta"
-    result["riassunto"] = (
-        "Descrizione non disponibile — stima dal titolo. Apri l'annuncio per valutare."
-    )
-    result["punti_deboli_per_diego"] = (
-        "Descrizione non recuperata: requisiti ed esperienza richiesta non verificati."
-    )
+    if descrizione.strip():
+        result["riassunto"] = (
+            "Descrizione troppo breve — stima dal titolo. Apri l'annuncio per valutare."
+        )
+        result["punti_deboli_per_diego"] = (
+            "Descrizione quasi assente: requisiti ed esperienza richiesta non verificati."
+        )
+    else:
+        result["riassunto"] = (
+            "Descrizione non disponibile — stima dal titolo. Apri l'annuncio per valutare."
+        )
+        result["punti_deboli_per_diego"] = (
+            "Descrizione non recuperata: requisiti ed esperienza richiesta non verificati."
+        )
     return result
+
+
+def _no_description_analysis(profile_markdown: str, titolo: str, azienda: str) -> dict[str, Any]:
+    """Backwards-compatible wrapper: empty-description case."""
+    return _insufficient_description_analysis(profile_markdown, titolo, azienda, "")
 
 
 def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
@@ -671,10 +693,10 @@ def analyze_offer(
     extra_context: str = "",
     candidate_name: str | None = None,
 ) -> dict[str, Any]:
-    # No description (rare: LinkedIn blocked even the retry) → don't LLM-score it
-    # blind; return an honest, capped heuristic estimate instead.
-    if not descrizione.strip():
-        return _no_description_analysis(profile_markdown, titolo, azienda)
+    # Missing or too-short description (LinkedIn blocked the retry, or served a
+    # marketing blurb) -> don't LLM-score it blind; honest capped estimate.
+    if len(descrizione.strip()) < MIN_DESCRIPTION_CHARS:
+        return _insufficient_description_analysis(profile_markdown, titolo, azienda, descrizione)
     # Privacy Mode: scrub the CV before it reaches the LLM. Scoring never needs
     # the name/contacts, so no restore — the token map is discarded. The local
     # keyword fallback below keeps the ORIGINAL markdown for a better match.
@@ -753,10 +775,16 @@ def analyze_offers_batch(
 
     out: list[dict[str, Any]] = []
     for i, off in enumerate(offers):
-        # A description-less offer can't be judged on merit — override whatever
-        # the batch guessed with the honest capped estimate (never a blind 9).
-        if not str(off.get("descrizione", "")).strip():
-            out.append(_no_description_analysis(profile_markdown, off["titolo"], off["azienda"]))
+        # A description-less (or near-empty) offer can't be judged on merit —
+        # override whatever the batch guessed with the honest capped estimate
+        # (never a blind 9). Same threshold as the single path.
+        desc_i = str(off.get("descrizione", "") or "")
+        if len(desc_i.strip()) < MIN_DESCRIPTION_CHARS:
+            out.append(
+                _insufficient_description_analysis(
+                    profile_markdown, off["titolo"], off["azienda"], desc_i
+                )
+            )
             continue
         item = parsed[i] if i < len(parsed) else None
         if isinstance(item, dict) and "punteggio" in item:
@@ -1067,13 +1095,21 @@ def run_scan(
             # candidate's domain/skills (e.g. a spa kitchen helper matched only
             # because the search term said "QC"). Only fires on a non-empty
             # description with zero overlap — conservative, and logged.
-            if (
-                descrizione
-                and relevance_vocab
-                and not (_tokenize(f"{titolo} {descrizione}") & relevance_vocab)
-            ):
+            # A too-short description is judged by TITLE only: a stray domain
+            # token in an 82-char marketing blurb must not save an off-topic
+            # job, nor its missing tokens condemn a good one. Fully empty
+            # descriptions stay exempt (LinkedIn 429: we read nothing — the
+            # capped estimate the user can inspect beats a silent drop).
+            desc_sufficient = len(descrizione) >= MIN_DESCRIPTION_CHARS
+            gate_text = f"{titolo} {descrizione}" if desc_sufficient else titolo
+            if descrizione and relevance_vocab and not (_tokenize(gate_text) & relevance_vocab):
                 totale_scartati += 1
-                log.info("RELEVANCE_SKIP: '%s' @ %s (zero domain/skills overlap)", titolo, azienda)
+                log.info(
+                    "RELEVANCE_SKIP%s: '%s' @ %s (zero domain/skills overlap)",
+                    "" if desc_sufficient else " (title-only)",
+                    titolo,
+                    azienda,
+                )
                 continue
 
             skip, _reason = pre_filtro(titolo=titolo, descrizione=descrizione)

@@ -46,6 +46,10 @@ def test_restore_is_noop_without_map() -> None:
     assert restore_pii("hello", {}) == "hello"
 
 
+# Long enough to clear MIN_DESCRIPTION_CHARS so analyze_offer reaches the LLM.
+_JD = "Sviluppo frontend React, TypeScript e REST API in team agile. " * 6
+
+
 class _CapturePM:
     """Fake provider manager that records the prompt it is handed."""
 
@@ -67,7 +71,7 @@ def test_analyze_offer_privacy_scrubs_prompt() -> None:
         "Mario Rossi\nmario@x.io",
         "T",
         "A",
-        "D",
+        _JD,
         privacy=True,
         candidate_name="Mario Rossi",
     )
@@ -79,7 +83,7 @@ def test_analyze_offer_injects_extra_context() -> None:
     from app.services.scanner_service import analyze_offer
 
     pm = _CapturePM({"punteggio": 5})
-    analyze_offer(pm, "CV", "T", "A", "D", extra_context="Settore target: fintech")
+    analyze_offer(pm, "CV", "T", "A", _JD, extra_context="Settore target: fintech")
     assert "Settore target: fintech" in pm.prompt
     assert "PREFERENZE CANDIDATO" in pm.prompt
 

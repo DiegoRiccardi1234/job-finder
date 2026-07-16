@@ -125,8 +125,13 @@ def test_batch_overrides_description_less_offer() -> None:
             # batch would blindly score everything 9 — the empty one must be overridden
             return {"valutazioni": [{"punteggio": 9}, {"punteggio": 9}]}
 
+    full_jd = (
+        "Full JD with React: sviluppo frontend, integrazione REST API, testing "
+        "end-to-end e code review in team agile. Requisiti: esperienza con "
+        "React, TypeScript e Git; gradita conoscenza di Node.js e CI/CD. " * 2
+    )
     offers = [
-        {"titolo": "AI Engineer", "azienda": "Co", "descrizione": "Full JD with React"},
+        {"titolo": "AI Engineer", "azienda": "Co", "descrizione": full_jd},
         {"titolo": "AI Engineer", "azienda": "Co", "descrizione": ""},
     ]
     out = ss.analyze_offers_batch(_PM(), "CV", offers)

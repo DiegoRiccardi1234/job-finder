@@ -26,8 +26,18 @@ _COLS = [
 ]
 
 
+# Long enough to clear MIN_DESCRIPTION_CHARS — a real JD, not a blurb.
+_FULL_JD = (
+    "React and TypeScript role in un team di prodotto: sviluppo frontend, "
+    "integrazione REST API, test end-to-end con Playwright e code review. "
+    "Requisiti: esperienza con React, TypeScript e Git; gradita conoscenza "
+    "di Node.js e CI/CD. Offriamo smart working e formazione continua. "
+    "Sede a Torino con possibilita' di lavoro ibrido e buoni pasto. "
+)
+
+
 def _offer(titolo: str) -> dict[str, Any]:
-    return {"titolo": titolo, "azienda": "Co", "descrizione": "React and TypeScript role"}
+    return {"titolo": titolo, "azienda": "Co", "descrizione": _FULL_JD}
 
 
 class _BatchPM:
@@ -128,7 +138,7 @@ def _fake_df(n: int) -> pd.DataFrame:
         {
             "title": f"React Developer {i}",
             "company": f"Co{i}",
-            "description": "React and TypeScript role",
+            "description": _FULL_JD,
             "location": "Torino",
             "site": "linkedin",
             "job_url": f"http://x/{i}",  # no linkedin.com host → no recruiter fetch
