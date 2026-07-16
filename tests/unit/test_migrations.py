@@ -103,6 +103,54 @@ def test_migration_003_adds_content_hash_column_and_index(tmp_path: Path) -> Non
         db.close()
 
 
+def test_migration_011_cleans_orphaned_child_rows(tmp_path: Path) -> None:
+    """Historic deletes left rows in job_actions/recruiters/pinned_jobs whose
+    job no longer exists (FK cascade was never enforced). Migration 011 must
+    remove exactly the orphans and keep rows attached to live jobs."""
+    db_path = tmp_path / "orphans.db"
+    db = Database(db_path)
+    try:
+        job_id, _new, _hash = db.upsert_job(
+            {"titolo": "QA", "azienda": "Acme", "link": "https://example.com/live"}
+        )
+        db.set_job_action(job_id, "applied", "keep me")
+        db.upsert_recruiter(job_id, {"name": "R"})
+        db.pin_job("default", job_id)
+        # Synthesize orphans as an old delete_job would have left them.
+        ghost = job_id + 999
+        db.conn.execute(
+            "INSERT INTO job_actions(job_id, action, notes, created_at) VALUES (?, 'applied', '', '2024-01-01')",
+            (ghost,),
+        )
+        db.conn.execute(
+            "INSERT INTO recruiters(job_id, name, title, headline, profile_url, raw_text, fetched_at) "
+            "VALUES (?, 'ghost', '', '', '', '', '2024-01-01')",
+            (ghost,),
+        )
+        db.conn.execute(
+            "INSERT INTO pinned_jobs(session_id, job_id, pinned_at) VALUES ('default', ?, '2024-01-01')",
+            (ghost,),
+        )
+        # Rewind the tracker to before 011 so the cleanup migration re-runs
+        # against this DB (fresh DBs are already at the latest version).
+        db.conn.execute("DELETE FROM schema_version WHERE version >= 11")
+        db.conn.commit()
+
+        apply_migrations(db.conn)
+
+        for tbl in ("job_actions", "recruiters", "pinned_jobs"):
+            ghosts = db.conn.execute(
+                f"SELECT COUNT(*) FROM {tbl} WHERE job_id = ?", (ghost,)
+            ).fetchone()[0]
+            kept = db.conn.execute(
+                f"SELECT COUNT(*) FROM {tbl} WHERE job_id = ?", (job_id,)
+            ).fetchone()[0]
+            assert ghosts == 0, f"orphans left in {tbl}"
+            assert kept == 1, f"live rows lost from {tbl}"
+    finally:
+        db.close()
+
+
 def test_find_candidate_profile_by_hash_dedup(tmp_path: Path) -> None:
     db_path = tmp_path / "dedup.db"
     db = Database(db_path)

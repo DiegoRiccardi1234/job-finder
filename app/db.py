@@ -452,14 +452,23 @@ class Database:
         )
         self.conn.commit()
 
+    # Tables holding per-job child rows. Their FKs are inert (PRAGMA
+    # foreign_keys is never enabled, and job_actions has no ON DELETE anyway),
+    # so deletes must clear them explicitly or they accumulate as orphans.
+    _JOB_CHILD_TABLES = ("job_actions", "recruiters", "pinned_jobs")
+
     @_synchronized
     def delete_job(self, job_id: int) -> bool:
+        for tbl in self._JOB_CHILD_TABLES:
+            self.conn.execute(f"DELETE FROM {tbl} WHERE job_id = ?", (job_id,))
         cur = self.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
-        self.conn.commit()
+        self.conn.commit()  # single commit: parent+children go atomically
         return cur.rowcount > 0
 
     @_synchronized
     def delete_all_jobs(self) -> int:
+        for tbl in self._JOB_CHILD_TABLES:
+            self.conn.execute(f"DELETE FROM {tbl}")
         cur = self.conn.execute("DELETE FROM jobs")
         self.conn.commit()
         return cur.rowcount or 0

@@ -336,3 +336,48 @@ def test_concurrent_upsert_same_hash_is_idempotent(tmp_path: Path) -> None:
         assert len(db.list_jobs(limit=1000)) == 1
     finally:
         db.close()
+
+
+def _child_counts(db: Database, job_id: int) -> dict[str, int]:
+    counts = {}
+    for tbl in ("job_actions", "recruiters", "pinned_jobs"):
+        row = db.conn.execute(
+            f"SELECT COUNT(*) FROM {tbl} WHERE job_id = ?", (job_id,)
+        ).fetchone()
+        counts[tbl] = int(row[0])
+    return counts
+
+
+def _job_with_children(db: Database, link: str) -> int:
+    # azienda derived from the link so two helper jobs don't dedup-merge
+    job_id, _new, _hash = db.upsert_job({"titolo": "QA", "azienda": f"Acme {link}", "link": link})
+    db.set_job_action(job_id, "applied", "note")
+    db.upsert_recruiter(job_id, {"name": "R", "title": "T"})
+    db.pin_job("default", job_id)
+    assert all(v == 1 for v in _child_counts(db, job_id).values())
+    return job_id
+
+
+def test_delete_job_removes_child_rows(tmp_path: Path) -> None:
+    """FK ON DELETE CASCADE is inert (PRAGMA foreign_keys never enabled):
+    deleting a job must explicitly clear actions/recruiter/pins or they
+    accumulate as orphans forever."""
+    db = Database(tmp_path / "d.db")
+    try:
+        job_id = _job_with_children(db, "https://example.com/1")
+        assert db.delete_job(job_id) is True
+        assert all(v == 0 for v in _child_counts(db, job_id).values())
+    finally:
+        db.close()
+
+
+def test_delete_all_jobs_removes_child_rows(tmp_path: Path) -> None:
+    db = Database(tmp_path / "d.db")
+    try:
+        j1 = _job_with_children(db, "https://example.com/1")
+        j2 = _job_with_children(db, "https://example.com/2")
+        assert db.delete_all_jobs() == 2
+        for jid in (j1, j2):
+            assert all(v == 0 for v in _child_counts(db, jid).values())
+    finally:
+        db.close()
