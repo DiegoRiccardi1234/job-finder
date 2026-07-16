@@ -109,6 +109,72 @@ def test_probe_empty_list_and_prompt_constant() -> None:
     assert "JSON" in PROBE_PROMPT
 
 
+# ── no-catalog fallback must respect penalties ───────────────────────────────
+class _NoCatalogProvider:
+    """Provider without a live catalog: only select_model works."""
+
+    def __init__(self, name: str, model: str) -> None:
+        self.name = name
+        self._model = model
+        self.key_invalid = False
+
+    def is_available(self) -> bool:
+        return True
+
+    def list_models(self) -> list[str]:
+        return []
+
+    def select_model(self, preferred_model: str | None = None) -> str:
+        return self._model
+
+
+def test_fallback_no_catalog_skips_penalized_model(tmp_path: Any) -> None:
+    """With no live catalog the fallback used to return select_model() even if
+    that exact model was just penalized — re-proposing a broken model."""
+    mgr = ProviderManager(load_settings(tmp_path))
+    p = _NoCatalogProvider("openrouter", "solo-model")
+    mgr.providers = {"openrouter": p}  # type: ignore[dict-item]
+
+    assert mgr._ranked_models_for(p, 3) == ["solo-model"]  # type: ignore[arg-type]
+    mgr.record_model_penalty("openrouter", "solo-model", "truncated")
+    assert mgr._ranked_models_for(p, 3) == []  # type: ignore[arg-type]
+
+
+def test_penalized_fallback_provider_skipped_in_candidates(tmp_path: Any) -> None:
+    """Active provider's only (penalized) fallback model must not outrank a
+    healthy next provider."""
+    settings = load_settings(tmp_path)
+    settings.llm_provider_order = ["openrouter", "groq"]
+    mgr = ProviderManager(settings)
+    a = _NoCatalogProvider("openrouter", "solo-model")
+    b = _NoCatalogProvider("groq", "healthy-model")
+    mgr.providers = {"openrouter": a, "groq": b}  # type: ignore[dict-item]
+    mgr.active_provider = a  # type: ignore[assignment]
+    mgr.active_provider_name = "openrouter"
+
+    mgr.record_model_penalty("openrouter", "solo-model", "truncated")
+    candidates = mgr._failover_candidates(None, None)
+    assert candidates, "healthy provider must remain a candidate"
+    assert candidates[0][0].name == "groq"
+    assert all(name != "openrouter" for name, _ in [(p.name, m) for p, m in candidates])
+
+
+def test_all_penalized_anti_brick_returns_candidate(tmp_path: Any) -> None:
+    """Single provider, no catalog, its only model penalized: better a
+    penalized model than RuntimeError('No LLM provider available')."""
+    settings = load_settings(tmp_path)
+    settings.llm_provider_order = ["openrouter"]
+    mgr = ProviderManager(settings)
+    p = _NoCatalogProvider("openrouter", "solo-model")
+    mgr.providers = {"openrouter": p}  # type: ignore[dict-item]
+    mgr.active_provider = p  # type: ignore[assignment]
+    mgr.active_provider_name = "openrouter"
+
+    mgr.record_model_penalty("openrouter", "solo-model", "truncated")
+    candidates = mgr._failover_candidates(None, None)
+    assert candidates == [(p, "solo-model")]
+
+
 # ── penalty map thread-safety (scan workers race) ────────────────────────────
 def test_record_penalty_serialized_by_lock(tmp_path: Any) -> None:
     """record_model_penalty must block while another thread holds the penalty

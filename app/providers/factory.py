@@ -360,7 +360,12 @@ class ProviderManager:
             log.debug("usage record skipped: %s", exc)
 
     def _ranked_models_for(
-        self, provider: LLMProvider, limit: int, policy_override: dict[str, Any] | None = None
+        self,
+        provider: LLMProvider,
+        limit: int,
+        policy_override: dict[str, Any] | None = None,
+        *,
+        ignore_penalties: bool = False,
     ) -> list[str]:
         """Up to ``limit`` models to try on ``provider``, best-first.
 
@@ -368,13 +373,11 @@ class ProviderManager:
         rotates onto a fresh model of the SAME provider before failing over to
         another provider. Uses the 5-min cached catalog (``get_models``) so this
         adds no per-request network call on the happy path. Falls back to a
-        single best-effort model when no live catalog is available.
-
-        ``policy_override`` (e.g. the speed-biased scan-scoring policy) re-ranks
-        the live catalog for one call and ignores the global ``preferred_model``
-        pin, so scoring can pick a fast small model while chat/generation keep the
-        quality default. Fully churn-safe — it ranks whatever the provider serves.
+        single best-effort model when no live catalog is available — but NOT a
+        just-penalized one (return ``[]`` so failover skips this provider),
+        unless ``ignore_penalties`` (the anti-brick last resort) is set.
         """
+        penalized = set() if ignore_penalties else self._penalized_model_ids(provider.name)
         models = self.get_models(provider.name).get("models") or []
         if models:
 
@@ -387,7 +390,6 @@ class ProviderManager:
                     limit=lim,
                 )
 
-            penalized = self._penalized_model_ids(provider.name)
             pool = models
             # OpenRouter exposes free live health stats (uptime/latency, no
             # inference). Fold models that are down RIGHT NOW into the penalized
@@ -404,14 +406,19 @@ class ProviderManager:
             if ranked:
                 return ranked
         try:
-            return [provider.select_model(preferred_model=self.settings.preferred_model)]
+            fallback = provider.select_model(preferred_model=self.settings.preferred_model)
         except Exception:
             fallback = (
                 self.settings.preferred_model
                 or self.active_model
                 or str(getattr(provider, "default_model", ""))
             )
-            return [fallback]
+        # rank_models only de-ranks penalized models (the catalog path always
+        # has alternatives); this single-model fallback has none, so proposing
+        # a penalized model would re-run the exact failure we just recorded.
+        if fallback in penalized:
+            return []
+        return [fallback]
 
     # Max models to try on a single provider within one request before failing
     # over to the next provider. Bounds total attempts (K on the active/chosen
@@ -441,40 +448,61 @@ class ProviderManager:
                 return []
             if explicit_model:
                 return [(provider, explicit_model)]
-            return [(provider, m) for m in self._ranked_models_for(provider, K, policy_override)]
+            ranked = self._ranked_models_for(provider, K, policy_override)
+            if not ranked:
+                # Anti-brick: an explicitly chosen provider whose only fallback
+                # model is penalized still beats returning nothing.
+                ranked = self._ranked_models_for(
+                    provider, K, policy_override, ignore_penalties=True
+                )
+            return [(provider, m) for m in ranked]
 
-        candidates: list[tuple[LLMProvider, str]] = []
-        seen_pairs: set[tuple[str, str]] = set()
-        seen_providers: set[str] = set()
+        def _build(ignore_penalties: bool) -> list[tuple[LLMProvider, str]]:
+            candidates: list[tuple[LLMProvider, str]] = []
+            seen_pairs: set[tuple[str, str]] = set()
+            seen_providers: set[str] = set()
 
-        def add(provider: LLMProvider, model: str) -> None:
-            pair = (provider.name, model)
-            if model and pair not in seen_pairs:
-                candidates.append((provider, model))
-                seen_pairs.add(pair)
+            def add(provider: LLMProvider, model: str) -> None:
+                pair = (provider.name, model)
+                if model and pair not in seen_pairs:
+                    candidates.append((provider, model))
+                    seen_pairs.add(pair)
 
-        if self.active_provider is not None:
-            for model in self._ranked_models_for(self.active_provider, K, policy_override):
-                add(self.active_provider, model)
-            seen_providers.add(self.active_provider.name)
+            if self.active_provider is not None:
+                for model in self._ranked_models_for(
+                    self.active_provider, K, policy_override, ignore_penalties=ignore_penalties
+                ):
+                    add(self.active_provider, model)
+                seen_providers.add(self.active_provider.name)
 
-        for name in self.settings.llm_provider_order:
-            if name in seen_providers:
-                continue
-            provider = self.providers.get(name)
-            if provider is None:
-                continue
-            try:
-                # Cooldown check first so it always runs (it may clear the flag
-                # after the window); is_available then reflects the fresh state.
-                usable = not self._key_invalid_active(name, provider) and provider.is_available()
-            except Exception:
-                usable = False
-            if not usable:
-                continue
-            for model in self._ranked_models_for(provider, 1, policy_override):
-                add(provider, model)
-            seen_providers.add(name)
+            for name in self.settings.llm_provider_order:
+                if name in seen_providers:
+                    continue
+                provider = self.providers.get(name)
+                if provider is None:
+                    continue
+                try:
+                    # Cooldown check first so it always runs (it may clear the flag
+                    # after the window); is_available then reflects the fresh state.
+                    usable = (
+                        not self._key_invalid_active(name, provider) and provider.is_available()
+                    )
+                except Exception:
+                    usable = False
+                if not usable:
+                    continue
+                for model in self._ranked_models_for(
+                    provider, 1, policy_override, ignore_penalties=ignore_penalties
+                ):
+                    add(provider, model)
+                seen_providers.add(name)
+            return candidates
+
+        candidates = _build(False)
+        if not candidates:
+            # Anti-brick: every no-catalog fallback model is penalized — a
+            # penalized model still beats "No LLM provider available".
+            candidates = _build(True)
         return candidates
 
     def _maybe_flag_key_invalid(self, provider: LLMProvider, exc: Exception) -> None:
