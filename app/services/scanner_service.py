@@ -5,7 +5,10 @@ import re
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import pandas as pd
 
 # Common technical keywords. If a scrape for one of these returns zero rows,
 # it's suspicious — likely a DOM/selector regression on the scraper side
@@ -242,6 +245,69 @@ except ImportError:  # pragma: no cover
     scrape_jobs = None
 
 
+def _filter_indeed_freshness(df: Any, hours_old: int) -> Any:
+    """Local freshness filter for Indeed rows (LinkedIn keeps the server-side
+    one). Rows with an unknown ``date_posted`` are kept — never over-drop."""
+    if df is None or len(df) == 0 or "date_posted" not in df.columns or "site" not in df.columns:
+        return df
+    cutoff = datetime.now(UTC).date() - timedelta(hours=hours_old)
+
+    def _keep(row: Any) -> bool:
+        if str(row.get("site")) != "indeed":
+            return True
+        d = row.get("date_posted")
+        if d is None or d != d:  # None / NaN / NaT (self-inequality)
+            return True
+        if isinstance(d, datetime):
+            d = d.date()
+        try:
+            return bool(d >= cutoff)
+        except TypeError:
+            return True
+
+    return df[df.apply(_keep, axis=1)]
+
+
+def _scrape_split_indeed(scrape_kwargs: dict[str, Any]) -> Any:
+    """Scrape, splitting Indeed away from ``hours_old``.
+
+    jobspy's Indeed filter builder is an if/elif: with ``hours_old`` set the
+    ``is_remote``/``job_type`` filters are silently IGNORED, and the date
+    filter alone collapses IT results in smaller markets (measured live from
+    Italy: 4 rows vs 20 for the same query). So Indeed is scraped WITHOUT
+    ``hours_old`` — letting remote/job-type apply server-side again — and
+    freshness is enforced locally via :func:`_filter_indeed_freshness`.
+    One site failing must not lose the other's rows; if every call fails the
+    last error propagates (same contract as a single scrape_jobs call).
+    """
+    sites = list(scrape_kwargs.get("site_name") or [])
+    hours_old = scrape_kwargs.get("hours_old")
+    if "indeed" not in sites or not hours_old:
+        return scrape_jobs(**scrape_kwargs)
+
+    calls = []
+    indeed_kwargs = dict(scrape_kwargs, site_name=["indeed"])
+    indeed_kwargs.pop("hours_old", None)
+    calls.append(indeed_kwargs)
+    others = [s for s in sites if s != "indeed"]
+    if others:
+        calls.append(dict(scrape_kwargs, site_name=others))
+
+    frames = []
+    last_exc: Exception | None = None
+    for kwargs in calls:
+        try:
+            frames.append(scrape_jobs(**kwargs))
+        except Exception as exc:
+            last_exc = exc
+            log.warning("scrape_jobs failed for %s: %s", kwargs.get("site_name"), exc)
+    if not frames:
+        assert last_exc is not None
+        raise last_exc
+    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    return _filter_indeed_freshness(df, int(hours_old))
+
+
 BLACKLIST = [
     "senior developer",
     "senior engineer",
@@ -417,6 +483,7 @@ _PER_OFFER_SCHEMA = """{
   "contratto": "Dipendente|Apprendistato|Stage|Partita IVA|Non specificato",
   "junior_friendly": "Sì|No|Non specificato",
   "anni_esperienza_richiesti": "0|1|2|3+|Non specificato",
+  "titolo_studio_richiesto": "Nessuno|Diploma|Triennale|Magistrale|PhD|Non specificato",
   "punti_forza_per_diego": "1 frase",
   "punti_deboli_per_diego": "1 frase",
   "riassunto": "2 righe max",
@@ -443,6 +510,22 @@ _PER_OFFER_SCHEMA = """{
 }"""
 
 
+# Shared scoring rules appended to both prompts. The education rule exists
+# because a posting requiring a Master's scored 9 for a Bachelor's CV with no
+# visible gap: the model must compare hard requirements against the CV and
+# make any mismatch VISIBLE (lower score + listed in "mancano").
+_SCORING_RULES = (
+    "REGOLE DI VALUTAZIONE:\n"
+    "- Confronta i REQUISITI dell'offerta con il CV: titolo di studio, voto minimo, "
+    "anni di esperienza, livello di lingua.\n"
+    "- Se l'offerta richiede un titolo di studio superiore a quello del candidato "
+    "(es. laurea magistrale o PhD quando il CV ha una triennale), un voto minimo più alto "
+    "del suo, più anni di esperienza, o un livello di lingua superiore: ABBASSA "
+    '"punteggio" e "match_axes.seniority_match" e aggiungi il requisito mancante in '
+    '"skills_match.mancano". Il gap deve essere sempre visibile, mai ignorato.\n'
+)
+
+
 def _analysis_prompt(
     profile_markdown: str,
     titolo: str,
@@ -456,7 +539,10 @@ def _analysis_prompt(
         f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
         f"OFFERTA:\nTitolo: {titolo}\nAzienda: {azienda}\n"
         f"Descrizione: {_prep_description(descrizione, 2600)}\n\n"
-        "JSON richiesto:\n" + _PER_OFFER_SCHEMA + "\n"
+        + _SCORING_RULES
+        + "\nJSON richiesto:\n"
+        + _PER_OFFER_SCHEMA
+        + "\n"
     )
 
 
@@ -486,7 +572,8 @@ def _batch_analysis_prompt(
         "SOLO con JSON valido, senza testo extra.\n\n"
         f"CV candidato:\n{profile_markdown[:3500]}\n{extra}\n"
         f"OFFERTE ({n}):\n{offers_text}\n\n"
-        f'Rispondi con un oggetto JSON con una sola chiave "valutazioni" = array di '
+        + _SCORING_RULES
+        + f'\nRispondi con un oggetto JSON con una sola chiave "valutazioni" = array di '
         f"ESATTAMENTE {n} oggetti, UNO per offerta nello STESSO ordine "
         "(OFFERTA 1 -> primo elemento). Ogni oggetto ha questo schema:\n" + _PER_OFFER_SCHEMA + "\n"
     )
@@ -561,6 +648,30 @@ def _fallback_analysis(
     # ``reason`` (provider error / invalid response) is for diagnostics only —
     # it must never leak into the user-facing ``riassunto`` below.
     log.warning("Heuristic fallback analysis for '%s' @ %s: %s", titolo, azienda, reason)
+    return _heuristic_analysis(profile_markdown, titolo, azienda, descrizione)
+
+
+_EDU_PHD = re.compile(r"\bph\.?d\b|dottorato di ricerca", re.IGNORECASE)
+_EDU_MASTERS = re.compile(
+    r"laurea\s+magistrale|laurea\s+specialistica|master'?s\s+degree|\bmsc\b", re.IGNORECASE
+)
+
+
+def _detect_education_requirement(offer_text: str) -> str:
+    """Best-effort read of the required degree from the posting text."""
+    if _EDU_PHD.search(offer_text):
+        return "PhD"
+    if _EDU_MASTERS.search(offer_text):
+        return "Magistrale"
+    return "Non specificato"
+
+
+def _heuristic_analysis(
+    profile_markdown: str,
+    titolo: str,
+    azienda: str,
+    descrizione: str,
+) -> dict[str, Any]:
     offer_text = f"{titolo} {descrizione}".lower()
     profile_tokens = _tokenize(profile_markdown)
     offer_tokens = _tokenize(offer_text)
@@ -572,6 +683,11 @@ def _fallback_analysis(
     if any(token in offer_text for token in ["remote", "hybrid", "smart working"]):
         score += 1
     if any(token in offer_text for token in ["senior", "lead", "principal", "staff"]):
+        score -= 2
+    # Advanced-degree requirement: same weight as a senior title (the real case
+    # was a Master's-required posting scored 9 for a Bachelor's profile).
+    edu_required = _detect_education_requirement(offer_text)
+    if edu_required in ("Magistrale", "PhD"):
         score -= 2
 
     score = max(1, min(score, 10))
@@ -589,6 +705,10 @@ def _fallback_analysis(
         if score < 7
         else "Competenze verificabili in colloquio"
     )
+    if edu_required == "Magistrale":
+        weakness_text = "Richiesta laurea magistrale. " + weakness_text
+    elif edu_required == "PhD":
+        weakness_text = "Richiesto PhD/dottorato. " + weakness_text
 
     return {
         "punteggio": score,
@@ -599,6 +719,7 @@ def _fallback_analysis(
         if any(token in offer_text for token in ["junior", "entry", "stage", "intern"])
         else "Non specificato",
         "anni_esperienza_richiesti": _estimate_experience_band(offer_text),
+        "titolo_studio_richiesto": edu_required,
         "punti_forza_per_diego": f"Match su: {overlap_preview}.",
         "punti_deboli_per_diego": weakness_text,
         "riassunto": f"Analisi euristica usata (IA non disponibile). Match stimato {score}/10.",
@@ -1036,7 +1157,7 @@ def run_scan(
             scrape_kwargs["linkedin_fetch_description"] = True
 
         try:
-            df = scrape_jobs(**scrape_kwargs)
+            df = _scrape_split_indeed(scrape_kwargs)
         except Exception as exc:
             log.warning(
                 "scrape_jobs failed (term=%r, location=%r): %s", effective_term, location, exc

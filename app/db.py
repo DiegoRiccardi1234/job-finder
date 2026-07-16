@@ -573,10 +573,16 @@ class Database:
         return data
 
     def job_has_analysis(self, job_id: int) -> bool:
-        """Whether a job already carries an AI analysis — cheaper than get_job()
-        when the scan loop only needs to decide skip-vs-rescore."""
+        """Whether a job already carries a CURRENT AI analysis — cheaper than
+        get_job() when the scan loop only needs to decide skip-vs-rescore.
+
+        Analyses predating the education-aware schema (v1.7.5, marker key
+        ``titolo_studio_richiesto``) count as absent: they could hide a degree/
+        experience gap (a Master's-required job scored 9 for a Bachelor's CV),
+        so a re-appearing job gets re-scored once and self-heals."""
         cur = self.conn.execute(
-            "SELECT 1 FROM jobs WHERE id = ? AND analysis_json IS NOT NULL AND analysis_json != ''",
+            "SELECT 1 FROM jobs WHERE id = ? AND analysis_json IS NOT NULL "
+            "AND analysis_json != '' AND analysis_json LIKE '%titolo_studio_richiesto%'",
             (int(job_id),),
         )
         return cur.fetchone() is not None
