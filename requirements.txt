@@ -1,27 +1,35 @@
-python-jobspy
-pandas
-fastapi
-uvicorn
-python-multipart
-pypdf
-python-docx
+# Pinned to the exact versions the Windows bundle is built and tested with
+# (PyInstaller reproducibility). Bump deliberately, re-run the suite after.
+python-jobspy==1.1.82
+pandas==2.3.3
+fastapi==0.135.3
+uvicorn==0.44.0
+python-multipart==0.0.26
+pypdf==6.10.0
+python-docx==1.2.0
+
+# Used directly by cerebras_provider (capability probe) and model_stats
+# (OpenRouter health endpoint) — was only a transitive dep before.
+requests==2.33.1
 
 # System-tray icon (Open / Quit) for the windowless Windows build. Uses Pillow
 # (below) for the icon image; the Win32 backend needs no extra native deps.
-pystray>=0.19.0
+pystray==0.19.5
 
 # OCR for scanned PDFs and image CVs (JPG/PNG/AVIF/TIFF/BMP/WEBP).
 # Tesseract binary must be installed separately (winget install UB-Mannheim.TesseractOCR
 # on Windows, or apt-get install tesseract-ocr on Linux). The standalone bundle
 # ships a portable Tesseract under vendor/tesseract/ — see scripts/install_tesseract.py.
-pytesseract>=0.3.10
-pdf2image>=1.17.0
-Pillow>=10.0.0
-pillow-avif-plugin>=1.4.0  # native AVIF decoding for Pillow
+pytesseract==0.3.13
+pdf2image==1.17.0
+Pillow==12.2.0
+pillow-avif-plugin==1.5.5  # native AVIF decoding for Pillow
 
-# LLM provider SDKs (optional — install the ones you plan to use)
-openai
-groq
+# LLM provider SDKs (optional — install the ones you plan to use).
+# openai/groq are exercised by the dev venv and pinned; the other three are
+# optional extras not installed here, left unpinned on purpose.
+openai==2.31.0
+groq==1.1.2
 anthropic
 google-generativeai
 cerebras-cloud-sdk
