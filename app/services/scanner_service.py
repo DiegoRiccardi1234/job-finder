@@ -686,7 +686,11 @@ def analyze_offer(
         result = provider_manager.complete_json(
             prompt=prompt, max_tokens=200, **_scoring_call_kwargs(provider_manager)
         )
-        if not isinstance(result, dict):
+        # A non-dict, empty dict, or dict without a score is NOT an analysis:
+        # persisting it would set analyzed_at with punteggio=0 and the job
+        # would never be re-scored (job_has_analysis). Same key check as the
+        # batch path.
+        if not isinstance(result, dict) or "punteggio" not in result:
             return _fallback_analysis(
                 "invalid response",
                 profile_markdown=profile_markdown,

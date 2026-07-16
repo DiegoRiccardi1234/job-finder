@@ -503,6 +503,7 @@ class ProviderManager:
         if not candidates:
             raise RuntimeError("No LLM provider available")
         last_exc: Exception | None = None
+        last_empty: _RetryT | None = None
         for idx, (provider, model) in enumerate(candidates):
             _t0 = _time.time()
             try:
@@ -528,10 +529,24 @@ class ProviderManager:
             elapsed_ms = int((_time.time() - _t0) * 1000)
             if _is_empty_result(result):
                 # Some free models 200 with empty content (reasoning-only) — a
-                # successful-but-useless reply. De-rank so we rotate off it next.
+                # successful-but-useless reply. De-rank AND try the next
+                # candidate; returning it would poison callers (e.g. a scored
+                # job persisted as {} is never re-scored).
                 self.record_model_penalty(provider.name, model, "empty")
+                self._record_call(provider, model, endpoint, True, "empty_result", elapsed_ms)
+                last_empty = result
+                if idx < len(candidates) - 1:
+                    log.warning(
+                        "Provider %s returned an empty result; failing over.",
+                        provider.name,
+                    )
+                continue
             self._record_call(provider, model, endpoint, True, None, elapsed_ms)
             return result
+        if last_empty is not None:
+            # Every candidate came back empty: keep the "empty never raises"
+            # contract — callers (chat/scan/generation) have their own fallbacks.
+            return last_empty
         assert last_exc is not None
         raise last_exc
 

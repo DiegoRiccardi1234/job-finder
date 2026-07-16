@@ -53,6 +53,27 @@ def test_batch_empty_offers_returns_empty() -> None:
     assert ss.analyze_offers_batch(_BatchPM({}), "CV", []) == []
 
 
+_LONG_DESC = "Python, machine learning e data engineering in team AI. " * 20
+
+
+def test_analyze_offer_empty_dict_falls_back_to_heuristic() -> None:
+    """A ``{}`` reply must NOT be returned as a valid analysis: it would be
+    persisted with punteggio=0 + analyzed_at set and never re-scored."""
+    res = ss.analyze_offer(_BatchPM({}), "CV con Python", "AI Engineer", "Co", _LONG_DESC)
+    assert res != {}
+    assert isinstance(res.get("punteggio"), int)
+    assert res["punteggio"] >= 1  # heuristic floor, never the raw empty dict
+
+
+def test_analyze_offer_dict_without_score_falls_back() -> None:
+    """A dict missing ``punteggio`` (partial/garbled reply) is not an analysis."""
+    res = ss.analyze_offer(
+        _BatchPM({"riassunto": "bla"}), "CV con Python", "AI Engineer", "Co", _LONG_DESC
+    )
+    assert isinstance(res.get("punteggio"), int)
+    assert res["punteggio"] >= 1
+
+
 def test_batch_happy_path_returns_all_in_order() -> None:
     pm = _BatchPM({"valutazioni": [{"punteggio": 8}, {"punteggio": 3}, {"punteggio": 6}]})
     out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B"), _offer("C")])

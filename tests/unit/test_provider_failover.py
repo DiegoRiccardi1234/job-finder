@@ -231,6 +231,59 @@ def test_intra_provider_model_failover(tmp_path: Any) -> None:
     assert p.calls[0] == "gpt-oss-120b:free" and len(p.calls) >= 2
 
 
+class _JsonStub(_StubProvider):
+    """Stub whose complete_json returns a fixed payload (e.g. ``{}``)."""
+
+    def __init__(self, name: str, payload: dict[str, Any]) -> None:
+        super().__init__(name)
+        self._payload = payload
+
+    def complete_json(
+        self, prompt: str, model: str | None = None, max_tokens: int = 700
+    ) -> dict[str, Any]:
+        self.calls += 1
+        return self._payload
+
+
+def test_empty_json_fails_over_to_next_provider(tmp_path: Any) -> None:
+    """A 200-with-empty-dict reply (reasoning-only free models) is useless:
+    it must be penalized AND failed over, not returned to the caller."""
+    empty = _JsonStub("cerebras", {})
+    good = _JsonStub("openrouter", {"answer": "ok"})
+    mgr = _mgr(
+        tmp_path, {"cerebras": empty, "openrouter": good}, ["cerebras", "openrouter"], "cerebras"
+    )
+
+    assert mgr.complete_json(prompt="x") == {"answer": "ok"}
+    assert empty.calls == 1 and good.calls == 1
+    assert "cerebras::model-x" in mgr._model_penalty
+
+
+def test_all_empty_returns_empty_without_raise(tmp_path: Any) -> None:
+    """Every candidate empty → return the empty result (contract: empty never
+    raises; callers have their own fallbacks), all penalized."""
+    e1 = _JsonStub("cerebras", {})
+    e2 = _JsonStub("openrouter", {})
+    mgr = _mgr(tmp_path, {"cerebras": e1, "openrouter": e2}, ["cerebras", "openrouter"], "cerebras")
+
+    assert mgr.complete_json(prompt="x") == {}
+    assert e1.calls == 1 and e2.calls == 1
+    assert "cerebras::model-x" in mgr._model_penalty
+    assert "openrouter::model-x" in mgr._model_penalty
+
+
+def test_explicit_pin_empty_returned_without_failover(tmp_path: Any) -> None:
+    """An explicit provider pin is a deliberate choice — empty comes back as-is."""
+    empty = _JsonStub("cerebras", {})
+    good = _JsonStub("openrouter", {"answer": "ok"})
+    mgr = _mgr(
+        tmp_path, {"cerebras": empty, "openrouter": good}, ["cerebras", "openrouter"], "cerebras"
+    )
+
+    assert mgr.complete_json(prompt="x", provider_name="cerebras") == {}
+    assert good.calls == 0
+
+
 def test_explicit_provider_is_not_failed_over(tmp_path: Any) -> None:
     """An explicit provider request is honored — no silent switch to another."""
     bad = _StubProvider("cerebras", exc=Exception("boom"))
