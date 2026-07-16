@@ -86,6 +86,10 @@ class ProviderManager:
         # real call outcomes (429/403/json_fail/empty) and by the model probe;
         # in-memory with per-reason TTL so it self-heals across the session.
         self._model_penalty: dict[str, tuple[float, str]] = {}
+        # Guards _model_penalty: scan workers record penalties concurrently
+        # while others prune/reassign the map in _penalized_model_ids -- an
+        # unlocked interleave loses updates (or raises RuntimeError mid-iter).
+        self._penalty_lock = threading.Lock()
         # Set by AppContainer after the DB is open; ``_record_call`` uses it
         # to persist token usage. None = no-op (unit tests, isolated usage).
         self._db: Any = None
@@ -244,19 +248,21 @@ class ProviderManager:
     def record_model_penalty(self, provider_name: str, model: str, reason: str) -> None:
         """De-rank a (provider, model) after an empirical failure. Also called by
         the model probe to seed penalties for dead/empty models."""
-        self._model_penalty[f"{provider_name}::{model}"] = (_time.time(), reason)
+        with self._penalty_lock:
+            self._model_penalty[f"{provider_name}::{model}"] = (_time.time(), reason)
 
     def clear_model_penalties(self, reason: str | None = None) -> None:
         """Drop empirical model penalties — all of them, or only those with the
         given ``reason``. Called at scan start for ``"truncated"`` so each scan
         re-evaluates models fresh (truncation is sticky WITHIN a scan via its long
         cooldown, but reset between scans)."""
-        if reason is None:
-            self._model_penalty = {}
-        else:
-            self._model_penalty = {
-                key: val for key, val in self._model_penalty.items() if val[1] != reason
-            }
+        with self._penalty_lock:
+            if reason is None:
+                self._model_penalty = {}
+            else:
+                self._model_penalty = {
+                    key: val for key, val in self._model_penalty.items() if val[1] != reason
+                }
 
     def _penalized_model_ids(self, provider_name: str) -> set[str]:
         """Model ids currently penalized for ``provider_name`` (stale entries
@@ -266,13 +272,14 @@ class ProviderManager:
         fresh: dict[str, tuple[float, str]] = {}
         penalized: set[str] = set()
         prefix = f"{provider_name}::"
-        for key, (ts, reason) in self._model_penalty.items():
-            cooldown = _MODEL_PENALTY_COOLDOWNS.get(reason, _MODEL_429_COOLDOWN_SECONDS)
-            if now - ts < cooldown:
-                fresh[key] = (ts, reason)
-                if key.startswith(prefix):
-                    penalized.add(key[len(prefix) :])
-        self._model_penalty = fresh
+        with self._penalty_lock:
+            for key, (ts, reason) in self._model_penalty.items():
+                cooldown = _MODEL_PENALTY_COOLDOWNS.get(reason, _MODEL_429_COOLDOWN_SECONDS)
+                if now - ts < cooldown:
+                    fresh[key] = (ts, reason)
+                    if key.startswith(prefix):
+                        penalized.add(key[len(prefix) :])
+            self._model_penalty = fresh
         return penalized
 
     def get_models(self, provider_name: str, force_refresh: bool = False) -> dict[str, Any]:
