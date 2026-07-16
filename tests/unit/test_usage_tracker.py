@@ -89,3 +89,40 @@ def test_aggregate_range_floor_clamps_unknown_to_today(db: Database) -> None:
     # Falls into the ``else`` branch which uses 2000-01-01 floor; just verify it doesn't crash.
     assert "since" in stats
     assert "by_day" in stats
+
+
+def test_record_usage_serialized_with_db_lock(db: Database) -> None:
+    """record_usage runs on scan worker threads and shares the Database
+    connection: its INSERT+commit must acquire db.lock like every other write,
+    or a worker commit can flush a half-done transaction of the generator."""
+    import threading
+
+    with db.lock:
+        t = threading.Thread(
+            target=lambda: record_usage(
+                db, provider="p", model="m", endpoint="e", last_usage=None
+            )
+        )
+        t.start()
+        t.join(0.2)
+        assert t.is_alive(), "record_usage should be blocked by db.lock"
+    t.join(2)
+    assert not t.is_alive()
+    assert aggregate_stats(db, range_="all")["total_calls"] == 1
+
+
+def test_record_usage_stub_without_lock_still_works(db: Database) -> None:
+    """Test stubs duck-type db with just a .conn — no lock attr must not crash."""
+
+    class _ConnOnly:
+        def __init__(self, conn) -> None:
+            self.conn = conn
+
+    record_usage(
+        _ConnOnly(db.conn),
+        provider="p",
+        model="m",
+        endpoint="e",
+        last_usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    )
+    assert aggregate_stats(db, range_="all")["total_calls"] == 1

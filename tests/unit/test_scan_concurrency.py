@@ -112,6 +112,42 @@ def test_failed_scrape_preserves_new_flags(tmp_path: Path, monkeypatch: pytest.M
         db.close()
 
 
+def test_recruiter_lookup_runs_on_generator_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DB reads for the recruiter check must happen on the generator thread,
+    not inside scoring workers (shared sqlite connection, writes are lock-
+    serialized there — see _finalize_scored docstring)."""
+    import threading
+
+    df = _fake_df(4)
+    df["job_url"] = [f"https://www.linkedin.com/jobs/view/{i}" for i in range(4)]
+    monkeypatch.setattr(ss, "scrape_jobs", lambda **k: df)
+    monkeypatch.setattr(ss, "analyze_offer", lambda **k: {"punteggio": 7})
+    monkeypatch.setattr(ss, "fetch_recruiter", lambda link, timeout=3.0: None)
+
+    idents: list[int] = []
+    orig = Database.get_recruiter
+
+    def spy(self: Database, job_id: int) -> Any:
+        idents.append(threading.get_ident())
+        return orig(self, job_id)
+
+    monkeypatch.setattr(Database, "get_recruiter", spy)
+
+    db = Database(tmp_path / "s.db")
+    try:
+        list(ss.run_scan(db, _settings(tmp_path), _FakePM(), _payload()))
+    finally:
+        db.close()
+
+    generator_ident = threading.get_ident()
+    assert idents, "recruiter check should have run for linkedin jobs"
+    assert all(i == generator_ident for i in idents), (
+        "get_recruiter must not be called from scoring worker threads"
+    )
+
+
 # ── ScanControl ─────────────────────────────────────────────────────────────
 def test_scan_control_single_slot_and_cancel() -> None:
     sc = ScanControl()

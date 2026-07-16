@@ -896,7 +896,8 @@ def run_scan(
     def _finalize_scored(item: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
         """Attach salary, coerce the score to int, best-effort recruiter fetch.
         Shared by the single- and batch-scoring paths. Runs on a worker thread;
-        DB writes happen back on the generator thread."""
+        ALL DB access (reads included) happens back on the generator thread —
+        the recruiter presence check is precomputed in Pass 1 (has_recruiter)."""
         row = item["row"]
         analysis = dict(analysis)
         analysis["stipendio_min"] = row.get("min_amount") or "N/D"
@@ -910,7 +911,7 @@ def run_scan(
 
         recruiter = None
         link = item["link"]
-        if link and "linkedin.com" in link and not db.get_recruiter(item["job_id"]):
+        if link and "linkedin.com" in link and not item.get("has_recruiter"):
             try:
                 recruiter = fetch_recruiter(link, timeout=3.0)
             except Exception as exc:
@@ -1113,6 +1114,7 @@ def run_scan(
             if not is_new and db.job_has_analysis(job_id):
                 continue
 
+            link = payload_job.get("link") or ""
             to_score.append(
                 {
                     "job_id": job_id,
@@ -1120,7 +1122,12 @@ def run_scan(
                     "azienda": azienda,
                     "descrizione": descrizione,
                     "row": row,
-                    "link": payload_job.get("link") or "",
+                    "link": link,
+                    # DB read done here on the generator thread so workers in
+                    # _finalize_scored never touch the shared connection.
+                    "has_recruiter": bool(
+                        link and "linkedin.com" in link and db.get_recruiter(job_id)
+                    ),
                 }
             )
 

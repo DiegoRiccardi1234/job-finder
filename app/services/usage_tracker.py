@@ -11,6 +11,7 @@ without forcing every call site to attribute itself.
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -47,27 +48,33 @@ def record_usage(
     )
     try:
         conn = db._get_connection() if hasattr(db, "_get_connection") else db.conn
-        conn.execute(
-            """
-            INSERT INTO usage_log
-                (ts, provider, model, endpoint, prompt_tokens, completion_tokens,
-                 total_tokens, success, error_type, duration_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                datetime.now(UTC).isoformat(timespec="seconds"),
-                provider,
-                model,
-                endpoint or "",
-                prompt_tokens,
-                completion_tokens,
-                total_tokens,
-                1 if success else 0,
-                error_type,
-                duration_ms,
-            ),
-        )
-        conn.commit()
+        # Called from scan worker threads on the shared connection: the
+        # INSERT+commit must serialize on the Database write lock (duck-typed
+        # like .conn above) or a worker commit can flush another writer's
+        # half-done transaction. Stubs without .lock fall back to no-op ctx.
+        lock = getattr(db, "lock", None)
+        with lock if lock is not None else contextlib.nullcontext():
+            conn.execute(
+                """
+                INSERT INTO usage_log
+                    (ts, provider, model, endpoint, prompt_tokens, completion_tokens,
+                     total_tokens, success, error_type, duration_ms)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    datetime.now(UTC).isoformat(timespec="seconds"),
+                    provider,
+                    model,
+                    endpoint or "",
+                    prompt_tokens,
+                    completion_tokens,
+                    total_tokens,
+                    1 if success else 0,
+                    error_type,
+                    duration_ms,
+                ),
+            )
+            conn.commit()
     except sqlite3.DatabaseError as exc:
         # Tracking failures must never break the user-facing feature.
         log.warning("usage_log insert failed: %s", exc)
