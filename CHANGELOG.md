@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-07-16
+
+Stability pass: a full audit of the scan pipeline, providers and UI. Scans no longer lose scored jobs to thread races, near-empty postings can't fool the scorer, and the kanban finally archives.
+
+### Fixed
+- **Scans no longer lose scored jobs under load** — two thread races (usage logging writing outside the database lock, and the model penalty map being read and rewritten concurrently) could corrupt a write or throw away a whole batch of scored jobs mid-scan. Both paths are now properly serialized.
+- **A job scored on a near-empty description is flagged, not trusted** — LinkedIn sometimes serves an 82-character marketing blurb instead of the real posting; the AI would hallucinate requirements from it. Anything under ~300 characters now takes the honest capped path (score ≤ 6, "descrizione troppo breve") and the relevance gate judges such jobs by title only.
+- **An empty AI reply can no longer freeze a job at score 0 forever** — a model answering 200-with-nothing used to be persisted as a valid analysis, so the job was never re-scored. Empty replies now fail over to the next model, and a scoreless reply falls back to the heuristic.
+- **Models that cut off their answers are caught on Anthropic too** — truncation detection (already live for OpenAI-compatible providers) is now wired into the Anthropic provider.
+- **Rate-limit errors no longer trigger a second wasted call** — a 429/401 during JSON scoring used to fire a hidden retry at the same struggling host before failing over; transport errors now go straight to failover, and JSON wrapped in markdown fences is salvaged locally with zero extra calls.
+- **A just-failed model is no longer re-proposed when the catalog is down** — the no-catalog fallback now respects model penalties (with an anti-brick escape so a single-provider setup keeps working).
+- **Deleting a job cleans up after itself** — timeline entries, recruiter info and chat pins used to linger invisibly forever; deletes now remove them, and a one-off migration sweeps the orphans accumulated in existing databases.
+- **Searching for `%` or `_` matches literally** instead of acting as a hidden wildcard.
+- A corrupt `local_secrets.json` now logs a clear warning instead of silently unconfiguring every provider.
+
+### Added
+- **Archive from the kanban board** — the per-card status dropdown now includes "Archived" (it was also missing from the API, which rejected the action).
+- Dedicated test coverage for all 23 job endpoints; dependencies pinned to the exact tested versions.
+
 ## [1.7.3] — 2026-07-14
 
 Sharper matching: the AI reads the requirements even on long postings, and obviously off-topic jobs are dropped before they're scored.
