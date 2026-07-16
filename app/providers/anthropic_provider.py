@@ -3,7 +3,13 @@ import re
 from typing import Any, cast
 from urllib import error, request
 
-from app.providers.base import LLMProvider, extract_usage, is_unauthorized
+from app.providers.base import (
+    LLMProvider,
+    TruncatedCompletionError,
+    extract_usage,
+    is_truncated,
+    is_unauthorized,
+)
 from app.providers.model_selector import choose_best_model
 
 
@@ -21,6 +27,9 @@ class AnthropicProvider(LLMProvider):
         self.api_key = api_key
         self.base_url = "https://api.anthropic.com/v1"
         self._selected_model: str | None = None
+        # True when the last reply stopped at max_tokens (stop_reason) — only
+        # complete_json acts on it (cut-off JSON is untrustworthy).
+        self.last_truncated = False
 
     def is_available(self) -> bool:
         return bool(self.api_key) and not self.key_invalid
@@ -110,6 +119,7 @@ class AnthropicProvider(LLMProvider):
             raise RuntimeError(f"Anthropic HTTP {exc.code}: {details}") from exc
 
         self.last_usage = extract_usage(payload)
+        self.last_truncated = is_truncated(payload)
         content = payload.get("content", []) if isinstance(payload, dict) else []
         chunks = [
             str(item.get("text", ""))
@@ -136,5 +146,10 @@ class AnthropicProvider(LLMProvider):
         self, prompt: str, model: str | None = None, max_tokens: int = 700
     ) -> dict[str, Any]:
         instruction = f"Rispondi esclusivamente con JSON valido, senza testo extra.\n\n{prompt}"
-        text = self.complete_text(prompt=instruction, model=model, max_tokens=max_tokens)
+        resolved_model = model or self._selected_model or self.select_model()
+        text = self.complete_text(prompt=instruction, model=resolved_model, max_tokens=max_tokens)
+        # Reply stopped at max_tokens: the JSON is cut off mid-way, don't parse
+        # it — raise so the factory penalizes ("truncated") and fails over.
+        if self.last_truncated:
+            raise TruncatedCompletionError(resolved_model)
         return _extract_json(text)

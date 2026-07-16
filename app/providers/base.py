@@ -59,8 +59,7 @@ def is_truncated(response: Any) -> bool:
     Normalizes the two response shapes, mirroring how ``extract_usage`` handles
     the object-vs-dict split: OpenAI-compatible SDK objects expose
     ``choices[0].finish_reason == "length"``; Anthropic-style dict payloads use
-    ``stop_reason == "max_tokens"`` (handled here for completeness even though the
-    Anthropic provider doesn't wire this yet)."""
+    ``stop_reason == "max_tokens"``."""
     choices = getattr(response, "choices", None)
     if choices:
         return getattr(choices[0], "finish_reason", None) == "length"

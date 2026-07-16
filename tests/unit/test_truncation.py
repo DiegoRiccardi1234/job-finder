@@ -21,7 +21,8 @@ from app.providers.openai_provider import OpenAIProvider
 from app.providers.openrouter_provider import OpenRouterProvider
 
 # Every provider whose complete_json speaks the OpenAI response shape
-# (choices[0].finish_reason). Anthropic is intentionally excluded (stop_reason).
+# (choices[0].finish_reason). Anthropic (dict shape, stop_reason) has its own
+# section below.
 _OPENAI_SHAPED = [OpenRouterProvider, CerebrasProvider, GoogleProvider, OpenAIProvider]
 
 # --- provider layer: complete_json reacts to finish_reason ------------------
@@ -113,6 +114,65 @@ def test_is_truncated_recognises_both_shapes() -> None:
     # unknown / empty shapes never flag truncation
     assert is_truncated(object()) is False
     assert is_truncated(None) is False
+
+
+# --- Anthropic (dict shape: stop_reason == "max_tokens") ---------------------
+
+
+def _anthropic_with_payload(monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]) -> Any:
+    import json as _json
+
+    from app.providers import anthropic_provider as ap
+
+    class _Resp:
+        def __init__(self, data: bytes) -> None:
+            self._data = data
+
+        def read(self) -> bytes:
+            return self._data
+
+        def __enter__(self) -> Any:
+            return self
+
+        def __exit__(self, *a: Any) -> bool:
+            return False
+
+    monkeypatch.setattr(
+        ap.request,
+        "urlopen",
+        lambda req, timeout=30: _Resp(_json.dumps(payload).encode("utf-8")),
+    )
+    p = ap.AnthropicProvider(api_key="test-key")
+    p._selected_model = "claude-x"
+    return p
+
+
+def _anthropic_payload(text: str, stop_reason: str) -> dict[str, Any]:
+    return {
+        "stop_reason": stop_reason,
+        "content": [{"type": "text", "text": text}],
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }
+
+
+def test_anthropic_complete_json_raises_on_max_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _anthropic_with_payload(monkeypatch, _anthropic_payload('{"punteggio": 8', "max_tokens"))
+    with pytest.raises(TruncatedCompletionError):
+        p.complete_json("score this")
+
+
+def test_anthropic_complete_json_end_turn_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+    p = _anthropic_with_payload(monkeypatch, _anthropic_payload('{"punteggio": 8}', "end_turn"))
+    assert p.complete_json("score this") == {"punteggio": 8}
+
+
+def test_anthropic_chat_and_text_never_raise_on_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Truncation only poisons JSON; chat/complete_text return the partial text."""
+    p = _anthropic_with_payload(monkeypatch, _anthropic_payload("partial ans", "max_tokens"))
+    assert p.chat([{"role": "user", "content": "hi"}]) == "partial ans"
+    assert p.complete_text("hi") == "partial ans"
 
 
 # --- factory layer: classification, penalty, stickiness, reset --------------
