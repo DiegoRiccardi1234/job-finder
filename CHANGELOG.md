@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.7.5] — 2026-07-16
+
+Smarter matching: degree requirements finally count, and Indeed coverage stops collapsing.
+
+### Fixed
+- **A job asking for a Master's/PhD can no longer score 9 for a Bachelor's CV** — the scorer now explicitly compares the posting's hard requirements (degree, minimum grade, years of experience, language level) against the CV and must make any gap visible: lower score, lower seniority match, and the missing requirement listed under "mancano". The analysis also reports the required degree (`titolo_studio_richiesto`), and the offline heuristic penalizes Master's/PhD postings too.
+- **Old inflated scores heal themselves** — analyses saved before this change don't know about degree requirements, so a job that re-appears in a scan is re-scored once with the new rules instead of keeping its stale score forever. (First scan after updating may re-score more jobs than usual.)
+- **Indeed no longer returns a handful of results** — jobspy applies only ONE filter server-side on Indeed: with the freshness window set, remote/job-type were silently ignored AND the date filter collapsed results in smaller markets (measured from Italy: 4 rows vs 20 for the same query). Indeed is now scraped without the server-side date filter — remote and job-type work again — and freshness is enforced locally on each posting's date, keeping postings whose date is unknown. LinkedIn behaviour is unchanged, and one site failing no longer discards the other's results.
+
 ## [1.7.4] — 2026-07-16
 
 Stability pass: a full audit of the scan pipeline, providers and UI. Scans no longer lose scored jobs to thread races, near-empty postings can't fool the scorer, and the kanban finally archives.
