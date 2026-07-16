@@ -123,27 +123,36 @@ class OpenAICompatibleProvider(LLMProvider):
         if not self.client:
             raise RuntimeError(f"{self.name} not configured")
         resolved_model = model or self._selected_model or self.select_model()
+        # Deliberately OUTSIDE any try: transport/HTTP errors (429/401/timeout)
+        # must propagate to the factory, which owns retry/penalty/failover. The
+        # old catch-all swallowed them and fired a SECOND network call via
+        # complete_text — a second 429 on an already rate-limited host.
+        response = self.client.chat.completions.create(
+            model=resolved_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=max_tokens,
+            # Not all compatible models support json_object; rely on prompt + fallback.
+        )
+        self.last_usage = extract_usage(response)
+        # Truncated (finish_reason=length) means the model hit max_tokens and
+        # the JSON is cut off (reasoning models burn the budget on hidden
+        # thinking before emitting valid JSON). Don't degrade to complete_text
+        # — it truncates the same way — raise so the factory penalises this
+        # model ("truncated") and fails over to a leaner one.
+        if is_truncated(response):
+            raise TruncatedCompletionError(resolved_model)
+        content = (response.choices[0].message.content or "").strip()
         try:
-            response = self.client.chat.completions.create(
-                model=resolved_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=max_tokens,
-                # Not all compatible models support json_object; rely on prompt + fallback.
-            )
-            self.last_usage = extract_usage(response)
-            # Truncated (finish_reason=length) means the model hit max_tokens and
-            # the JSON is cut off (reasoning models burn the budget on hidden
-            # thinking before emitting valid JSON). Don't degrade to complete_text
-            # — it truncates the same way — raise so the factory penalises this
-            # model ("truncated") and fails over to a leaner one.
-            if is_truncated(response):
-                raise TruncatedCompletionError(resolved_model)
-            content = (response.choices[0].message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
-        except TruncatedCompletionError:
-            raise
-        except (json.JSONDecodeError, Exception) as exc:
+        except json.JSONDecodeError:
+            pass
+        try:
+            # Local salvage: JSON wrapped in prose/markdown fences — no network.
+            return _extract_json(content)
+        except ValueError as exc:
+            # No JSON at all in the reply: one complete_text retry is the last
+            # resort (some models ignore the JSON instruction on first pass).
             log.info("%s complete_json fallback (model=%s): %s", self.name, resolved_model, exc)
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)
             return _extract_json(text)
