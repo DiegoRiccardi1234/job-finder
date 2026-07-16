@@ -322,6 +322,7 @@ class Database:
             "interviewing": "interviewing",
             "rejected": "rejected",
             "reopened": "open",
+            "archived": "archived",
         }
         if action in status_map:
             self.conn.execute(

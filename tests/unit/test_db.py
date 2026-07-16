@@ -398,3 +398,17 @@ def test_list_jobs_search_escapes_like_metacharacters(tmp_path: Path) -> None:
         assert [r["titolo"] for r in rows] == ["QA_lead"]
     finally:
         db.close()
+
+
+def test_set_job_action_archived_updates_status(tmp_path: Path) -> None:
+    """The kanban dropdown offers "archived": the action must move the job
+    to archived status like the retention auto-archive does."""
+    db = Database(tmp_path / "d.db")
+    try:
+        jid, _, _ = db.upsert_job({"titolo": "QA", "azienda": "Acme", "link": "https://ex/1"})
+        db.set_job_action(jid, "archived")
+        assert db.get_job(jid)["status"] == "archived"
+        db.set_job_action(jid, "reopened")
+        assert db.get_job(jid)["status"] == "open"
+    finally:
+        db.close()

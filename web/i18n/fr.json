@@ -208,7 +208,8 @@
     "exportEmpty": "Aucune offre à exporter.",
     "deleteAllTitle": "Supprimer toutes les offres",
     "alsoOn": "Aussi sur",
-    "openPosting": "Ouvrir l'offre"
+    "openPosting": "Ouvrir l'offre",
+    "archived": "Archivée"
   },
   "kanbanCols": {
     "open": "Ouvert",

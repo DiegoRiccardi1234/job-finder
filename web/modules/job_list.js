@@ -182,6 +182,7 @@ const _KANBAN_ACTION = {
   applied: "applied",
   interviewing: "interviewing",
   rejected: "rejected",
+  archived: "archived", // dropdown-only: no board column, the card just leaves
 };
 
 async function _kanbanMoveTo(jobId, targetStatus) {
@@ -231,7 +232,9 @@ export function renderKanban(jobs) {
     if (container) container.innerHTML = "";
   });
 
-  const statusOptions = ["open", "applied", "interviewing", "rejected"];
+  // "archived" has no kanban column: picking it archives the job and the
+  // card leaves the board (same status the retention auto-archive uses).
+  const statusOptions = ["open", "applied", "interviewing", "rejected", "archived"];
   const counts = { open: 0, applied: 0, interviewing: 0, rejected: 0 };
   for (const job of jobs || []) {
     const status = normalizeJobStatus(job.status);

@@ -208,7 +208,8 @@
     "exportEmpty": "No hay empleos para exportar.",
     "deleteAllTitle": "Eliminar todos los empleos",
     "alsoOn": "También en",
-    "openPosting": "Abrir oferta"
+    "openPosting": "Abrir oferta",
+    "archived": "Archivada"
   },
   "kanbanCols": {
     "open": "Abierto",

@@ -17,6 +17,7 @@ class JobActionType(str, Enum):
     interviewing = "interviewing"
     rejected = "rejected"
     reopened = "reopened"
+    archived = "archived"
 
 
 class JobActionRequest(BaseModel):

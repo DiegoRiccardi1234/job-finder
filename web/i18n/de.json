@@ -208,7 +208,8 @@
     "exportEmpty": "Keine Jobs zum Exportieren.",
     "deleteAllTitle": "Alle Jobs löschen",
     "alsoOn": "Auch auf",
-    "openPosting": "Anzeige öffnen"
+    "openPosting": "Anzeige öffnen",
+    "archived": "Archiviert"
   },
   "kanbanCols": {
     "open": "Offen",

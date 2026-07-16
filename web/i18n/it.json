@@ -208,7 +208,8 @@
     "exportEmpty": "Nessun lavoro da esportare.",
     "deleteAllTitle": "Elimina tutti i lavori",
     "alsoOn": "Anche su",
-    "openPosting": "Apri annuncio"
+    "openPosting": "Apri annuncio",
+    "archived": "Archiviata"
   },
   "kanbanCols": {
     "open": "Aperto",
