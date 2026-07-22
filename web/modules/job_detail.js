@@ -31,20 +31,18 @@ function renderMatchRadar(axes) {
   const canvas = document.getElementById("detailMatchRadar");
   if (!canvas || typeof window.Chart === "undefined") return;
   const data = axes && typeof axes === "object" ? axes : {};
-  const labels = [
-    t("offcanvas.axisSkills"),
-    t("offcanvas.axisSeniority"),
-    t("offcanvas.axisRemote"),
-    t("offcanvas.axisSalary"),
-    t("offcanvas.axisContract"),
-  ];
-  const values = [
-    Number(data.skills_match) || 0,
-    Number(data.seniority_match) || 0,
-    Number(data.remote_match) || 0,
-    Number(data.salary_match) || 0,
-    Number(data.contract_match) || 0,
-  ];
+  // An axis the backend couldn't compute arrives as null (typically salary: no
+  // source publishes it). Plotting `Number(null) || 0` drew a confident zero, so
+  // unknown axes are dropped from the chart instead of being invented.
+  const axisSpecs = [
+    ["skills_match", "offcanvas.axisSkills"],
+    ["seniority_match", "offcanvas.axisSeniority"],
+    ["remote_match", "offcanvas.axisRemote"],
+    ["salary_match", "offcanvas.axisSalary"],
+    ["contract_match", "offcanvas.axisContract"],
+  ].filter(([key]) => data[key] !== null && data[key] !== undefined && data[key] !== "");
+  const labels = axisSpecs.map(([, labelKey]) => t(labelKey));
+  const values = axisSpecs.map(([key]) => Number(data[key]) || 0);
   if (_matchRadarChart) {
     _matchRadarChart.destroy();
     _matchRadarChart = null;
@@ -248,6 +246,12 @@ export async function showJobDetail(jobId) {
     if (analysis && analysis.ral_stimata && analysis.ral_stimata !== "Non stimabile") {
       ralSpan = `<div class="info-tag"><strong>RAL:</strong> ${escapeHtml(analysis.ral_stimata)}</div>`;
     }
+    // Platform task work vs employment: same list, very different decision.
+    let engagementSpan = "";
+    const engagement = analysis && analysis.tipo_ingaggio;
+    if (engagement && engagement !== "Non specificato") {
+      engagementSpan = `<div class="info-tag"><strong>${t("offcanvas.engagement")}:</strong> ${escapeHtml(engagement)}</div>`;
+    }
 
     container.innerHTML = `
       <div class="modern-detail">
@@ -261,6 +265,7 @@ export async function showJobDetail(jobId) {
             <h4>${t("offcanvas.positionDetails")}</h4>
             ${ralSpan}
             <div class="info-tag"><strong>${t("offcanvas.contract")}:</strong> ${escapeHtml((analysis ? analysis.contratto : null) || "N/A")}</div>
+            ${engagementSpan}
             <div class="info-tag"><strong>${t("offcanvas.remoteWork")}:</strong> ${escapeHtml((analysis ? analysis.smart_working : null) || job.modalita || "N/A")}</div>
             <div class="info-tag"><strong>${t("offcanvas.experience")}:</strong> ${escapeHtml((analysis ? analysis.anni_esperienza_richiesti : null) || "N/A")}</div>
             <div class="info-tag"><strong>${t("offcanvas.codingSkills")}:</strong> ${escapeHtml((analysis ? analysis.programmazione_richiesta : null) || "N/A")}</div>

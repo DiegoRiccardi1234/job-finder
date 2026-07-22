@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.providers.model_selector import (
     SCORING_MIN_SIZE_B,
     choose_best_model,
+    is_scoring_fit,
     pick_default_model,
     rank_models,
     score_model_name,
@@ -120,3 +121,44 @@ def test_rank_models_penalized_sinks_but_stays() -> None:
 def test_rank_models_preferred_hoisted_to_front() -> None:
     models = ["gpt-4o", "llama-3-8b-instruct"]
     assert rank_models(models, preferred_model="llama-3-8b-instruct")[0] == "llama-3-8b-instruct"
+
+
+# ── hard floor for scan scoring (v1.7.6) ─────────────────────────────────────
+
+
+def test_hard_floor_excludes_unfit_scoring_models() -> None:
+    """With ``hard_floor`` the unfit models are dropped, not just de-ranked.
+
+    The soft floor only sinks them, so under a 429 storm (everything else
+    penalized) the toy model won anyway: on a real scan a 12B VL model wrote two
+    of the top scores and an explicit reasoning build returned choices=None 11
+    times."""
+    from app.services.scanner_service import _SCORING_POLICY
+
+    models = [
+        "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-nano-12b-v2-vl:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3.5-content-safety:free",
+    ]
+    ranked = rank_models(models, policy=_SCORING_POLICY)
+    assert ranked == ["google/gemma-4-31b-it:free"]
+
+
+def test_hard_floor_can_return_empty() -> None:
+    """No fit model → empty list, so the caller fails over instead of scoring
+    with something it just declared unfit."""
+    from app.services.scanner_service import _SCORING_POLICY
+
+    assert rank_models(["some/toy-3b:free"], policy=_SCORING_POLICY) == []
+
+
+def test_default_policy_keeps_soft_behaviour() -> None:
+    # Chat/CV paths don't set hard_floor: nothing is excluded.
+    models = ["nvidia/nemotron-nano-12b-v2-vl:free", "google/gemma-4-31b-it:free"]
+    assert set(rank_models(models)) == set(models)
+
+
+def test_is_scoring_fit_ignores_models_without_a_stated_size() -> None:
+    assert is_scoring_fit("some-provider/mystery-model:free") is True
+    assert is_scoring_fit("some-provider/mystery-8b:free") is False

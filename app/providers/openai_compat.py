@@ -17,6 +17,7 @@ from app.providers.base import (
     LLMProvider,
     TruncatedCompletionError,
     extract_usage,
+    first_choice,
     is_truncated,
     is_unauthorized,
 )
@@ -100,7 +101,7 @@ class OpenAICompatibleProvider(LLMProvider):
             max_tokens=max_tokens,
         )
         self.last_usage = extract_usage(response)
-        return (response.choices[0].message.content or "").strip()
+        return (first_choice(response, resolved_model).message.content or "").strip()
 
     def chat(
         self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700
@@ -115,7 +116,7 @@ class OpenAICompatibleProvider(LLMProvider):
             max_tokens=max_tokens,
         )
         self.last_usage = extract_usage(response)
-        return (response.choices[0].message.content or "").strip()
+        return (first_choice(response, resolved_model).message.content or "").strip()
 
     def complete_json(
         self, prompt: str, model: str | None = None, max_tokens: int = 700
@@ -142,7 +143,9 @@ class OpenAICompatibleProvider(LLMProvider):
         # model ("truncated") and fails over to a leaner one.
         if is_truncated(response):
             raise TruncatedCompletionError(resolved_model)
-        content = (response.choices[0].message.content or "").strip()
+        # No choices at all (gateway answered 200 with choices=None): raise a
+        # classified error instead of the bare TypeError that used to escape here.
+        content = (first_choice(response, resolved_model).message.content or "").strip()
         try:
             return cast(dict[str, Any], json.loads(content))
         except json.JSONDecodeError:

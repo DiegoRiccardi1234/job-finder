@@ -367,7 +367,43 @@ const _ONBOARDING_FIELDS = [
   ["obGoal", "onboarding_goal"],
   ["obSeniority", "onboarding_seniority"],
   ["obWorkMode", "onboarding_work_mode"],
+  ["obRalMin", "onboarding_ral_min"],
+  ["obRalTarget", "onboarding_ral_target"],
 ];
+
+// Fills the two salary fields from an AI suggestion. It never saves them: the
+// numbers go into a negotiation, so the user confirms with "Save goals".
+function _applyRalSuggestion(data) {
+  const note = document.getElementById("ralSuggestNote");
+  if (!data || (!data.min && !data.target)) {
+    if (note) note.hidden = true;
+    return false;
+  }
+  const min = document.getElementById("obRalMin");
+  const target = document.getElementById("obRalTarget");
+  if (min && data.min) min.value = data.min;
+  if (target && data.target) target.value = data.target;
+  if (note) {
+    note.textContent = data.rationale || "";
+    note.hidden = !data.rationale;
+  }
+  return true;
+}
+
+async function _suggestRal() {
+  const btn = document.getElementById("ralSuggestBtn");
+  if (btn) btn.disabled = true;
+  try {
+    const data = await api("/api/profile/ral-suggest", { method: "POST" });
+    if (_applyRalSuggestion(data)) {
+      showToast(t("profile.onboarding.ralSuggested") || "Salary suggested", "info");
+    }
+  } catch (err) {
+    showToast(`${t("toast.genError")}: ${err.message}`, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 async function _prefillOnboarding() {
   try {
@@ -376,6 +412,13 @@ async function _prefillOnboarding() {
     for (const [id, key] of _ONBOARDING_FIELDS) {
       const el = document.getElementById(id);
       if (el && prefs[key]) el.value = prefs[key];
+    }
+    // Rehydrate the last salary rationale from cache — no tokens spent.
+    const cached = await api("/api/profile/ral-suggest");
+    const note = document.getElementById("ralSuggestNote");
+    if (note && cached && cached.rationale) {
+      note.textContent = cached.rationale;
+      note.hidden = false;
     }
   } catch {
     /* best-effort prefill */
@@ -595,5 +638,6 @@ export function bindProfileEvents() {
       _saveOnboarding();
     });
   }
+  document.getElementById("ralSuggestBtn")?.addEventListener("click", _suggestRal);
   _prefillOnboarding();
 }

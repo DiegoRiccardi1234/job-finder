@@ -57,7 +57,11 @@
       "seniority": "Nivel buscado (p. ej. junior)",
       "workMode": "Modalidad preferida (remoto/híbrido)",
       "save": "Guardar objetivos",
-      "saved": "Objetivos guardados"
+      "saved": "Objetivos guardados",
+      "ralMin": "Salario mínimo (bruto/año)",
+      "ralTarget": "Salario objetivo (bruto/año)",
+      "ralSuggest": "Sugerir salario con IA",
+      "ralSuggested": "Salario sugerido: revísalo y guárdalo"
     },
     "features": {
       "title": "Herramientas de CV y privacidad",
@@ -386,7 +390,8 @@
     "copy": "Copiar",
     "copied": "Copiado",
     "generateRecruiterMsg": "Mensaje al reclutador",
-    "recruiterMsg": "Mensaje al reclutador"
+    "recruiterMsg": "Mensaje al reclutador",
+    "engagement": "Tipo de contratación"
   },
   "scan": {
     "scanning": "Escaneando portales de empleo...",

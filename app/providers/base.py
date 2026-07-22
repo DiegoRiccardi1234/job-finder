@@ -68,6 +68,37 @@ def is_truncated(response: Any) -> bool:
     return False
 
 
+class EmptyCompletionError(ValueError):
+    """Raised when a response carries no usable choice at all.
+
+    OpenRouter (and any gateway fronting a flaky upstream) can answer 200 with
+    ``choices`` set to ``None`` or ``[]`` and the real error buried elsewhere in
+    the payload. Reaching for ``response.choices[0]`` then raised a bare
+    ``TypeError`` ("'NoneType' object is not subscriptable") which the factory
+    did NOT classify — so the broken model kept winning the ranking and was
+    re-picked for every offer of a scan. Subclasses ``ValueError`` (like
+    ``TruncatedCompletionError``) so existing ``except ValueError`` sites keep
+    working, but the factory maps it to its own ``"malformed"`` penalty.
+    """
+
+    def __init__(self, model: str = "") -> None:
+        self.model = model
+        detail = f" ({model})" if model else ""
+        super().__init__(f"completion without choices{detail}")
+
+
+def first_choice(response: Any, model: str = "") -> Any:
+    """The first choice of an OpenAI-shaped response, or ``EmptyCompletionError``.
+
+    Single entry point for every ``response.choices[0]`` read, so a malformed
+    payload always surfaces as a classified error instead of a ``TypeError``.
+    """
+    choices = getattr(response, "choices", None)
+    if not choices:
+        raise EmptyCompletionError(model)
+    return choices[0]
+
+
 class TruncatedCompletionError(ValueError):
     """Raised when an LLM stopped because it hit ``max_tokens`` (``finish_reason
     == "length"``): the output is cut off, so any JSON in it is untrustworthy.

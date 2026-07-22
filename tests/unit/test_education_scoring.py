@@ -79,7 +79,10 @@ def test_job_has_analysis_false_for_legacy_schema(tmp_path: Path) -> None:
         assert db.job_has_analysis(jid) is False
         db.update_job_analysis(jid, {"punteggio": 9})  # pre-v1.7.5 shape
         assert db.job_has_analysis(jid) is False  # stale -> re-score on next scan
+        # Education-era shape: still stale, it can't have weighed geo/grade blockers.
         db.update_job_analysis(jid, {"punteggio": 7, "titolo_studio_richiesto": "Triennale"})
+        assert db.job_has_analysis(jid) is False
+        db.update_job_analysis(jid, {"punteggio": 7, "eleggibilita_geografica": "Italia/UE"})
         assert db.job_has_analysis(jid) is True
     finally:
         db.close()

@@ -9,11 +9,21 @@ from typing import Any, TypeVar
 from app.config import AppSettings
 from app.log import get_logger
 from app.providers.anthropic_provider import AnthropicProvider
-from app.providers.base import LLMProvider, TruncatedCompletionError, is_unauthorized
+from app.providers.base import (
+    EmptyCompletionError,
+    LLMProvider,
+    TruncatedCompletionError,
+    is_unauthorized,
+)
 from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.google_provider import GoogleProvider
 from app.providers.groq_provider import GroqProvider
-from app.providers.model_selector import choose_best_model, rank_models
+from app.providers.model_selector import (
+    SCORING_MIN_SIZE_B,
+    choose_best_model,
+    is_scoring_fit,
+    rank_models,
+)
 from app.providers.openai_compat import (
     DeepSeekProvider,
     GLMProvider,
@@ -55,6 +65,14 @@ _MODEL_PENALTY_COOLDOWNS = {
     # "truncated" penalties at the start of each scan, so it's re-evaluated fresh
     # next run (sticky within a scan, reset between).
     "truncated": 3600.0,
+    # The reply had no usable shape at all (choices=None from a gateway fronting a
+    # broken upstream, or an SDK object we can't read). Structural like truncation
+    # — retrying the same model just burns the quota — so same long cooldown.
+    "malformed": 3600.0,
+    # A model that hangs costs the wall-clock timeout on every attempt (measured:
+    # 183s per call, 14 of them in one scan). De-rank for a while, but shorter
+    # than the structural reasons: it can be the host being busy, not the model.
+    "timeout": 900.0,
 }
 
 
@@ -405,6 +423,7 @@ class ProviderManager:
             ranked = _rank(pool, penalized, limit)
             if ranked:
                 return ranked
+        policy = policy_override or self.settings.model_selection_policy or {}
         try:
             fallback = provider.select_model(preferred_model=self.settings.preferred_model)
         except Exception:
@@ -417,6 +436,14 @@ class ProviderManager:
         # has alternatives); this single-model fallback has none, so proposing
         # a penalized model would re-run the exact failure we just recorded.
         if fallback in penalized:
+            return []
+        # select_model() knows nothing about the caller's policy, so under a hard
+        # floor (scan scoring) it can hand back exactly the toy/reasoning model the
+        # floor exists to keep out. Skip the provider instead.
+        if policy.get("hard_floor") and not is_scoring_fit(
+            fallback, int(policy.get("min_size_b", SCORING_MIN_SIZE_B) or SCORING_MIN_SIZE_B)
+        ):
+            log.info("%s: no scoring-fit model available (fallback=%s)", provider.name, fallback)
             return []
         return [fallback]
 
@@ -689,12 +716,24 @@ def _classify_failure(exc: Exception) -> str | None:
         # Checked before ValueError (its base): a max_tokens cutoff is a
         # structural mismatch, not a generic "won't emit JSON".
         return "truncated"
+    if isinstance(exc, EmptyCompletionError):
+        # Also a ValueError subclass — must precede the json_fail branch.
+        return "malformed"
     if _is_rate_limited(exc):
         return "rate_limit"
     if _is_forbidden(exc):
         return "forbidden"
     if isinstance(exc, ValueError):  # "Nessun JSON trovato" — model won't emit JSON
         return "json_fail"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    if isinstance(exc, TypeError | AttributeError | KeyError):
+        # A reply we couldn't even walk (unexpected payload shape). Returning
+        # None here is what let a model that raised TypeError on every call stay
+        # top-ranked and be re-picked for a whole scan (measured: 28 attempts,
+        # 11 of them TypeError). Treat "we can't read your answer" as the
+        # model's problem and rotate off it.
+        return "malformed"
     return None
 
 
@@ -752,10 +791,18 @@ def _with_retry(fn: Callable[[], _RetryT], provider_label: str) -> _RetryT:
             return _call_with_timeout(fn, timeout)
         except Exception as exc:
             last_exc = exc
-            # Fail fast on 429: don't hammer the same rate-limited model — let
-            # _run_with_failover rotate to the next model/provider immediately.
-            # (5xx/timeout still retry with backoff.)
-            if attempt >= max_attempts or not _is_retryable(exc) or _is_rate_limited(exc):
+            # Fail fast on 429 AND on a wall-clock timeout: don't hammer the same
+            # model — let _run_with_failover rotate to the next model/provider
+            # immediately. A timeout costs the FULL timeout window per attempt
+            # (measured: 3 x 60s = 183s burned on one dead model, 14 times in a
+            # single scan), and a model that hung once almost always hangs again.
+            # (5xx / connection resets still retry with backoff.)
+            if (
+                attempt >= max_attempts
+                or not _is_retryable(exc)
+                or _is_rate_limited(exc)
+                or isinstance(exc, TimeoutError)
+            ):
                 raise
             delay = base * (2 ** (attempt - 1))
             jitter = delay * 0.3 * (2 * _random.random() - 1)

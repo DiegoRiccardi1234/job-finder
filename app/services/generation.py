@@ -32,6 +32,8 @@ MAX_TOKENS = {
     "cv_review": 1200,
     "cv_improve": 1600,
     "recruiter_outreach": 450,
+    # Two numbers plus a short rationale — no need for a long budget.
+    "ral_suggest": 500,
 }
 
 # Quality-biased policy for the CV tools (review + improve): these are done

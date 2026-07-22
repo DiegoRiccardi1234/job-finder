@@ -300,6 +300,7 @@ def build_router(container: AppContainer) -> APIRouter:
             privacy=container.feature_enabled("privacy_mode", True),
             extra_context=onboarding_context(container.db),
             candidate_name=(profile.get("name") if profile else None),
+            sede=payload.sede or "",
         )
         container.db.update_job_analysis(job_id=job_id, analysis=analysis)
         return {"job_id": job_id, "analysis": analysis}

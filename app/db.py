@@ -576,16 +576,41 @@ class Database:
         """Whether a job already carries a CURRENT AI analysis — cheaper than
         get_job() when the scan loop only needs to decide skip-vs-rescore.
 
-        Analyses predating the education-aware schema (v1.7.5, marker key
-        ``titolo_studio_richiesto``) count as absent: they could hide a degree/
-        experience gap (a Master's-required job scored 9 for a Bachelor's CV),
-        so a re-appearing job gets re-scored once and self-heals."""
+        Analyses predating the eligibility-aware schema (marker key
+        ``eleggibilita_geografica``) count as absent: they can hide a hard
+        blocker (a US-based job scored 8 for a candidate with no visa, a posting
+        demanding 102/110 scored 10 for a 95/110 CV), so a re-appearing job gets
+        re-scored once and self-heals. Bumping this marker is the intended way to
+        force a one-off mass re-score after a scoring-schema change."""
         cur = self.conn.execute(
             "SELECT 1 FROM jobs WHERE id = ? AND analysis_json IS NOT NULL "
-            "AND analysis_json != '' AND analysis_json LIKE '%titolo_studio_richiesto%'",
+            "AND analysis_json != '' AND analysis_json LIKE '%eleggibilita_geografica%'",
             (int(job_id),),
         )
         return cur.fetchone() is not None
+
+    def recent_ral_estimates(self, limit: int = 30) -> list[str]:
+        """Salary ranges the AI read on recently analysed jobs, newest first.
+
+        Feeds the salary-suggestion prompt with what THIS user's market actually
+        pays, instead of a generic national average. Rows where nothing was
+        estimable are skipped, so the caller may get fewer than ``limit``.
+        """
+        cur = self.conn.execute(
+            "SELECT json_extract(analysis_json, '$.ral_stimata') FROM jobs "
+            "WHERE analysis_json IS NOT NULL AND analysis_json != '' "
+            "ORDER BY analyzed_at DESC LIMIT ?",
+            (int(limit) * 3,),
+        )
+        seen: list[str] = []
+        for (value,) in cur.fetchall():
+            text = str(value or "").strip()
+            if not text or "stimabile" in text.lower() or text in seen:
+                continue
+            seen.append(text)
+            if len(seen) >= limit:
+                break
+        return seen
 
     def get_job_with_analysis(self, job_id: int) -> dict[str, Any] | None:
         data = self.get_job(job_id)

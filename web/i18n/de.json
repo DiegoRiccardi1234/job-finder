@@ -57,7 +57,11 @@
       "seniority": "Gesuchte Seniorität (z. B. Junior)",
       "workMode": "Bevorzugte Arbeitsweise (Remote/Hybrid)",
       "save": "Ziele speichern",
-      "saved": "Ziele gespeichert"
+      "saved": "Ziele gespeichert",
+      "ralMin": "Mindestgehalt (brutto/Jahr)",
+      "ralTarget": "Zielgehalt (brutto/Jahr)",
+      "ralSuggest": "Gehalt mit KI vorschlagen",
+      "ralSuggested": "Gehalt vorgeschlagen — prüfen und speichern"
     },
     "features": {
       "title": "CV-Tools & Datenschutz",
@@ -386,7 +390,8 @@
     "copy": "Kopieren",
     "copied": "Kopiert",
     "generateRecruiterMsg": "Recruiter-Nachricht",
-    "recruiterMsg": "Recruiter-Nachricht"
+    "recruiterMsg": "Recruiter-Nachricht",
+    "engagement": "Art der Beschäftigung"
   },
   "scan": {
     "scanning": "Jobportale werden gescannt...",

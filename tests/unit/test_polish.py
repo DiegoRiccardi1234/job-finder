@@ -24,11 +24,15 @@ def test_job_has_analysis(tmp_path: Path) -> None:
     try:
         job_id, _, _ = db.upsert_job({"titolo": "X", "azienda": "Y", "link": "l1"})
         assert db.job_has_analysis(job_id) is False
-        # Legacy shape (pre education-aware schema) counts as absent -> re-scored.
+        # Legacy shape (pre eligibility-aware schema) counts as absent -> re-scored.
         db.update_job_analysis(job_id=job_id, analysis={"punteggio": 7})
         assert db.job_has_analysis(job_id) is False
         db.update_job_analysis(
             job_id=job_id, analysis={"punteggio": 7, "titolo_studio_richiesto": "Triennale"}
+        )
+        assert db.job_has_analysis(job_id) is False
+        db.update_job_analysis(
+            job_id=job_id, analysis={"punteggio": 7, "eleggibilita_geografica": "Italia/UE"}
         )
         assert db.job_has_analysis(job_id) is True
     finally:

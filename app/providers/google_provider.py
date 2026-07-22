@@ -5,9 +5,11 @@ from urllib import parse, request
 
 from app.log import get_logger
 from app.providers.base import (
+    EmptyCompletionError,
     LLMProvider,
     TruncatedCompletionError,
     extract_usage,
+    first_choice,
     is_truncated,
     is_unauthorized,
 )
@@ -96,7 +98,7 @@ class GoogleProvider(LLMProvider):
             max_tokens=max_tokens,
         )
         self.last_usage = extract_usage(response)
-        return (response.choices[0].message.content or "").strip()
+        return (first_choice(response, resolved_model).message.content or "").strip()
 
     def chat(
         self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700
@@ -111,7 +113,7 @@ class GoogleProvider(LLMProvider):
             max_tokens=max_tokens,
         )
         self.last_usage = extract_usage(response)
-        return (response.choices[0].message.content or "").strip()
+        return (first_choice(response, resolved_model).message.content or "").strip()
 
     def complete_json(
         self, prompt: str, model: str | None = None, max_tokens: int = 700
@@ -133,9 +135,10 @@ class GoogleProvider(LLMProvider):
             # degrading to complete_text (which truncates the same way).
             if is_truncated(response):
                 raise TruncatedCompletionError(resolved_model)
-            content = (response.choices[0].message.content or "").strip()
+            content = (first_choice(response, resolved_model).message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
-        except TruncatedCompletionError:
+        except (TruncatedCompletionError, EmptyCompletionError):
+            # Structural failures: a complete_text retry would hit the same wall.
             raise
         except Exception:
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)

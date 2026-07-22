@@ -57,7 +57,11 @@
       "seniority": "Seniority sought (e.g. junior)",
       "workMode": "Preferred work mode (remote/hybrid)",
       "save": "Save goals",
-      "saved": "Goals saved"
+      "saved": "Goals saved",
+      "ralMin": "Minimum salary (gross/year)",
+      "ralTarget": "Target salary (gross/year)",
+      "ralSuggest": "Suggest salary with AI",
+      "ralSuggested": "Salary suggested — review and save"
     },
     "features": {
       "title": "CV tools & privacy",
@@ -386,7 +390,8 @@
     "copy": "Copy",
     "copied": "Copied",
     "generateRecruiterMsg": "Recruiter message",
-    "recruiterMsg": "Recruiter message"
+    "recruiterMsg": "Recruiter message",
+    "engagement": "Engagement type"
   },
   "scan": {
     "scanning": "Scanning job portals...",

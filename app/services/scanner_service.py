@@ -1,3 +1,4 @@
+import functools
 import json
 import math
 import random
@@ -142,6 +143,42 @@ def _norm_remote(val: Any) -> bool | None:
     return bool(val)
 
 
+_HYBRID_RE = re.compile(r"\bibrid[ao]|\bhybrid\b|lavoro ibrido", re.IGNORECASE)
+_ONSITE_RE = re.compile(
+    r"\bin sede\b|\bon[- ]site\b|\bonsite\b|\bin presenza\b|presenza in sede|\bin office\b",
+    re.IGNORECASE,
+)
+_REMOTE_RE = re.compile(
+    r"full remote|100% remot|\bda remoto\b|\bfully remote\b|\bremote[- ]first\b|smart working",
+    re.IGNORECASE,
+)
+
+
+def _detect_work_mode(row: Any, descrizione: str, scan_default: str) -> str:
+    """Work mode of a single posting, read from the posting itself.
+
+    Used to be a scan-level constant mirroring the ``is_remote`` search flag, so
+    every job of a remote-flagged scan was stored as "Full Remote" — including
+    plainly on-site ones (measured: 44/44 jobs of one scan, an Orbassano plant
+    role among them). jobspy's per-row ``is_remote`` comes first, then the text,
+    and only an undecidable row falls back to the scan flag.
+    """
+    text = descrizione or ""
+    if _HYBRID_RE.search(text):
+        return "Ibrido"
+    is_remote = _norm_remote(row.get("is_remote") if hasattr(row, "get") else None)
+    if is_remote is True:
+        return "Full Remote"
+    if _REMOTE_RE.search(text):
+        return "Full Remote"
+    if is_remote is False or _ONSITE_RE.search(text):
+        return "In sede"
+    # No evidence either way. The scan flag is a SEARCH filter, not a fact about
+    # the posting — asserting "Full Remote" from it is how an on-site plant role
+    # ended up labelled remote — so say so instead of guessing.
+    return "Non specificato" if scan_default == "Full Remote" else scan_default
+
+
 def _row_job_type_ok(row: Any, job_types: list[str]) -> bool:
     """Keep a scraped row when its job_type matches a selected one.
 
@@ -196,7 +233,7 @@ from app.log import get_logger
 from app.models import ScanRequest
 from app.providers.factory import ProviderManager
 from app.providers.model_selector import SCORING_MIN_SIZE_B
-from app.services.onboarding import onboarding_context
+from app.services.onboarding import RAL_MIN_LABEL, onboarding_context
 from app.services.pii import redact_pii
 from app.services.recruiter_scrape import fetch_linkedin_description, fetch_recruiter
 
@@ -223,6 +260,12 @@ _SCORING_POLICY: dict[str, Any] = {
     "prefer_free": True,
     "max_cost_tier": "high",
     "min_size_b": SCORING_MIN_SIZE_B,
+    # Hard gate on top of the soft floor above: under a 429 storm every decent
+    # model ends up penalized and the de-ranked toy wins by default. Measured on
+    # the 2026-07-21 scan: a 12B VL model wrote two of the top scores. With
+    # hard_floor the unfit models are EXCLUDED, the provider is skipped when none
+    # survives, and the offer falls back to the declared heuristic analysis.
+    "hard_floor": True,
     "weights": {
         "size": 16,
         "speed": 12,
@@ -243,6 +286,11 @@ try:
     from jobspy import scrape_jobs
 except ImportError:  # pragma: no cover
     scrape_jobs = None
+
+try:
+    from jobspy.model import Country
+except ImportError:  # pragma: no cover
+    Country = None
 
 
 def _filter_indeed_freshness(df: Any, hours_old: int) -> Any:
@@ -266,6 +314,51 @@ def _filter_indeed_freshness(df: Any, hours_old: int) -> Any:
             return True
 
     return df[df.apply(_keep, axis=1)]
+
+
+# Location placeholders that span countries: Indeed has no cross-country search
+# (one domain per country), so it is skipped for these and only LinkedIn runs.
+_MULTI_COUNTRY_LOCATIONS = {
+    "remote",
+    "worldwide",
+    "anywhere",
+    "europe",
+    "european union",
+    "eu",
+    "emea",
+}
+
+
+def _indeed_country_for(location: str, default_country: str) -> str | None:
+    """Indeed country to use for ``location``, or None when Indeed can't serve it.
+
+    Indeed is queried per-country domain, but a scan takes ONE country and many
+    locations: with country=italy and location="Germany" Indeed searches the
+    Italian domain for a German city and returns nothing (measured: an EU-wide
+    run produced 0 Indeed rows out of 44 jobs, all of them LinkedIn). When the
+    location names a country jobspy knows, that country wins; when it's a region
+    or a placeholder ("European Union", "Remote") Indeed is skipped for that
+    location — LinkedIn handles free-text locations and still runs.
+    """
+    text = (location or "").strip()
+    if not text:
+        return default_country
+    if text.lower() in _MULTI_COUNTRY_LOCATIONS:
+        return None
+    if Country is None:  # pragma: no cover - jobspy always ships it
+        return default_country
+    # jobspy locations are "City, Region, Country" — the tail is the country.
+    candidates = [text, *[part.strip() for part in reversed(text.split(",")) if part.strip()]]
+    for candidate in candidates:
+        try:
+            Country.from_string(candidate)
+        except Exception:
+            continue
+        return candidate.lower()
+    # A bare city ("Torino") carries no country: the scan-level one still applies.
+    if "," not in text:
+        return default_country
+    return None
 
 
 def _scrape_split_indeed(scrape_kwargs: dict[str, Any]) -> Any:
@@ -484,6 +577,9 @@ _PER_OFFER_SCHEMA = """{
   "junior_friendly": "Sì|No|Non specificato",
   "anni_esperienza_richiesti": "0|1|2|3+|Non specificato",
   "titolo_studio_richiesto": "Nessuno|Diploma|Triennale|Magistrale|PhD|Non specificato",
+  "voto_minimo_richiesto": "<es. 102/110 se l'annuncio lo chiede>|Non specificato",
+  "eleggibilita_geografica": "Italia/UE|Fuori UE: non candidabile|Fuori UE, ma l'annuncio cita apertura remota UE|Non specificato",
+  "tipo_ingaggio": "Dipendente|Gig a task|Freelance P.IVA|Stage|Non specificato",
   "punti_forza_per_diego": "1 frase",
   "punti_deboli_per_diego": "1 frase",
   "riassunto": "2 righe max",
@@ -523,6 +619,16 @@ _SCORING_RULES = (
     "del suo, più anni di esperienza, o un livello di lingua superiore: ABBASSA "
     '"punteggio" e "match_axes.seniority_match" e aggiungi il requisito mancante in '
     '"skills_match.mancano". Il gap deve essere sempre visibile, mai ignorato.\n'
+    "- Il candidato NON può trasferirsi e non ha visti extra-UE: se la sede è fuori "
+    "dall'Unione Europea e l'annuncio non dichiara esplicitamente apertura a chi lavora "
+    'da remoto dall\'UE, "punteggio" massimo 3 e "consiglio" = "Salta".\n'
+    "- Valuta ogni offerta INDIPENDENTEMENTE dalle altre: due offerte diverse non "
+    'possono avere gli stessi valori di "match_axes".\n'
+    "- Stipendio: usa la RAL minima/target del candidato (se indicata nelle preferenze) "
+    'come metro per "match_axes.salary_match". Se l\'annuncio NON dichiara una retribuzione, '
+    'scrivi "ral_stimata": "Non stimabile" e NON inventare una cifra.\n'
+    '- "tipo_ingaggio": distingui un\'assunzione da un lavoro a task/piattaforma '
+    "(pagamento a task o a ora, nessun monte ore garantito) e dalla partita IVA.\n"
 )
 
 
@@ -790,6 +896,354 @@ def _no_description_analysis(profile_markdown: str, titolo: str, azienda: str) -
     return _insufficient_description_analysis(profile_markdown, titolo, azienda, "")
 
 
+# ─── Deterministic hard-requirement checks (run AFTER the model) ───────────
+# _SCORING_RULES already asks the model to weigh these, and it repeatedly didn't:
+# on the 2026-07-21 scan a posting demanding "min. 102/110" scored 10 against a
+# 95/110 CV, and ten US-based jobs (candidate has no visa and won't relocate)
+# scored up to 8, two of them "Candidati subito". These checks can only LOWER a
+# score, never raise it, so a good model is never punished by them.
+
+_GRADE_RE = re.compile(r"(\d{2,3})\s*/\s*110")
+
+# Both caps sit below the "Valutabile" band (>=5): an offer the candidate cannot
+# take must never outrank one they can, but stays visible instead of vanishing.
+_GEO_INELIGIBLE_CAP = 3
+_GRADE_INELIGIBLE_CAP = 3
+
+# Countries/regions the candidate cannot work in without a visa or relocation.
+# "DE" is deliberately NOT in the US-state list: "Berlin, DE" (EU) would collide
+# with Delaware. The EU allowlist is checked first, so a location naming an EU
+# country never reaches these patterns.
+_EU_LOCATION_RE = re.compile(
+    r"\b(ital(?:y|ia)|spain|espa[nñ]a|france|francia|german(?:y|ia)|deutschland|netherlands"
+    r"|paesi bassi|belgium|belgio|portugal|portogallo|ireland|irlanda|austria|poland|polonia"
+    r"|sweden|svezia|denmark|danimarca|finland|finlandia|greece|grecia|czech|cechia|romania"
+    r"|hungary|ungheria|croatia|croazia|slovak|sloven|bulgaria|estonia|latvia|lithuania"
+    r"|luxembourg|lussemburgo|malta|cyprus|cipro|european union|europe|europa)\b",
+    re.IGNORECASE,
+)
+_NON_EU_LOCATION_RE = re.compile(
+    r",\s*(?:AL|AK|AZ|AR|CA|CO|CT|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT"
+    r"|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b"
+    r"|united states|,\s*usa\b|united kingdom|england|scotland|wales|,\s*uk\b|canada"
+    r"|australia|new zealand|india|singapore|japan|brazil|mexico|argentina|switzerland"
+    r"|svizzera|dubai|emirates|israel|south africa",
+    re.IGNORECASE,
+)
+# Explicit openness to EU/Italy-based remote workers. Without one of these a
+# non-EU posting is treated as not applicable, not as "maybe".
+_EU_REMOTE_OK_RE = re.compile(
+    r"work from anywhere|anywhere in the world|remote[^.\n]{0,40}(europe|emea|\beu\b)"
+    r"|(europe|emea|\beu\b)[^.\n]{0,40}remote|based in (europe|italy|the eu)|ital(?:y|ia)",
+    re.IGNORECASE,
+)
+
+
+def _is_non_eu_location(sede: str) -> bool:
+    """True when the posting's location is outside the EU (visa/relocation needed)."""
+    text = (sede or "").strip()
+    if not text or _EU_LOCATION_RE.search(text):
+        return False
+    return bool(_NON_EU_LOCATION_RE.search(text))
+
+
+def _extract_min_grade(text: str) -> int | None:
+    """Highest ``NN/110`` degree-grade threshold stated in a posting, if any."""
+    grades = [int(g) for g in _GRADE_RE.findall(text or "")]
+    grades = [g for g in grades if 60 <= g <= 110]
+    return max(grades) if grades else None
+
+
+def _profile_grade(profile_markdown: str) -> int | None:
+    """The candidate's degree grade as written in the CV (first ``NN/110``)."""
+    grades = [int(g) for g in _GRADE_RE.findall(profile_markdown or "")]
+    grades = [g for g in grades if 60 <= g <= 110]
+    return grades[0] if grades else None
+
+
+def hard_block_reason(profile_markdown: str, descrizione: str, sede: str) -> str | None:
+    """Why this offer is a non-starter for the candidate, or None.
+
+    Both blockers are decidable from the text alone, so the caller can skip the
+    LLM entirely instead of paying a call and capping the answer afterwards
+    (measured on a real scan: 12 offers out of 44 — ~27% of the scoring quota).
+    """
+    if _is_non_eu_location(sede) and not _EU_REMOTE_OK_RE.search(descrizione or ""):
+        return f"Sede fuori UE ({sede}): richiede visto/relocation"
+    required = _extract_min_grade(descrizione)
+    candidate = _profile_grade(profile_markdown)
+    if required is not None and candidate is not None and candidate < required:
+        return f"Voto minimo {required}/110 (CV: {candidate}/110)"
+    return None
+
+
+# ── declared salary vs the candidate's floor ─────────────────────────────────
+# jobspy returns no salary at all (N/D on 78/78 rows measured), and the model's
+# own ``ral_stimata`` is "Non stimabile" half the time, so this is a FLAG, never
+# a score cap: capping would punish the rare posting honest enough to publish a
+# figure while leaving every silent one untouched.
+
+_RAL_AMOUNT_RE = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d{4,6}|\d{2,3}\s*k)", re.IGNORECASE)
+
+
+def _parse_ral(raw: Any) -> tuple[int | None, int | None]:
+    """(min, max) yearly euros stated in a ``ral_stimata`` string, if any."""
+    text = str(raw or "").strip().lower()
+    if not text or "non stimabile" in text or "non estimabile" in text:
+        return (None, None)
+    amounts: list[int] = []
+    for match in _RAL_AMOUNT_RE.findall(text):
+        digits = re.sub(r"[^\d]", "", match)
+        if not digits:
+            continue
+        value = int(digits)
+        if "k" in match.lower():
+            value *= 1000
+        if 5_000 <= value <= 500_000:
+            amounts.append(value)
+    if not amounts:
+        return (None, None)
+    return (min(amounts), max(amounts))
+
+
+def _ral_min_from_context(extra_context: str) -> int | None:
+    """The candidate's minimum salary as rendered by ``onboarding_context``."""
+    match = re.search(
+        rf"{re.escape(RAL_MIN_LABEL)}\s*:\s*([\d.\s]+)", extra_context or "", re.IGNORECASE
+    )
+    if not match:
+        return None
+    digits = re.sub(r"[^\d]", "", match.group(1))
+    return int(digits) if digits else None
+
+
+def _apply_salary_expectation(analysis: dict[str, Any], ral_min: int | None) -> None:
+    """Flag (not cap) an offer whose declared salary is under the user's floor."""
+    low, high = _parse_ral(analysis.get("ral_stimata"))
+    if ral_min and high and high < ral_min:
+        _add_missing(analysis, f"RAL dichiarata fino a {high} EUR, sotto la tua minima ({ral_min})")
+        previous = str(analysis.get("punti_deboli_per_diego") or "").strip()
+        analysis["punti_deboli_per_diego"] = (
+            f"Retribuzione sotto la RAL minima dichiarata ({ral_min} EUR). {previous}".strip()
+        )
+        axes = analysis.get("match_axes")
+        if isinstance(axes, dict):
+            axes["salary_match"] = 1
+    elif ral_min and low and low >= ral_min:
+        axes = analysis.get("match_axes")
+        if isinstance(axes, dict):
+            axes["salary_match"] = max(int(axes.get("salary_match") or 0), 7)
+
+
+def _has_salary_signal(analysis: dict[str, Any]) -> bool:
+    """True when SOMETHING real is known about this offer's pay."""
+    if any(_parse_ral(analysis.get(key)) != (None, None) for key in ("ral_stimata",)):
+        return True
+    for key in ("stipendio_min", "stipendio_max"):
+        value = analysis.get(key)
+        if value not in (None, "", "N/D") and str(value).strip().lower() != "n/d":
+            return True
+    return False
+
+
+# Companies whose "jobs" are platform task work, not employment. Fixed list of
+# the channels already mapped for this market; the text markers below catch the
+# rest. Deterministic, so it wins over whatever the model guessed.
+_GIG_COMPANIES = (
+    "toloka",
+    "innodata",
+    "oneforma",
+    "pactera",
+    "alignerr",
+    "labelbox",
+    "invisible",
+    "meridial",
+    "cntxt",
+    "appen",
+    "telus international",
+    "outlier",
+    "mindrift",
+    "remotasks",
+    "clickworker",
+    "prolific",
+)
+_GIG_TEXT_RE = re.compile(
+    r"pay per task|paid per task|per[- ]task basis|hourly rate|project[- ]based work"
+    r"|no minimum hours|nessun monte ore|collaborazione occasionale|\bgig\b|freelance marketplace",
+    re.IGNORECASE,
+)
+_PIVA_RE = re.compile(r"partita iva|\bp\.?\s?iva\b|contratto di collaborazione", re.IGNORECASE)
+
+
+def _detect_engagement(azienda: str, offer_text: str) -> str | None:
+    """Engagement type when the posting makes it unambiguous, else None."""
+    company = (azienda or "").lower()
+    if any(name in company for name in _GIG_COMPANIES) or _GIG_TEXT_RE.search(offer_text or ""):
+        return "Gig a task"
+    if _PIVA_RE.search(offer_text or ""):
+        return "Freelance P.IVA"
+    return None
+
+
+def _add_missing(analysis: dict[str, Any], item: str) -> None:
+    """Append a blocking requirement to ``skills_match.mancano`` (created if absent)."""
+    skills = analysis.get("skills_match")
+    if not isinstance(skills, dict):
+        skills = {"hai": [], "mancano": []}
+        analysis["skills_match"] = skills
+    missing = skills.get("mancano")
+    if not isinstance(missing, list):
+        missing = []
+        skills["mancano"] = missing
+    if item not in missing:
+        missing.append(item)
+
+
+def _cap_score(analysis: dict[str, Any], cap: int, weakness: str) -> None:
+    """Lower the score to ``cap`` (never raise it) and mark the offer as a skip."""
+    try:
+        current = int(analysis.get("punteggio", 0) or 0)
+    except (TypeError, ValueError):
+        current = 0
+    analysis["punteggio"] = min(current, cap) if current else cap
+    analysis["consiglio"] = "Salta"
+    previous = str(analysis.get("punti_deboli_per_diego") or "").strip()
+    analysis["punti_deboli_per_diego"] = f"{weakness} {previous}".strip()
+
+
+def _apply_geo_eligibility(analysis: dict[str, Any], sede: str, descrizione: str) -> None:
+    """Cap offers the candidate legally can't take (no visa, no relocation)."""
+    if not _is_non_eu_location(sede):
+        if sede.strip():
+            analysis["eleggibilita_geografica"] = "Italia/UE"
+        return
+    if _EU_REMOTE_OK_RE.search(descrizione or ""):
+        analysis["eleggibilita_geografica"] = "Fuori UE, ma l'annuncio cita apertura remota UE"
+        return
+    analysis["eleggibilita_geografica"] = "Fuori UE: non candidabile"
+    _add_missing(analysis, f"Sede fuori UE ({sede}): richiede visto/relocation")
+    _cap_score(analysis, _GEO_INELIGIBLE_CAP, "Sede fuori UE: non candidabile senza visto.")
+
+
+def _apply_grade_requirement(
+    analysis: dict[str, Any], profile_markdown: str, descrizione: str
+) -> None:
+    """Cap offers whose stated minimum degree grade is above the candidate's."""
+    required = _extract_min_grade(descrizione)
+    if required is None:
+        analysis.setdefault("voto_minimo_richiesto", "Non specificato")
+        return
+    analysis["voto_minimo_richiesto"] = f"{required}/110"
+    candidate = _profile_grade(profile_markdown)
+    if candidate is None or candidate >= required:
+        return
+    _add_missing(analysis, f"Voto minimo {required}/110 (CV: {candidate}/110)")
+    _cap_score(
+        analysis,
+        _GRADE_INELIGIBLE_CAP,
+        f"Voto minimo richiesto {required}/110, il CV ne dichiara {candidate}/110.",
+    )
+
+
+# Neutral defaults for every key the frontend reads. The model returned 3
+# different key sets within a single scan (18/23/24 keys); job_detail.js then
+# rendered an empty radar or no skills for the short variants. Normalising here
+# makes the shape a property of the app, not of the model's mood.
+_MATCH_AXES_KEYS = (
+    "skills_match",
+    "seniority_match",
+    "remote_match",
+    "salary_match",
+    "contract_match",
+)
+
+
+def _normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Return ``analysis`` with every documented key present and well-typed."""
+    out = dict(analysis)
+
+    # The model sometimes emits a top-level "mancano" instead of nesting it.
+    stray_missing = out.pop("mancano", None)
+
+    skills = out.get("skills_match")
+    if not isinstance(skills, dict):
+        skills = {"hai": [], "mancano": []}
+    for key in ("hai", "mancano"):
+        if not isinstance(skills.get(key), list):
+            skills[key] = []
+    stray_items = (
+        stray_missing
+        if isinstance(stray_missing, list)
+        else [stray_missing]
+        if isinstance(stray_missing, str) and stray_missing.strip()
+        else []
+    )
+    skills["mancano"] = skills["mancano"] + [m for m in stray_items if m not in skills["mancano"]]
+    out["skills_match"] = skills
+
+    axes = out.get("match_axes")
+    if not isinstance(axes, dict):
+        axes = {}
+    for key in _MATCH_AXES_KEYS:
+        try:
+            axes[key] = max(0, min(10, int(axes.get(key, 5))))
+        except (TypeError, ValueError):
+            axes[key] = 5
+    # An axis with no underlying data is worse than a missing one: it draws a
+    # confident "5" on the radar. Measured: 37 of 78 analyses had exactly that,
+    # because no source (jobspy or model) knew any salary. None = "N/D", and the
+    # frontend drops the axis instead of plotting a number nobody computed.
+    if not _has_salary_signal(out):
+        axes["salary_match"] = None
+    out["match_axes"] = axes
+
+    for key in ("requisiti", "responsabilita", "benefit"):
+        if not isinstance(out.get(key), list):
+            out[key] = []
+    for key, default in (
+        ("livello_richiesto", "Non specificato"),
+        ("titolo_studio_richiesto", "Non specificato"),
+        ("voto_minimo_richiesto", "Non specificato"),
+        ("eleggibilita_geografica", "Non specificato"),
+        ("tipo_ingaggio", "Non specificato"),
+        ("ral_stimata", "Non stimabile"),
+        ("punti_forza_per_diego", ""),
+        ("punti_deboli_per_diego", ""),
+        ("riassunto", ""),
+        ("consiglio", "Valutabile"),
+    ):
+        if not isinstance(out.get(key), str) or not out.get(key):
+            out[key] = default
+    return out
+
+
+def enforce_hard_requirements(
+    analysis: dict[str, Any],
+    *,
+    profile_markdown: str,
+    descrizione: str,
+    sede: str = "",
+    azienda: str = "",
+    extra_context: str = "",
+) -> dict[str, Any]:
+    """Normalise the schema, then apply the deterministic checks.
+
+    Single post-processing point for EVERY scoring path — single offer, batch
+    slot, heuristic fallback and the manual re-score endpoint — so an offer can
+    never be recommended over a hard blocker just because a given path skipped
+    the check. Caps (geo, grade) can only lower a score; the salary and
+    engagement checks only annotate.
+    """
+    out = _normalize_analysis(analysis)
+    _apply_grade_requirement(out, profile_markdown, descrizione)
+    _apply_geo_eligibility(out, sede, descrizione)
+    _apply_salary_expectation(out, _ral_min_from_context(extra_context))
+    engagement = _detect_engagement(azienda, f"{descrizione} {out.get('contratto', '')}")
+    if engagement:
+        out["tipo_ingaggio"] = engagement
+    return out
+
+
 def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
     """Provider/model kwargs for a scoring call: pin the user-chosen scoring
     model if set (no failover), else auto-select via the speed-biased policy.
@@ -804,6 +1258,60 @@ def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
 
 
 def analyze_offer(
+    provider_manager: ProviderManager,
+    profile_markdown: str,
+    titolo: str,
+    azienda: str,
+    descrizione: str,
+    *,
+    privacy: bool = False,
+    extra_context: str = "",
+    candidate_name: str | None = None,
+    sede: str = "",
+) -> dict[str, Any]:
+    """Score one offer, then apply the deterministic hard-requirement checks."""
+    blocked = hard_block_reason(profile_markdown, descrizione, sede)
+    raw = (
+        _blocked_analysis(profile_markdown, titolo, azienda, descrizione, blocked)
+        if blocked
+        else _analyze_offer_raw(
+            provider_manager,
+            profile_markdown,
+            titolo,
+            azienda,
+            descrizione,
+            privacy=privacy,
+            extra_context=extra_context,
+            candidate_name=candidate_name,
+        )
+    )
+    return enforce_hard_requirements(
+        raw,
+        profile_markdown=profile_markdown,
+        descrizione=descrizione,
+        sede=sede,
+        azienda=azienda,
+        extra_context=extra_context,
+    )
+
+
+def _blocked_analysis(
+    profile_markdown: str, titolo: str, azienda: str, descrizione: str, reason: str
+) -> dict[str, Any]:
+    """Local analysis for an offer the candidate cannot take.
+
+    No LLM call: the blocker (non-EU location, degree grade below the stated
+    threshold) is decidable from the text, and the answer would be capped to 3
+    anyway. ``enforce_hard_requirements`` still runs afterwards and re-applies
+    the cap, so this only has to be honest about WHY.
+    """
+    log.info("HARD_BLOCK_SKIP: '%s' @ %s (%s)", titolo, azienda, reason)
+    result = _heuristic_analysis(profile_markdown, titolo, azienda, descrizione)
+    result["riassunto"] = f"Non candidabile: {reason}. Analisi locale, nessuna chiamata IA."
+    return result
+
+
+def _analyze_offer_raw(
     provider_manager: ProviderManager,
     profile_markdown: str,
     titolo: str,
@@ -852,6 +1360,29 @@ def analyze_offer(
         )
 
 
+def _cloned_slots(parsed: list[Any]) -> set[int]:
+    """Indexes of batch slots that share their ``match_axes`` with another slot.
+
+    A batched model that runs out of attention copy-pastes one verdict across the
+    remaining slots: on the 2026-07-21 scan three different jobs came back with
+    axes identical digit for digit (two of them scored 10). Identical axes across
+    distinct postings are a tell, not a coincidence, so those slots are dropped
+    and re-scored one by one. Slots without axes are left to the normal checks.
+    """
+    seen: dict[str, list[int]] = {}
+    for i, item in enumerate(parsed):
+        if not isinstance(item, dict):
+            continue
+        axes = item.get("match_axes")
+        if not isinstance(axes, dict) or not axes:
+            continue
+        seen.setdefault(json.dumps(axes, sort_keys=True), []).append(i)
+    cloned = {i for slots in seen.values() if len(slots) > 1 for i in slots}
+    if cloned:
+        log.warning("BATCH_CLONE: %d slots share match_axes; re-scoring them singly", len(cloned))
+    return cloned
+
+
 def analyze_offers_batch(
     provider_manager: ProviderManager,
     profile_markdown: str,
@@ -873,45 +1404,99 @@ def analyze_offers_batch(
     if privacy:
         prompt_markdown, _ = redact_pii(profile_markdown, candidate_name)
 
-    parsed: list[Any] = []
-    try:
-        prompt = _batch_analysis_prompt(prompt_markdown, offers, extra_context)
-        # Token budget = fixed reasoning headroom + per-offer output. The scoring
-        # target is gpt-oss-120b, a REASONING model that spends completion tokens
-        # thinking BEFORE emitting the array — a tight budget (e.g. 1k for 3
-        # offers) is fully consumed by reasoning, leaving an empty completion and
-        # voiding the batch. ~1600 base + 500/offer survives it (verified live:
-        # 3 offers returned a full valid array at ~3k tokens, empty at ~1k).
-        result = provider_manager.complete_json(
-            prompt=prompt,
-            max_tokens=500 * len(offers) + 1600,
-            **_scoring_call_kwargs(provider_manager),
+    # Offers with a hard blocker (non-EU location, degree grade under the stated
+    # threshold) are answered locally and kept OUT of the prompt: they wouldn't
+    # just waste the reply slot, they'd also cost input tokens for a verdict
+    # already known. ``scorable`` keeps the mapping back to the original index.
+    blocked: dict[int, str] = {}
+    scorable: list[tuple[int, dict[str, Any]]] = []
+    for i, off in enumerate(offers):
+        reason = hard_block_reason(
+            profile_markdown, str(off.get("descrizione", "") or ""), str(off.get("sede", "") or "")
         )
-        if isinstance(result, dict):
-            raw = result.get("valutazioni") or result.get("evaluations") or result.get("results")
-            if isinstance(raw, list):
-                parsed = raw
-    except Exception as exc:
-        log.warning("Batch scoring failed (n=%d): %s; falling back per-offer", len(offers), exc)
+        if reason:
+            blocked[i] = reason
+        else:
+            scorable.append((i, off))
+
+    parsed: list[Any] = []
+    if scorable:
+        try:
+            prompt = _batch_analysis_prompt(
+                prompt_markdown, [o for _, o in scorable], extra_context
+            )
+            # Token budget = fixed reasoning headroom + per-offer output. The
+            # scoring target is gpt-oss-120b, a REASONING model that spends
+            # completion tokens thinking BEFORE emitting the array — a tight
+            # budget (e.g. 1k for 3 offers) is fully consumed by reasoning,
+            # leaving an empty completion and voiding the batch. ~1600 base +
+            # 500/offer survives it (verified live: 3 offers returned a full
+            # valid array at ~3k tokens, empty at ~1k).
+            result = provider_manager.complete_json(
+                prompt=prompt,
+                max_tokens=500 * len(scorable) + 1600,
+                **_scoring_call_kwargs(provider_manager),
+            )
+            if isinstance(result, dict):
+                raw = (
+                    result.get("valutazioni") or result.get("evaluations") or result.get("results")
+                )
+                if isinstance(raw, list):
+                    parsed = raw
+        except Exception as exc:
+            log.warning(
+                "Batch scoring failed (n=%d): %s; falling back per-offer", len(scorable), exc
+            )
+
+    # ``parsed`` follows ``scorable`` order, not the caller's: remap both the
+    # replies and the clone verdicts back onto the original offer indexes.
+    cloned_positions = _cloned_slots(parsed)
+    by_index: dict[int, Any] = {}
+    cloned: set[int] = set()
+    for position, (original_index, _off) in enumerate(scorable):
+        if position < len(parsed):
+            by_index[original_index] = parsed[position]
+        if position in cloned_positions:
+            cloned.add(original_index)
 
     out: list[dict[str, Any]] = []
     for i, off in enumerate(offers):
-        # A description-less (or near-empty) offer can't be judged on merit —
-        # override whatever the batch guessed with the honest capped estimate
-        # (never a blind 9). Same threshold as the single path.
+        sede_i = str(off.get("sede", "") or "")
         desc_i = str(off.get("descrizione", "") or "")
-        if len(desc_i.strip()) < MIN_DESCRIPTION_CHARS:
+        finalize = functools.partial(
+            enforce_hard_requirements,
+            profile_markdown=profile_markdown,
+            descrizione=desc_i,
+            sede=sede_i,
+            azienda=str(off.get("azienda", "") or ""),
+            extra_context=extra_context,
+        )
+        if i in blocked:
             out.append(
-                _insufficient_description_analysis(
-                    profile_markdown, off["titolo"], off["azienda"], desc_i
+                finalize(
+                    _blocked_analysis(
+                        profile_markdown, off["titolo"], off["azienda"], desc_i, blocked[i]
+                    )
                 )
             )
             continue
-        item = parsed[i] if i < len(parsed) else None
-        if isinstance(item, dict) and "punteggio" in item:
-            out.append(item)
+        # A description-less (or near-empty) offer can't be judged on merit —
+        # override whatever the batch guessed with the honest capped estimate
+        # (never a blind 9). Same threshold as the single path.
+        if len(desc_i.strip()) < MIN_DESCRIPTION_CHARS:
+            out.append(
+                finalize(
+                    _insufficient_description_analysis(
+                        profile_markdown, off["titolo"], off["azienda"], desc_i
+                    )
+                )
+            )
+            continue
+        item = by_index.get(i)
+        if isinstance(item, dict) and "punteggio" in item and i not in cloned:
+            out.append(finalize(item))
         else:
-            # Missing / malformed slot: single-offer scoring for just this one.
+            # Missing / malformed / cloned slot: single-offer scoring for this one.
             out.append(
                 analyze_offer(
                     provider_manager=provider_manager,
@@ -922,6 +1507,7 @@ def analyze_offers_batch(
                     privacy=privacy,
                     extra_context=extra_context,
                     candidate_name=candidate_name,
+                    sede=sede_i,
                 )
             )
     return out
@@ -949,9 +1535,10 @@ def run_scan(
         yield {"error": "python-jobspy not installed"}
         return
 
-    # Truncation penalties are sticky within a scan (long cooldown) but reset
+    # Structural penalties are sticky within a scan (long cooldown) but reset
     # between scans, so a model that recovered gets another chance next run.
-    provider_manager.clear_model_penalties("truncated")
+    for _reason in ("truncated", "malformed", "timeout"):
+        provider_manager.clear_model_penalties(_reason)
 
     profile = db.get_active_candidate_profile()
     profile_markdown = profile["markdown"] if profile else "Profile not loaded."
@@ -1055,6 +1642,15 @@ def run_scan(
         analysis = dict(analysis)
         analysis["stipendio_min"] = row.get("min_amount") or "N/D"
         analysis["stipendio_max"] = row.get("max_amount") or "N/D"
+        # The salary axis was set to None upstream when nothing was known; the
+        # posting's own figures arrive only here, so re-enable it if they exist.
+        axes = analysis.get("match_axes")
+        if (
+            isinstance(axes, dict)
+            and axes.get("salary_match") is None
+            and _has_salary_signal(analysis)
+        ):
+            axes["salary_match"] = 5
         raw_score = analysis.get("punteggio", 0)
         try:
             analysis["punteggio"] = int(raw_score)
@@ -1088,6 +1684,7 @@ def run_scan(
             privacy=privacy,
             extra_context=onboarding,
             candidate_name=candidate_name,
+            sede=item.get("sede", ""),
         )
         return _finalize_scored(item, analysis)
 
@@ -1138,14 +1735,32 @@ def run_scan(
             "eta_ms": eta_ms,
         }
 
+        # Indeed is per-country: resolve the country FROM the location, and drop
+        # Indeed entirely for locations no single domain can serve.
+        sites = list(payload.sites)
+        indeed_country = _indeed_country_for(location, country)
+        if "indeed" in sites and indeed_country is None:
+            sites = [s for s in sites if s != "indeed"]
+            log.info("Indeed skipped for location=%r (no single country domain)", location)
+            if not sites:
+                yield {
+                    "status": "scrape_error",
+                    "term": effective_term,
+                    "error": (
+                        f"Indeed non copre la località '{location}': "
+                        "usa un paese specifico o aggiungi LinkedIn."
+                    ),
+                }
+                continue
+
         scrape_kwargs: dict[str, Any] = {
-            "site_name": payload.sites,
+            "site_name": sites,
             "search_term": effective_term,
             "location": location,
             "is_remote": is_remote_effective,
             "results_wanted": settings.max_annunci,
             "hours_old": settings.hours_old,
-            "country_indeed": country,
+            "country_indeed": indeed_country or country,
         }
         if jobspy_job_type:
             scrape_kwargs["job_type"] = jobspy_job_type
@@ -1153,7 +1768,7 @@ def run_scan(
         # lives on each job's own page. Without this jobspy leaves LinkedIn jobs
         # description-less and the AI scores them blind (title only). Costs one
         # extra fetch per job (~1.6s); Indeed already includes descriptions.
-        if "linkedin" in payload.sites:
+        if "linkedin" in sites:
             scrape_kwargs["linkedin_fetch_description"] = True
 
         try:
@@ -1189,7 +1804,7 @@ def run_scan(
             "status": "scraped",
             "term": term,
             "found": total_rows,
-            "site": ", ".join(payload.sites),
+            "site": ", ".join(sites),
         }
 
         # Clear the previous run's "new" badges only now that a scrape actually
@@ -1251,15 +1866,17 @@ def run_scan(
                 totale_scartati += 1
                 continue
 
+            sede = _clean_text(row.get("location"))
             payload_job = {
                 "titolo": titolo,
                 "azienda": azienda,
                 "descrizione": descrizione,
-                "sede": _clean_text(row.get("location")),
+                "sede": sede,
                 "fonte": fonte,
                 "link": link,
                 "ricerca_usata": term,
-                "modalita": modalita,
+                # Per-posting, not the scan-wide search flag (see _detect_work_mode).
+                "modalita": _detect_work_mode(row, descrizione, modalita),
             }
             job_id, is_new, status = db.upsert_job(payload_job)
 
@@ -1282,6 +1899,8 @@ def run_scan(
                     "titolo": titolo,
                     "azienda": azienda,
                     "descrizione": descrizione,
+                    # Carried into scoring: the geo-eligibility check needs it.
+                    "sede": sede,
                     "row": row,
                     "link": link,
                     # DB read done here on the generator thread so workers in

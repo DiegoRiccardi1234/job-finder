@@ -3,7 +3,15 @@ import re
 from typing import Any, cast
 
 from app.log import get_logger
-from app.providers.base import LLMProvider, extract_usage, is_unauthorized
+from app.providers.base import (
+    EmptyCompletionError,
+    LLMProvider,
+    TruncatedCompletionError,
+    extract_usage,
+    first_choice,
+    is_truncated,
+    is_unauthorized,
+)
 from app.providers.model_selector import choose_best_model
 
 log = get_logger(__name__)
@@ -67,7 +75,7 @@ class GroqProvider(LLMProvider):
             max_completion_tokens=max_tokens,
         )
         self.last_usage = extract_usage(response)
-        return (response.choices[0].message.content or "").strip()
+        return (first_choice(response, resolved_model).message.content or "").strip()
 
     def chat(
         self, messages: list[dict[str, str]], model: str | None = None, max_tokens: int = 700
@@ -82,7 +90,7 @@ class GroqProvider(LLMProvider):
             max_completion_tokens=max_tokens,
         )
         self.last_usage = extract_usage(response)
-        return (response.choices[0].message.content or "").strip()
+        return (first_choice(response, resolved_model).message.content or "").strip()
 
     def complete_json(
         self, prompt: str, model: str | None = None, max_tokens: int = 700
@@ -101,8 +109,16 @@ class GroqProvider(LLMProvider):
                 max_completion_tokens=max_tokens,
             )
             self.last_usage = extract_usage(response)
-            content = (response.choices[0].message.content or "").strip()
+            # Same structural guards as the other OpenAI-shaped providers: a
+            # cut-off reply (finish_reason=length) or a choice-less payload can't
+            # be salvaged by a second call, so it must reach the factory as its
+            # own penalty reason instead of being retried as prose.
+            if is_truncated(response):
+                raise TruncatedCompletionError(resolved_model)
+            content = (first_choice(response, resolved_model).message.content or "").strip()
             return cast(dict[str, Any], json.loads(content))
+        except (TruncatedCompletionError, EmptyCompletionError):
+            raise
         except (json.JSONDecodeError, Exception) as exc:
             log.info("groq complete_json fallback (model=%s): %s", resolved_model, exc)
             text = self.complete_text(prompt=prompt, model=resolved_model, max_tokens=max_tokens)

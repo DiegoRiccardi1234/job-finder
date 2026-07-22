@@ -380,7 +380,19 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
     found_skills = [kw for kw in skill_keywords if _keyword_present(kw, lower)]
 
     preferred_roles: list[str] = []
+    # Order matters: the first matching triggers are the first roles proposed.
+    # AI/LLM triggers come first because this heuristic used to have none — a CV
+    # built on LLM evaluation work came out as "Junior Python Developer, Junior
+    # Frontend Developer" purely because it mentioned python and react.
     role_map = [
+        ("llm", "AI QA / LLM Evaluation"),
+        ("hallucination", "AI QA / LLM Evaluation"),
+        ("prompt engineering", "AI QA / LLM Evaluation"),
+        ("annotation", "AI Data Specialist"),
+        ("annotator", "AI Data Specialist"),
+        ("generative ai", "AI Specialist"),
+        ("prompt", "AI Specialist"),
+        ("nlp", "AI Specialist"),
         ("analyst", "Junior Business Analyst"),
         ("analista", "Junior Business Analyst"),
         ("qa", "Junior QA Tester"),
@@ -400,6 +412,9 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
     for trigger, role in role_map:
         if _keyword_present(trigger, lower) and role not in preferred_roles:
             preferred_roles.append(role)
+    # A CV mentioning a dozen technologies would otherwise propose a dozen roles;
+    # the scan turns these into search terms, so keep the strongest few.
+    preferred_roles = preferred_roles[:5]
 
     graduation_year = _estimate_graduation_year(markdown_text)
 

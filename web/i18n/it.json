@@ -57,7 +57,11 @@
       "seniority": "Seniority cercata (es. junior)",
       "workMode": "Modalità preferita (remoto/ibrido)",
       "save": "Salva obiettivi",
-      "saved": "Obiettivi salvati"
+      "saved": "Obiettivi salvati",
+      "ralMin": "RAL minima (lordi/anno)",
+      "ralTarget": "RAL target (lordi/anno)",
+      "ralSuggest": "Suggerisci RAL con l'IA",
+      "ralSuggested": "RAL suggerita — controlla e salva"
     },
     "features": {
       "title": "Strumenti CV e privacy",
@@ -386,7 +390,8 @@
     "copy": "Copia",
     "copied": "Copiato",
     "generateRecruiterMsg": "Messaggio recruiter",
-    "recruiterMsg": "Messaggio recruiter"
+    "recruiterMsg": "Messaggio recruiter",
+    "engagement": "Tipo di ingaggio"
   },
   "scan": {
     "scanning": "Scansione portali lavoro...",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,28 @@ from app.services.onboarding import onboarding_context
 
 if TYPE_CHECKING:
     from app.container import AppContainer
+
+# The salary prompt pins the two figures to a machine-readable first line, so
+# the UI can prefill the form; the rest of the reply stays human prose.
+_RAL_LINE_RE = re.compile(r"MIN\s*=\s*([\d.\s]+?)\s+TARGET\s*=\s*([\d.\s]+)", re.IGNORECASE)
+
+
+def _parse_ral_line(content: str) -> tuple[int | None, int | None]:
+    match = _RAL_LINE_RE.search(content or "")
+    if not match:
+        return (None, None)
+
+    def _amount(raw: str) -> int | None:
+        digits = re.sub(r"[^\d]", "", raw)
+        if not digits:
+            return None
+        value = int(digits)
+        # A model answering "MIN=30 TARGET=40" means thousands.
+        if value < 1000:
+            value *= 1000
+        return value if 5_000 <= value <= 500_000 else None
+
+    return (_amount(match.group(1)), _amount(match.group(2)))
 
 
 def build_router(container: AppContainer) -> APIRouter:
@@ -196,6 +219,75 @@ def build_router(container: AppContainer) -> APIRouter:
             "cv_review_cache", json.dumps({"profile_id": profile.get("id"), "text": content})
         )
         return {"cv_review": content}
+
+    @router.get("/api/profile/ral-suggest")
+    def ral_suggest_cached() -> dict[str, Any]:
+        """Last salary suggestion for the active profile, from cache."""
+        profile = container.db.get_active_candidate_profile()
+        cached = container.db.get_preference("ral_suggestion_cache", "")
+        if profile and cached:
+            try:
+                data = json.loads(cached)
+                if data.get("profile_id") == profile.get("id"):
+                    return {
+                        "min": data.get("min"),
+                        "target": data.get("target"),
+                        "rationale": data.get("rationale", ""),
+                    }
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return {"min": None, "target": None, "rationale": ""}
+
+    @router.post("/api/profile/ral-suggest")
+    def ral_suggest(lang: str = Query(default="")) -> dict[str, Any]:
+        """Suggest a minimum and target salary for the active profile.
+
+        One call on the capable CV model, cached per profile — the user still
+        decides whether to save the numbers into the onboarding form. Grounded
+        on the salary ranges already read from this user's own job list rather
+        than a generic market average.
+        """
+        profile = container.db.get_active_candidate_profile()
+        if not profile:
+            raise HTTPException(status_code=404, detail="no_profile")
+        container.require_provider()
+        market = container.db.recent_ral_estimates()
+        extra = onboarding_context(container.db)
+        if market:
+            extra += "\n\nRAL osservate sulle offerte gia valutate: " + "; ".join(market[:20])
+        try:
+            content = generate_with_profile(
+                container.providers,
+                "ral_suggest",
+                profile["markdown"],
+                {},
+                extra_block=extra,
+                redact=container.feature_enabled("privacy_mode", True),
+                candidate_name=profile.get("name"),
+                language=_resolve_lang(lang),
+                **container.providers.pin_kwargs(container.settings.cv_model, CV_POLICY),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"RAL suggestion failed: {e}") from e
+
+        minimum, target = _parse_ral_line(content)
+        if minimum is None and target is None:
+            # The two figures ARE the deliverable: prose alone can't prefill the
+            # form, so treat a reply without them as a failed generation.
+            raise HTTPException(status_code=502, detail="RAL suggestion unparseable")
+        rationale = _RAL_LINE_RE.sub("", content, count=1).strip()
+        container.db.set_preference(
+            "ral_suggestion_cache",
+            json.dumps(
+                {
+                    "profile_id": profile.get("id"),
+                    "min": minimum,
+                    "target": target,
+                    "rationale": rationale,
+                }
+            ),
+        )
+        return {"min": minimum, "target": target, "rationale": rationale}
 
     @router.post("/api/profile/cv-improve")
     def cv_improve(lang: str = Query(default="")) -> dict[str, Any]:

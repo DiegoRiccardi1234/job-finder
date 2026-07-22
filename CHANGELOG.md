@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [1.7.6] — 2026-07-22
+
+Scores you can act on: offers you legally can't take stop outranking the ones you can, and the app stops burning its daily quota on models that never answer.
+
+### Fixed
+- **A broken model no longer wins the ranking forever** — when a gateway answered with no content at all, the crash it caused wasn't recognised as that model's fault, so auto-selection kept re-picking it: one real scan spent 28 attempts on a single model that failed 19 times. Empty and unreadable replies are now classified and de-ranked like any other failure, and a model that times out is dropped immediately instead of being retried three times (measured: ~40 minutes wasted in one scan).
+- **Scan scoring refuses models too small or too specialised for the job** — under a rate-limit storm every decent model was penalised and a 12-billion-parameter *vision* model ended up writing two of the top scores. Models below the quality floor, plus reasoning/vision/safety-classifier builds, are now excluded outright; if none survives, the offer gets an honest local estimate that says so.
+- **Batched scoring can't copy one verdict across several jobs** — three different postings came back with byte-identical match scores (two of them 10/10). Duplicated verdicts inside a batch are detected and those jobs are re-scored one at a time.
+- **Jobs you can't apply to are capped instead of recommended** — postings based outside the EU (no visa, no relocation) and postings demanding a minimum degree grade above yours were scoring up to 8 with "Apply now". Both are now hard-capped and the reason is listed under what's missing. Better still, they're detected *before* the AI call, so they no longer cost quota.
+- **Work mode reflects the posting, not your search filter** — every job of a remote-flagged scan was stored as "Full Remote", including plainly on-site ones. It's now read from the posting, and left as "not specified" when nothing says.
+- **The analysis always has the same shape** — the model returned three different field sets within a single scan, so the detail panel sometimes rendered an empty radar or no skills. Missing fields are filled in with neutral values.
+- **Indeed searches the right country** — with several locations in one scan (e.g. Germany while the scan country was Italy) Indeed queried the wrong domain and returned nothing. The country now follows each location, and Indeed is skipped for locations no single domain can serve, with LinkedIn still running.
+
+### Added
+- **Salary expectations** — set a minimum and a target salary in your search goals: scoring weighs them, and an offer declaring less is flagged (never silently downranked). "Suggest salary with AI" proposes both figures from your CV and the offers you're already looking at, in one cached call — you review and save them yourself.
+- **Task work is labelled** — platform/gig postings (pay per task, no guaranteed hours) are marked as such in the job detail, so they're not mistaken for employment.
+
+### Changed
+- The match radar hides the salary axis when nothing is known about pay, instead of drawing a confident middle score: on real data that axis was invented for 46 jobs out of 78.
+- Role suggestions read from a CV now recognise AI/LLM experience (evaluation, prompting, annotation) instead of defaulting to generic developer titles.
+
 ## [1.7.5] — 2026-07-16
 
 Smarter matching: degree requirements finally count, and Indeed coverage stops collapsing.

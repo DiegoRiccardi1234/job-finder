@@ -201,3 +201,48 @@ def test_run_scan_batch_scores_all_and_coerces(
     assert pm.single_calls == 1
     # "8/10" coerced to int 8 for every job.
     assert all(e["job"]["score"] == 8 for e in analyzed)
+
+
+# ── anti copy-paste guard (v1.7.6) ───────────────────────────────────────────
+
+
+def test_batch_cloned_axes_are_rescored_singly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two different jobs with byte-identical match_axes = a copied verdict.
+
+    Real case: three postings came back with the same five axes, two of them
+    scored 10. Those slots are dropped and re-scored one by one."""
+    axes = {
+        "skills_match": 10,
+        "seniority_match": 8,
+        "remote_match": 9,
+        "salary_match": 5,
+        "contract_match": 7,
+    }
+    pm = _BatchPM(
+        {
+            "valutazioni": [
+                {"punteggio": 10, "match_axes": dict(axes)},
+                {"punteggio": 10, "match_axes": dict(axes)},
+                {"punteggio": 4, "match_axes": dict(axes, skills_match=3)},
+            ]
+        }
+    )
+    sentinel = {"punteggio": 5, "_rescored": True}
+    monkeypatch.setattr(ss, "analyze_offer", lambda **k: sentinel)
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B"), _offer("C")])
+    assert out[0] is sentinel  # cloned → re-scored
+    assert out[1] is sentinel  # cloned → re-scored
+    assert out[2]["punteggio"] == 4  # unique axes → kept
+
+
+def test_batch_missing_axes_are_not_treated_as_clones() -> None:
+    pm = _BatchPM({"valutazioni": [{"punteggio": 8}, {"punteggio": 3}]})
+    out = ss.analyze_offers_batch(pm, "CV", [_offer("A"), _offer("B")])
+    assert [o["punteggio"] for o in out] == [8, 3]
+
+
+def test_cloned_slots_helper() -> None:
+    axes = {"skills_match": 7}
+    assert ss._cloned_slots([{"match_axes": axes}, {"match_axes": dict(axes)}]) == {0, 1}
+    assert ss._cloned_slots([{"match_axes": axes}, {"match_axes": {"skills_match": 8}}]) == set()
+    assert ss._cloned_slots(["garbage", {"punteggio": 1}]) == set()

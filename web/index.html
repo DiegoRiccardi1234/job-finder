@@ -534,6 +534,10 @@
             <input id="obGoal" type="text" data-i18n-placeholder="profile.onboarding.goal" placeholder="Career goal" />
             <input id="obSeniority" type="text" data-i18n-placeholder="profile.onboarding.seniority" placeholder="Seniority sought (e.g. junior)" />
             <input id="obWorkMode" type="text" data-i18n-placeholder="profile.onboarding.workMode" placeholder="Preferred work mode (remote/hybrid)" />
+            <input id="obRalMin" type="number" min="0" step="1000" data-i18n-placeholder="profile.onboarding.ralMin" placeholder="Minimum salary (gross/year)" />
+            <input id="obRalTarget" type="number" min="0" step="1000" data-i18n-placeholder="profile.onboarding.ralTarget" placeholder="Target salary (gross/year)" />
+            <button type="button" id="ralSuggestBtn" class="secondary" data-i18n="profile.onboarding.ralSuggest">Suggest salary</button>
+            <p class="micro" id="ralSuggestNote" hidden></p>
             <button type="submit" class="secondary" data-i18n="profile.onboarding.save">Save goals</button>
           </form>
         </article>

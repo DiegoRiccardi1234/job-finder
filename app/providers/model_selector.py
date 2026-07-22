@@ -8,6 +8,31 @@ from typing import Any
 # sub-24B toys that scored job<->CV matches badly.
 SCORING_MIN_SIZE_B = 26
 
+# Name markers of models that are structurally unfit for high-volume JSON work,
+# whatever their size: an explicit reasoning build burns the completion budget on
+# hidden thinking before the JSON (finish_reason=length), a vision/VL build is a
+# small multimodal model wearing a big name, and a safety-classifier build isn't a
+# general completer at all. Measured on a real scan: with these in the pool the
+# top of the ranking got written by a 12B VL model and by a reasoning model that
+# returned choices=None 11 times. Used only when a policy sets ``hard_floor``.
+SCORING_UNFIT_MARKERS = ("reasoning", "-vl", "vision", "content-safety", "guard")
+
+
+def is_scoring_fit(model_name: str, min_size_b: int = SCORING_MIN_SIZE_B) -> bool:
+    """False when a model must be EXCLUDED (not merely de-ranked) from scoring.
+
+    The soft ``min_size_b`` weighting inside :func:`score_model_name` only sinks
+    such models; under a 429 storm everything better is penalized and the toy
+    model wins anyway. This is the hard gate: better an honest heuristic analysis
+    than a confident score from a model that can't do the job.
+    """
+    name = model_name.lower()
+    if any(marker in name for marker in SCORING_UNFIT_MARKERS):
+        return False
+    size_b = infer_size_b(name)
+    # size_b == 0 means the id doesn't state a size — not a reason to exclude.
+    return not (0 < size_b < min_size_b)
+
 
 def infer_size_b(model_name: str) -> int:
     """Largest ``<N>b`` size advertised in a model id (parameters in billions),
@@ -179,10 +204,18 @@ def rank_models(
     Hard-avoid models (embeddings/TTS/… score <= -500) are excluded. ``penalized``
     (e.g. models seen 429ing recently) are pushed to the bottom via a large
     penalty but kept in the list. An explicit ``preferred_model`` (a user choice)
-    is hoisted to the front. ``limit`` truncates the result. Used both for the
+    is hoisted to the front — it overrides ``hard_floor`` too, an explicit pin
+    stays the user's call. ``limit`` truncates the result. Used both for the
     "recommended" default and for per-request intra-provider failover.
+
+    A policy with ``hard_floor: True`` (scan scoring) additionally EXCLUDES models
+    that :func:`is_scoring_fit` rejects, so the list can legitimately come back
+    empty — the caller then fails over instead of scoring with a toy model.
     """
     viable = [m for m in models if score_model_name(m, policy=policy) > -500]
+    if (policy or {}).get("hard_floor"):
+        floor = int((policy or {}).get("min_size_b", SCORING_MIN_SIZE_B) or SCORING_MIN_SIZE_B)
+        viable = [m for m in viable if is_scoring_fit(m, floor)]
     ranked = sorted(viable, key=lambda x: _penalized_key(x, policy, penalized), reverse=True)
     if preferred_model:
         pref = next((m for m in models if m.lower() == preferred_model.lower()), None)
