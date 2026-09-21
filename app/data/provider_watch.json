@@ -17,14 +17,16 @@
     "nvidia/nemotron-3.5-lightning:free",
     "poolside/laguna-s-2.1:free",
     "poolside/laguna-xs-2.1:free",
+    "qwen/qwen3.8-27b:free",
     "thinkingmachines/inkling-small:free",
-    "thinkingmachines/inkling:free"
+    "thinkingmachines/inkling:free",
+    "z-ai/glm-5.2:free"
   ],
   "pages": {
-    "cerebras_pricing": "b86b30371683e25d",
-    "google_pricing": "ae740887f104ae2e",
-    "google_rate_limits": "c5f7eccefb49e2dc",
-    "groq_limits": "261170b346ff2287",
-    "openrouter_limits": "3cac5edad4013075"
+    "cerebras_pricing": "7f1c18dac38c4f29",
+    "google_pricing": "9d103236bae8eec9",
+    "google_rate_limits": "f2301d47edb1475b",
+    "groq_limits": "80a6130ac06b24f0",
+    "openrouter_limits": "d7ccd2bf9394c63a"
   }
 }
