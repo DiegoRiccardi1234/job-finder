@@ -6,10 +6,7 @@
     "google/gemma-4-31b-it:free",
     "inclusionai/ling-3.0-flash-fin:free",
     "inclusionai/ling-3.0-flash-sante:free",
-    "inclusionai/ling-3.0-flash-vl:free",
     "liquid/lfm-2.5-2.6b:free",
-    "nex-agi/nex-n2.5-mini:free",
-    "nex-agi/nex-n2.5-pro:free",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -19,14 +16,13 @@
     "poolside/laguna-xs-2.1:free",
     "qwen/qwen3.8-27b:free",
     "thinkingmachines/inkling-small:free",
-    "thinkingmachines/inkling:free",
-    "z-ai/glm-5.2:free"
+    "thinkingmachines/inkling:free"
   ],
   "pages": {
     "cerebras_pricing": "7f1c18dac38c4f29",
-    "google_pricing": "9d103236bae8eec9",
-    "google_rate_limits": "f2301d47edb1475b",
+    "google_pricing": "a791e75c54fed847",
+    "google_rate_limits": "965e9bc0414b1c6a",
     "groq_limits": "80a6130ac06b24f0",
-    "openrouter_limits": "d7ccd2bf9394c63a"
+    "openrouter_limits": "57a163abd5860e77"
   }
 }
