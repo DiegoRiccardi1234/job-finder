@@ -9,7 +9,6 @@ unavailable) ``notify`` is a safe no-op.
 
 from __future__ import annotations
 
-import contextlib
 import threading
 from collections.abc import Callable
 
@@ -24,7 +23,7 @@ def register_notifier(fn: Callable[[str, str], None]) -> None:
         _notifier = fn
 
 
-def notify(title: str, message: str) -> None:
+def notify(title: str, message: str) -> bool:
     """Fire a desktop notification, or no-op when no notifier is registered.
 
     Never raises — a tray/notification hiccup must not break the caller (a scan).
@@ -32,6 +31,9 @@ def notify(title: str, message: str) -> None:
     with _lock:
         fn = _notifier
     if fn is None:
-        return
-    with contextlib.suppress(Exception):
+        return False
+    try:
         fn(title, message)
+    except Exception:
+        return False
+    return True

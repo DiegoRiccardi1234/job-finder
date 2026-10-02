@@ -216,19 +216,10 @@ def build_router(container: AppContainer) -> APIRouter:
         )
         container.db.set_active_profile(profile_id)
 
-        preferred_roles = summary.get("preferred_roles")
-        if isinstance(preferred_roles, list) and preferred_roles:
-            container.db.set_preference(
-                "preferred_roles", ",".join(str(r) for r in preferred_roles)
-            )
-
-        # Where the candidate lives, if the CV said so and nobody has corrected
-        # it by hand. Never an overwrite: a manual value is the user answering,
-        # and a re-uploaded CV must not undo the answer (same rule the rest of
-        # the matching facts follow).
-        base_city = str(summary.get("base_city") or "").strip()
-        if base_city and not (container.db.get_preference(cf.FACT_BASE_CITIES, "") or "").strip():
-            container.db.set_preference(cf.FACT_BASE_CITIES, base_city)
+        # The CV's roles and home city remain inferred facts on this profile.
+        # Preferences contain the user's choices, which an upload must not
+        # replace or create silently. Resolvers read this active summary when
+        # there is no explicit preference instead.
 
         return {
             "profile_id": profile_id,
@@ -508,6 +499,7 @@ def build_router(container: AppContainer) -> APIRouter:
         if payload.base_cities is not None:
             cities = [c.strip() for c in payload.base_cities if c and c.strip()]
             container.db.set_preference(cf.FACT_BASE_CITIES, ",".join(cities))
+            container.db.set_preference(cf.FACT_BASE_CITIES_SOURCE, "manuale" if cities else "")
         if payload.work_modes is not None:
             modes = [m.strip().lower() for m in payload.work_modes if m and m.strip()]
             container.db.set_preference(
@@ -545,6 +537,9 @@ def build_router(container: AppContainer) -> APIRouter:
             "rule_summary": cf.describe_work_rule(rule),
             "protected_category": facts.protected_category,
             "sources": facts.sources,
+            "needs_review": [
+                key for key, source in facts.sources.items() if source == "da_verificare"
+            ],
             "missing": facts.missing(),
         }
 

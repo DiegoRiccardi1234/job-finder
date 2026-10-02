@@ -274,8 +274,9 @@ async function _populateChatModelSelector(providerName) {
   const sel = document.getElementById("chatModelSelectorModel");
   if (!sel) return;
   const autoLabel = t("chat.modelAuto") || "Auto model";
-  if (!providerName) {
-    sel.innerHTML = `<option value="">${autoLabel}</option>`;
+  const metadata = _providersMetadataCache[providerName];
+  if (!providerName || metadata?.configured === false || metadata?.available === false) {
+    sel.innerHTML = `<option value="">${escapeHtml(providerName ? t("settings.providers.addKey") : autoLabel)}</option>`;
     sel.disabled = true;
     return;
   }
@@ -394,7 +395,8 @@ export async function populateModelOverrides(keys) {
   const primary = String(keys?.primary_provider || "").toLowerCase();
   let models = [];
   let recommended = null;
-  if (primary) {
+  const configured = Boolean(primary && keys?.[`${primary}_configured`]) && _providersMetadataCache[primary]?.available !== false;
+  if (configured) {
     try {
       const data = _providerCardModelCache[primary] || (await fetchProviderModels(primary, false));
       models = Array.isArray(data.models) ? data.models : [];
@@ -403,7 +405,13 @@ export async function populateModelOverrides(keys) {
       /* leave Auto-only */
     }
   }
-  for (const { el, val } of rows) _fillOverrideSelect(el, primary, models, recommended, val);
+  for (const { el, val } of rows) {
+    _fillOverrideSelect(el, primary, models, recommended, val);
+    if (primary && !configured) {
+      el.innerHTML = `<option value="">${escapeHtml(t("settings.providers.addKey"))}</option>`;
+      el.disabled = true;
+    }
+  }
 }
 
 const _OVERRIDE_FIELD = {
@@ -545,12 +553,13 @@ function renderProviderCards(keys, providerMeta) {
 
   for (const p of PROVIDER_CATALOG) {
     if (configuredKey(p.name)) {
-      void fetchAndRenderProviderModels(p.name, false);
+      if (document.getElementById("view-settings")?.classList.contains("is-active")) void fetchAndRenderProviderModels(p.name, false);
+      else _setProviderStatusText(p.name, t("workflow.providerConfigured"));
     } else {
       _setProviderStatusText(p.name, t("settings.providers.addKey"));
     }
   }
-  void populateModelOverrides(keys);
+  if (document.getElementById("view-settings")?.classList.contains("is-active")) void populateModelOverrides(keys);
 }
 
 function _setProviderStatusText(name, text, kind = "info") {

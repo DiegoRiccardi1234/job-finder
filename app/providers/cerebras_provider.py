@@ -36,6 +36,7 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 class CerebrasProvider(LLMProvider):
     name = "cerebras"
+    default_model = "qwen-3-235b-a22b-instruct-2507"
 
     def __init__(self, api_key: str | None):
         self.api_key = api_key
@@ -151,7 +152,7 @@ class CerebrasProvider(LLMProvider):
                     self._selected_model = candidate
                     return candidate
 
-            fallback = preferred_model or "qwen-3-235b-a22b-instruct-2507"
+            fallback = preferred_model or self.default_model
             self._selected_model = fallback
             return fallback
         selected = choose_best_model(models, preferred_model=preferred_model)

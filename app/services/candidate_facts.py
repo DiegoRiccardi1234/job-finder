@@ -44,6 +44,7 @@ FACT_GRADE = f"{FACT_PREFIX}grade"
 #: is in something else entirely.
 FACT_DEGREE_FIELDS = f"{FACT_PREFIX}degree_fields"
 FACT_BASE_CITIES = f"{FACT_PREFIX}base_cities"
+FACT_BASE_CITIES_SOURCE = f"{FACT_PREFIX}base_cities_source"
 FACT_WORK_MODES = f"{FACT_PREFIX}work_modes"
 #: "1"/"0" — whether the user is on the protected-categories register (L. 68/99).
 #: Absent means unknown, and unknown blocks nothing, like every other fact here.
@@ -391,8 +392,31 @@ def _work_rule_for(db: Database, sources: dict[str, str]) -> WorkRule:
         scan_locations = []
     parsed = parse_work_rule(db.get_preference("onboarding_work_mode", "") or "", scan_locations)
 
+    if not manual_cities and not parsed.cities:
+        profile = db.get_active_candidate_profile() or {}
+        summary = profile.get("summary_json") or {}
+        if isinstance(summary, str):
+            try:
+                summary = json.loads(summary)
+            except (TypeError, ValueError):
+                summary = {}
+        city = str(summary.get("base_city") or "").strip() if isinstance(summary, dict) else ""
+        if city:
+            parsed = WorkRule(
+                cities=(_norm(city),),
+                allow_onsite=parsed.allow_onsite,
+                allow_hybrid=parsed.allow_hybrid,
+                allow_remote=parsed.allow_remote,
+            )
+
     if manual_cities or manual_modes:
-        sources["work_rule"] = "manuale"
+        # Older uploads stored their inferred city in the manual field too.
+        # Its origin cannot be reconstructed: retain the value until the user
+        # chooses, but never claim it is a confirmed manual correction.
+        city_source = db.get_preference(FACT_BASE_CITIES_SOURCE, "") or ""
+        sources["work_rule"] = (
+            "da_verificare" if manual_cities and city_source != "manuale" else "manuale"
+        )
         return WorkRule(
             cities=tuple(manual_cities) or parsed.cities,
             allow_onsite="onsite" in manual_modes if manual_modes else parsed.allow_onsite,

@@ -1,9 +1,7 @@
-"""Cache-busting: asset URLs must carry ?v=<__version__>, injected at serve time.
+"""Cache-busting: asset URLs carry the release and a shared content revision.
 
-The version token is bound to ``app.version.__version__`` — a release bump must
-propagate to every app-owned asset (index.html, app.js + its module imports,
-styles.css + its @import of chat.css) WITHOUT anyone editing the HTML/CSS/JS by
-hand. These tests pin both the serve-time mechanism and the committed sources.
+Changes within the same release must invalidate the whole asset graph, including
+translation dictionaries, while the visible public version remains unchanged.
 """
 
 from __future__ import annotations
@@ -38,7 +36,12 @@ def _make_web(tmp_path: Path) -> None:
     (web / "modules" / "providers.js").write_text(
         'import { t } from "./i18n.js";\nexport const x = t;\n', encoding="utf-8"
     )
-    (web / "modules" / "i18n.js").write_text("export const t = (k) => k;\n", encoding="utf-8")
+    (web / "modules" / "i18n.js").write_text(
+        'export const t = (k) => k;\nfetch("/web/i18n/it.json?v={{VERSION}}");\n',
+        encoding="utf-8",
+    )
+    (web / "i18n").mkdir()
+    (web / "i18n" / "it.json").write_text('{"welcome":"Ciao"}', encoding="utf-8")
     (web / "styles.css").write_text(
         '@import url("./styles/chat.css?v={{VERSION}}");\n', encoding="utf-8"
     )
@@ -60,15 +63,16 @@ def test_index_html_injects_version(client: TestClient) -> None:
     r = client.get("/")
     assert r.status_code == 200
     assert "{{VERSION}}" not in r.text  # placeholder fully replaced
-    assert f"/web/styles.css?v={__version__}" in r.text
-    assert f"/web/app.js?v={__version__}" in r.text
+    assert f"/web/styles.css?v={client.app.state.asset_version}" in r.text
+    assert f"/web/app.js?v={client.app.state.asset_version}" in r.text
+    assert f'<span id="infoVersionNumber">{__version__}</span>' in r.text
 
 
 def test_app_js_injects_version_into_module_imports(client: TestClient) -> None:
     r = client.get("/web/app.js")
     assert r.status_code == 200
-    assert f'"./modules/helpers.js?v={__version__}"' in r.text
-    assert f'"./modules/theme.js?v={__version__}"' in r.text
+    assert f'"./modules/helpers.js?v={client.app.state.asset_version}"' in r.text
+    assert f'"./modules/theme.js?v={client.app.state.asset_version}"' in r.text
     assert "javascript" in r.headers["content-type"]
 
 
@@ -78,7 +82,7 @@ def test_module_sibling_imports_are_busted_consistently(client: TestClient) -> N
     shared module instance, no duplicated i18n state."""
     r = client.get("/web/modules/providers.js")
     assert r.status_code == 200
-    assert f'"./i18n.js?v={__version__}"' in r.text
+    assert f'"./i18n.js?v={client.app.state.asset_version}"' in r.text
     assert "javascript" in r.headers["content-type"]
 
 
@@ -89,8 +93,44 @@ def test_unknown_module_returns_404(client: TestClient) -> None:
 def test_styles_css_injects_version_into_chat_import(client: TestClient) -> None:
     r = client.get("/web/styles.css")
     assert r.status_code == 200
-    assert f'"./styles/chat.css?v={__version__}"' in r.text
+    assert f'"./styles/chat.css?v={client.app.state.asset_version}"' in r.text
     assert "css" in r.headers["content-type"]
+
+
+def test_translation_changes_bust_all_assets_without_release_bump(tmp_path: Path) -> None:
+    from app.main import create_app
+
+    _make_web(tmp_path)
+    with TestClient(create_app(tmp_path)) as first:
+        old_revision = first.app.state.asset_version
+        assert f"/web/i18n/it.json?v={old_revision}" in first.get("/web/modules/i18n.js").text
+
+    (tmp_path / "web" / "i18n" / "it.json").write_text(
+        '{"welcome":"Ciao","workflow":"Ricerca guidata"}', encoding="utf-8"
+    )
+    with TestClient(create_app(tmp_path)) as second:
+        new_revision = second.app.state.asset_version
+        assert new_revision != old_revision
+        assert new_revision.startswith(f"{__version__}-")
+        html = second.get("/").text
+        assert f"/web/app.js?v={new_revision}" in html
+        assert f'<span id="infoVersionNumber">{__version__}</span>' in html
+        assert f"./modules/helpers.js?v={new_revision}" in second.get("/web/app.js").text
+        assert f"./i18n.js?v={new_revision}" in second.get("/web/modules/providers.js").text
+        assert f"./styles/chat.css?v={new_revision}" in second.get("/web/styles.css").text
+        dictionary_url = f"/web/i18n/it.json?v={new_revision}"
+        assert dictionary_url in second.get("/web/modules/i18n.js").text
+        assert second.get(dictionary_url).json()["workflow"] == "Ricerca guidata"
+
+
+def test_asset_revision_is_independent_of_workspace_path(tmp_path: Path) -> None:
+    from app.main import create_app
+
+    first_path, second_path = tmp_path / "first", tmp_path / "second"
+    _make_web(first_path)
+    _make_web(second_path)
+    with TestClient(create_app(first_path)) as first, TestClient(create_app(second_path)) as second:
+        assert first.app.state.asset_version == second.app.state.asset_version
 
 
 def test_committed_index_uses_placeholder_not_hardcoded_version() -> None:

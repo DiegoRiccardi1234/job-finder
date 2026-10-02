@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-10-02
+
+### Added
+- Operational dashboard with the active CV, latest scan, search goal and applications to follow up. Search presets load for review before starting; profile and previous-scan terms can be selected explicitly.
+- Reversible offer archiving and restoration preserve application history and deduplication records.
+- Separate handling of rejection emails, with review for uncertain matches and an undo action for automatically linked outcomes. Historical recovery can revisit previously unmatched messages without silently confirming applications.
+
+### Fixed
+- Uploading a CV preserves chosen roles and work locations. Search preferences accept existing JSON and CSV formats consistently; confirmed CV facts keep their original provenance unless edited.
+- Junior automation and applied-AI matching evaluates duties and requirements without admitting unrelated engineering roles through generic title words.
+- Provider status no longer repeatedly loads remote catalogs. Shared catalog caching and live OpenRouter endpoint health avoid unavailable models while preserving fallback when health data cannot be fetched. Google catalog filtering and the default fallback model are updated.
+- Closed detail panels and mobile menus no longer receive focus or cover the page. Dialog labels, keyboard navigation, responsive provider notices and translations are corrected.
+- Dashboard previews eight reminders with an option to expand the full list. Its navigation badge counts explicit reminders rather than every old application; the mailbox badge identifies messages awaiting review.
+- Successful mailbox reads are distinguished from configured connections. Failed reminder notifications remain retryable, and completed applications do not generate stale-application reminders.
+- Web asset cache keys include content hashes, so updates at the same public version cannot keep serving an old interface.
+
 ## [2.3.0] — 2026-08-26
 
 ### Added

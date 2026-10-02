@@ -87,6 +87,11 @@ export async function loadMailboxStatus() {
     ? ` · ${t("mail.pendingCount").replace("{n}", String(status.pending_count))}`
     : "";
   _setState(t(key) + pending, kind);
+  const context = $("mailOperationalStatus");
+  if (context) {
+    const last = status.last_success_ts ? new Date(Number(status.last_success_ts) * 1000).toLocaleString() : t("workflow.never");
+    context.textContent = `${t("workflow.mailAuto")}: ${t(status.enabled ? "common.yes" : "common.no")} · ${t("workflow.mailLastCheck")}: ${last}${status.running ? ` · ${t("mail.checking")}` : ""}. ${t("workflow.mailProof")}`;
+  }
   // The API has always answered with review_count and nobody read it, so the
   // only way to learn there were proposals waiting was to open Settings and
   // scroll to the bottom of the third card.
@@ -100,6 +105,10 @@ export function setMailBadge(count) {
   if (!badge) return;
   const n = Number(count) || 0;
   badge.textContent = String(n);
+  const label = t("workflow.mailReviewBadge");
+  badge.title = label;
+  badge.setAttribute("role", "img");
+  badge.setAttribute("aria-label", `${label}: ${n}`);
   badge.classList.toggle("hidden", n === 0);
 }
 
@@ -169,7 +178,8 @@ export async function loadMailReview() {
       // "Record it on its own" is the honest default when nothing matches: on a
       // real queue 38 of 53 attach proposals turned out to be roles the archive
       // had never collected.
-      const create = option(
+      const rejection = item.kind === "rejection";
+      const create = rejection ? "" : option(
         "create",
         `<span data-i18n="mail.review.createEntry">Record it as a new application</span>`,
         !candidates || item.suggestion === "create",
@@ -204,7 +214,8 @@ export async function loadMailReview() {
           ${which}
           ${roleBit}
         </header>
-        <p class="mail-review-question micro" data-i18n="mail.review.pick">Which offer is this about?</p>
+        ${rejection ? `<p class="job-flag flag-warn">${escapeHtml(t("workflow.rejectionReview"))}</p>` : ""}
+        <p class="mail-review-question micro">${escapeHtml(t(rejection ? "workflow.rejectionPick" : "mail.review.pick"))}</p>
         <div class="mail-review-options">${candidates}${create}${dismiss}</div>
       </article>`;
     })
@@ -413,11 +424,11 @@ export function wireMailbox() {
       .filter((el) => el.value === "dismiss")
       .map((el) => Number(el.dataset.review));
     if (!attach.length && !create.length && !dismiss.length) return;
-    await api("/api/mail/review/resolve", {
+    const result = await api("/api/mail/review/resolve", {
       method: "POST",
       body: JSON.stringify({ attach, create, dismiss }),
     });
-    showToast(t("toast.mail.applied"), "info");
+    showToast(result.rejected ? t("workflow.rejectionConfirmed", { count: result.rejected }) : t("toast.mail.applied"), "info");
     await loadMailReview();
     await _deps.loadJobs();
   });

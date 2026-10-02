@@ -94,4 +94,11 @@ def onboarding_context(db: Database) -> str:
             amount = parse_ral_amount(value)
             value = f"{amount} EUR" if amount else value
         lines.append(f"{label}: {value}")
+    # Selected roles must reach both first scoring and re-scoring, not just
+    # the title vocabulary. Keep their storage format out of the prompt.
+    from app.services.search_intent import parse_preferred_roles
+
+    roles = parse_preferred_roles(db.get_preference("preferred_roles", "") or "")
+    if roles:
+        lines.append("Ruoli preferiti: " + ", ".join(roles))
     return "\n".join(lines)

@@ -50,12 +50,25 @@ def build_router(container: AppContainer) -> APIRouter:
     @router.get("/api/setup/status")
     def setup_status() -> dict[str, Any]:
         provider_configured = container.has_provider_configured()
-        cv_loaded = container.db.get_active_candidate_profile() is not None
+        profile = container.db.get_active_candidate_profile()
+        cv_loaded = profile is not None
         return {
             "ready": provider_configured,
             "provider_configured": provider_configured,
             "cv_loaded": cv_loaded,
             "first_run": not provider_configured and not cv_loaded,
+            "last_scan": container.db.get_last_scan(),
+            "active_cv": (
+                {
+                    "id": profile["id"],
+                    "source_name": profile.get("source_name"),
+                    "created_at": profile.get("created_at"),
+                }
+                if profile
+                else None
+            ),
+            "search_goal": container.db.get_preference("onboarding_goal", ""),
+            "applications_pending_count": container.db.count_pending_applications(),
         }
 
     @router.get("/api/version")

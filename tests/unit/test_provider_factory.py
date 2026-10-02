@@ -169,3 +169,62 @@ def test_metadata_skips_list_models_when_key_invalid(tmp_path, monkeypatch) -> N
 
     mgr.metadata(force_refresh=True)
     assert call_count["n"] == 0
+
+
+def test_health_metadata_never_fetches_a_cold_catalog(tmp_path) -> None:
+    """A configured endpoint may be offline: local status must not contact it."""
+    mgr = ProviderManager(load_settings(tmp_path))
+    provider = _FakeProvider("custom", models=["test-model"])
+    calls = []
+
+    def unavailable_catalog() -> list[str]:
+        calls.append(True)
+        raise ConnectionError("offline")
+
+    provider.list_models = unavailable_catalog
+    mgr.providers = {"custom": provider}
+    result = mgr.metadata()
+    assert calls == []
+    assert result["providers"]["custom"]["configured"] is True
+    assert result["providers"]["custom"]["catalog_status"] == "unknown"
+
+
+def test_catalog_cache_is_shared_by_metadata_and_model_picker(tmp_path) -> None:
+    mgr = ProviderManager(load_settings(tmp_path))
+    provider = _FakeProvider("custom", models=["test-model"])
+    mgr.providers = {"custom": provider}
+    assert mgr.metadata()["providers"]["custom"]["models"] == []
+    mgr.get_models("custom")
+    assert mgr.metadata()["providers"]["custom"]["models"] == ["test-model"]
+    assert mgr.metadata()["providers"]["custom"]["catalog_status"] == "ready"
+
+
+def test_concurrent_catalog_requests_fetch_once_and_do_not_block_metadata(tmp_path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    mgr = ProviderManager(load_settings(tmp_path))
+    provider = _FakeProvider("custom")
+    entered, release = Event(), Event()
+    calls = []
+
+    def slow_catalog() -> list[str]:
+        calls.append(True)
+        entered.set()
+        assert release.wait(3)
+        return ["test-model"]
+
+    provider.list_models = slow_catalog
+    mgr.providers = {"custom": provider}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(mgr.get_models, "custom")
+        assert entered.wait(3)
+        second = executor.submit(mgr.get_models, "custom")
+        try:
+            assert mgr.metadata()["providers"]["custom"]["catalog_status"] == "unknown"
+        finally:
+            release.set()
+        results = [first.result(timeout=3), second.result(timeout=3)]
+    assert calls == [True]
+    assert sum(not r["cached"] for r in results) == 1
+    assert all(r["models"] == ["test-model"] for r in results)

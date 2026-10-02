@@ -3,7 +3,7 @@
 // the detail drawer and job-status actions are injected via initJobList so this
 // module never has to import app.js (which would be circular).
 import { api, escapeHtml, setText, showToast, truncate } from "./helpers.js";
-import { t, getCurrentLang } from "./i18n.js";
+import { t, tOptional, getCurrentLang } from "./i18n.js";
 
 let _deps = {
   showJobDetail: async () => {},
@@ -93,12 +93,9 @@ export function flagBadgesHtml(flags, { compact = false } = {}) {
     .map((f) => {
       const label = t(f.key);
       // The tooltip repeated the label, which told a hovering user nothing.
-      // Where a "…Long" key exists it explains the badge instead. A missing key
-      // comes back as the key itself, so the check is against that, not against
-      // falsiness.
+      // Where an optional "…Long" variant exists it explains the badge instead.
       const longKey = `${f.key}Long`;
-      const long = t(longKey);
-      const title = long === longKey ? label : long;
+      const title = tOptional(longKey) || label;
       const text = compact ? "" : `<span>${escapeHtml(label)}</span>`;
       return (
         `<span class="job-flag ${f.cls}" title="${escapeHtml(title)}">` +
@@ -399,12 +396,10 @@ export async function loadJobs(opts) {
       </td>
       <td>
         <div class="mini">
-          <button class="apply-btn" data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button>
-          <button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>
-          <button data-action="reopened" data-id="${job.id}" class="secondary icon-btn" title="${t("jobs.reopen")}" aria-label="${t("jobs.reopen")}"><span class="material-symbols-outlined">restart_alt</span></button>
+          ${normalizeJobStatus(job.status) === "open" ? `<button class="apply-btn" data-action="applied" data-id="${job.id}">${t("jobs.apply")}</button><button data-action="rejected" data-id="${job.id}" class="danger">${t("jobs.skip")}</button>` : ""}
+          ${normalizeJobStatus(job.status) !== "open" && job.status !== "archived" ? `<button data-action="reopened" data-id="${job.id}" class="secondary icon-btn" title="${t("jobs.reopen")}" aria-label="${t("jobs.reopen")}"><span class="material-symbols-outlined">restart_alt</span></button>` : ""}
           <button data-favorite="${job.is_favorite ? "0" : "1"}" data-id="${job.id}" class="secondary icon-btn${job.is_favorite ? " is-active" : ""}" title="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}" aria-label="${job.is_favorite ? t("jobs.unfavorite") : t("jobs.favorite")}"><span class="material-symbols-outlined">${job.is_favorite ? "star" : "star_border"}</span></button>
-          <button data-action="archived" data-id="${job.id}" class="secondary icon-btn" title="${t("jobs.archiveAction")}" aria-label="${t("jobs.archiveAction")}"><span class="material-symbols-outlined">archive</span></button>
-          <button data-delete-id="${job.id}" class="danger icon-btn" title="${t("jobs.delete")}" aria-label="${t("jobs.delete")}"><span class="material-symbols-outlined">delete</span></button>
+          <button data-archive-id="${job.id}" data-restore="${job.status === "archived"}" class="secondary icon-btn" title="${t(job.status === "archived" ? "workflow.restore" : "jobs.archiveAction")}" aria-label="${t(job.status === "archived" ? "workflow.restore" : "jobs.archiveAction")}"><span class="material-symbols-outlined">${job.status === "archived" ? "unarchive" : "archive"}</span></button>
         </div>
       </td>
     `;
@@ -453,13 +448,13 @@ export async function loadJobs(opts) {
     });
   });
 
-  body.querySelectorAll("button[data-delete-id]").forEach((btn) => {
+  body.querySelectorAll("button[data-archive-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const id = btn.dataset.deleteId;
-      if (!confirm(t("jobs.deleteConfirm"))) return;
+      const id = btn.dataset.archiveId;
+      const restore = btn.dataset.restore === "true";
       try {
-        await api(`/api/jobs/${id}`, { method: "DELETE" });
-        showToast(t("jobs.deleted"), "info");
+        await api(`/api/jobs/${id}${restore ? "/restore" : ""}`, { method: restore ? "POST" : "DELETE" });
+        showToast(t(restore ? "workflow.restored" : "workflow.archived"), "info");
         await loadJobs();
       } catch (error) {
         showToast(`${t("toast.deleteError")}: ${error.message}`, "info");

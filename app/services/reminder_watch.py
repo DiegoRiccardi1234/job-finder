@@ -90,17 +90,20 @@ def check_due(db: Database) -> int:
     if not fresh:
         return 0
 
+    delivered: set[str] = set()
     for item in fresh[:MAX_PER_TICK]:
         title = str(item.get("titolo") or "").strip() or str(item.get("azienda") or "")
         note = str(item.get("note") or "").strip()
-        notify("Job Finder", f"{title}{f' — {note}' if note else ''}")
-    if len(fresh) > MAX_PER_TICK:
-        notify("Job Finder", f"+{len(fresh) - MAX_PER_TICK}")
+        if notify("Job Finder", f"{title}{f' — {note}' if note else ''}"):
+            delivered.add(f"{item['job_id']}:{item.get('due_at', '')}")
+    if len(fresh) > MAX_PER_TICK and notify("Job Finder", f"+{len(fresh) - MAX_PER_TICK}"):
+        delivered |= {f"{item['job_id']}:{item.get('due_at', '')}" for item in fresh[MAX_PER_TICK:]}
 
-    # Everything due is marked announced, including what the ceiling skipped:
-    # the skipped ones are on the Dashboard, and re-announcing them next minute
-    # is the noise this guard exists to prevent.
-    seen |= {f"{item['job_id']}:{item.get('due_at', '')}" for item in fresh}
+    # Only reminders handed to the notifier are consumed. Without a tray, or
+    # after a delivery failure, they remain eligible for the next tick.
+    if not delivered:
+        return 0
+    seen |= delivered
     # Bounded, so a year of reminders does not grow a preference without limit.
     db.set_preference(PREF_ANNOUNCED, json.dumps(sorted(seen)[-500:]))
-    return len(fresh)
+    return len(delivered)

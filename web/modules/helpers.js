@@ -1,4 +1,5 @@
 // Pure DOM/HTTP helpers shared across the app.
+import { t } from "./i18n.js";
 
 export async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -7,7 +8,12 @@ export async function api(path, options = {}) {
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `API Error ${response.status}`);
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* plain text */ }
+    const known = { scan_in_progress: "workflow.scanRunning", rescore_in_progress: "workflow.scanRunning", provider_not_configured: "banner.noKey", no_provider_available: "banner.noKey" };
+    if (known[detail]) detail = t(known[detail]);
+    if (Array.isArray(detail)) detail = detail.map((item) => item.msg || "").filter(Boolean).join(" · ");
+    throw new Error(typeof detail === "string" && detail ? detail : `HTTP ${response.status}`);
   }
   return response.json();
 }

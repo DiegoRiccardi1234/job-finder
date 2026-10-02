@@ -7,7 +7,7 @@ by live health/speed and skip ones that are down *right now* WITHOUT probing
 (which fires real inference requests and burns the shared free quota).
 
 OpenRouter only: :func:`get_model_health` returns ``{}`` for any other provider
-(or on missing key / network error), so callers transparently fall back to the
+(or on network error), so callers transparently fall back to the
 name-based ranking + the passive penalty map. Never raises.
 """
 
@@ -29,9 +29,8 @@ try:
 except Exception:  # pragma: no cover
     requests = None  # type: ignore[assignment]
 
-# Health changes slowly and scans are bursty, so a long TTL keeps a whole scan
-# on cache hits — the cold fetch runs at most once per 30 min per catalog.
-_CACHE_TTL_SECONDS = 1800.0
+# Match the five-minute signal used to make selection decisions.
+_CACHE_TTL_SECONDS = 300.0
 # A model counts as "down now" when its endpoint status is not OK, or its
 # 5-minute uptime drops below this floor.
 _UP5M_FLOOR = 50.0
@@ -44,8 +43,7 @@ _cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
 
 
 def _p50(val: Any) -> float | None:
-    """OpenRouter reports latency/throughput as a percentile dict; take p50.
-    Tolerates a bare number too."""
+    """Read scalar latency/throughput, tolerating historical percentile data."""
     if isinstance(val, dict):
         p = val.get("p50")
         return float(p) if isinstance(p, (int, float)) else None
@@ -55,15 +53,20 @@ def _p50(val: Any) -> float | None:
 
 
 def _parse_endpoints(payload: dict[str, Any]) -> dict[str, Any] | None:
-    """Pick the healthiest endpoint (status OK, best 30-min uptime) and extract
-    its live stats. ``None`` when no endpoint is present."""
+    """Pick status OK then best five-minute uptime; distinguish dead from unknown."""
     data = payload.get("data")
-    eps = (data.get("endpoints") if isinstance(data, dict) else None) or []
+    eps = data.get("endpoints") if isinstance(data, dict) else None
+    if not isinstance(eps, list):
+        return None
+    if not eps:
+        return {"status": -1, "endpoint_count": 0, "up5m": None}
+    eps = [e for e in eps if isinstance(e, dict)]
     if not eps:
         return None
     up = [e for e in eps if e.get("status") == 0]
-    best = max(up or eps, key=lambda e: e.get("uptime_last_30m") or 0)
+    best = max(up or eps, key=lambda e: e.get("uptime_last_5m") or 0)
     return {
+        "endpoint_count": len(eps),
         "provider_name": best.get("provider_name"),
         "status": best.get("status"),
         "up5m": best.get("uptime_last_5m"),
@@ -78,31 +81,27 @@ def _parse_endpoints(payload: dict[str, Any]) -> dict[str, Any] | None:
 def _fetch_one(base_url: str, api_key: str, model_id: str) -> dict[str, Any] | None:
     if requests is None:
         return None
-    slug = model_id.split(":")[0]  # strip :free / other variant suffix
-    url = f"{base_url.rstrip('/')}/models/{slug}/endpoints"
+    url = f"{base_url.rstrip('/')}/models/{model_id}/endpoints"
     try:
-        resp = requests.get(
-            url, headers={"Authorization": f"Bearer {api_key}"}, timeout=_REQUEST_TIMEOUT
-        )
+        resp = requests.get(url, timeout=_REQUEST_TIMEOUT)
         resp.raise_for_status()
         payload = resp.json()
         return _parse_endpoints(payload) if isinstance(payload, dict) else None
     except Exception as exc:
-        log.debug("model_stats fetch failed for %s: %s", model_id, exc)
+        log.debug("model_stats fetch failed for %s: %s", model_id, type(exc).__name__)
         return None
 
 
 def get_model_health(provider: LLMProvider, model_ids: list[str]) -> dict[str, dict[str, Any]]:
     """Map ``{model_id: stats}`` for OpenRouter models from cached endpoint
-    metadata. Non-OpenRouter, missing key / ``requests``, or a per-model fetch
+    metadata. Non-OpenRouter, missing ``requests``, or a per-model fetch
     error simply yields no entry for that id (never raises). Bounded concurrency,
-    30-minute cache.
+    Five-minute cache; the public endpoint requires no authentication.
     """
     if getattr(provider, "name", "") != "openrouter":
         return {}
-    api_key = getattr(provider, "api_key", None)
-    base_url = getattr(provider, "base_url", None)
-    if not api_key or not base_url or requests is None or not model_ids:
+    base_url = getattr(provider, "base_url", None) or "https://openrouter.ai/api/v1"
+    if requests is None or not model_ids:
         return {}
 
     now = time.time()
@@ -110,7 +109,7 @@ def get_model_health(provider: LLMProvider, model_ids: list[str]) -> dict[str, d
     if stale:
         workers = min(_MAX_WORKERS, len(stale))
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            fetched = list(ex.map(lambda m: _fetch_one(base_url, api_key, m), stale))
+            fetched = list(ex.map(lambda m: _fetch_one(base_url, "", m), stale))
         for m, stats in zip(stale, fetched, strict=True):
             _cache[m] = (now, stats)
 
@@ -135,3 +134,18 @@ def unhealthy_ids(health: dict[str, dict[str, Any]]) -> set[str]:
         if down_status or low_uptime:
             bad.add(mid)
     return bad
+
+
+def rank_healthy_models(models: list[str], health: dict[str, dict[str, Any]]) -> list[str]:
+    """Exclude known dead endpoints and rank uptime in 2% bands, keeping pool ties."""
+    bad = unhealthy_ids(health)
+    survivors = [m for m in models if m not in bad]
+
+    def bucket(mid: str) -> int:
+        signal = health.get(mid, {})
+        uptime = signal.get("up5m")
+        if signal.get("status") == 0 and isinstance(uptime, (int, float)):
+            return int(float(uptime) // 2)
+        return -1
+
+    return sorted(survivors, key=bucket, reverse=True) if health else survivors

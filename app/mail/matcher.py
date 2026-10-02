@@ -400,7 +400,8 @@ def subject_facts(subject: str) -> SubjectFacts:
     flat = " ".join(str(subject or "").split())
     if not flat:
         return SubjectFacts()
-    role = _ROLE_SUBJECT_TAIL_RE.sub("", _first_group(_SUBJECT_ROLE_RE.search(flat))).strip()
+    role_match = _SUBJECT_ROLE_RE.search(flat)
+    role = _ROLE_SUBJECT_TAIL_RE.sub("", _first_group(role_match)).strip()
     # A job title has at least one word in it. Without this, "Candidatura per la
     # posizione JN -062026-740365 completata!" hands back "JN -062026" — the
     # agency's filing number, which then goes looking for an offer to match.
@@ -413,9 +414,65 @@ def subject_facts(subject: str) -> SubjectFacts:
         # loose shape below is never consulted here, or the job title would be
         # stored as the company again.
         return SubjectFacts(role=role[:120], company=company[:80], rule="subject_role")
-    if not company:
+    if not company and role_match is None:
         company = _first_group(_SUBJECT_COMPANY_LOOSE_RE.search(flat))
     return SubjectFacts(company=company[:80], rule="subject_company" if company else "")
+
+
+# A refusal is an outcome, not an application confirmation. Generic updates,
+# "unfortunately" alone and interview invitations are deliberately insufficient.
+_REJECTION_OUTCOME_RE = re.compile(
+    r"non (?:sei|è|e) stat[oa] selezionat|non abbiamo dato seguito"
+    r"|non\s+(?:possiamo|intendiamo|procederemo a)\s+(?:proseguire|procedere)"
+    r"|non\s+coincide\s+con|non\s+corrisponde\s+a[il]"
+    r"|no\s+longer\s+under\s+consideration"
+    r"|(?:not|won't|will not)\s+(?:to\s+|be\s+)?(?:moving|proceeding|move|proceed)\s+(?:forward|with)"
+    r"|application\s+(?:(?:was|has been)\s+)?rejected"
+    r"|application[^.!\n]{0,180}(?:was rejected|has been rejected)"
+    r"|candidatura\s+(?:è stata\s+)?rifiutata|unsuccessful\s+application",
+    re.IGNORECASE,
+)
+_REJECTION_ROLE_COMPANY_RE = re.compile(
+    r"(?:application rejected|candidatura rifiutata):\s*(.+?)\s+(?:at|presso)\s+(.+?)\s*[.!]?\s*$"
+    r"|(?:your application|la tua candidatura)\s+(?:for|per)\s+(.+?)\s+(?:at|presso)\s+(.+?)"
+    r"\s+(?:was rejected|has been rejected|non (?:è|e) stata selezionata)\b",
+    re.IGNORECASE,
+)
+
+
+def is_rejection_subject(subject: str) -> bool:
+    return bool(_REJECTION_OUTCOME_RE.search(" ".join(str(subject or "").split())))
+
+
+def rejection_facts(subject: str) -> SubjectFacts:
+    match = _REJECTION_ROLE_COMPANY_RE.search(" ".join(str(subject or "").split()))
+    if not match:
+        return SubjectFacts()
+    groups = [value for value in match.groups() if value]
+    return SubjectFacts(role=groups[0].strip()[:120], company=groups[1].strip(" .!")[:80])
+
+
+def classify_rejection(header: MailHeader, applications: list[PendingJob]) -> MatchResult:
+    """Only employer AND role identify an automatic outcome; weaker facts need review."""
+    if not is_rejection_subject(header.subject) or header.date is None:
+        return MatchResult("no_match")
+    facts = rejection_facts(header.subject)
+    eligible = [job for job in applications if header.date >= job.opened_at - CLOCK_SLACK]
+    trusted = is_known_sender(header.from_addr, header.list_id)
+    if facts.company:
+        if not trusted and not sender_matches_company(header.from_addr, facts.company):
+            return MatchResult("no_match", rule="rejection_untrusted_sender")
+        hits = [job for job in eligible if _same_company(job.company, facts.company)]
+    else:
+        hits = [job for job in eligible if sender_matches_company(header.from_addr, job.company)]
+        if not hits and not trusted:
+            return MatchResult("no_match", rule="rejection_no_employer")
+    titled = [job for job in hits if facts.role and same_role(facts.role, job.title)]
+    if len(titled) == 1:
+        return MatchResult("match", titled[0].job_id, "rejection_company_role")
+    return MatchResult(
+        "ambiguous", rule="rejection_review", candidates=tuple(j.job_id for j in hits)
+    )
 
 
 def is_confirmation_subject(subject: str) -> bool:
@@ -428,7 +485,7 @@ def is_confirmation_subject(subject: str) -> bool:
     which is a change to a measured thing made for an unrelated reason.
     """
     flat = " ".join(str(subject or "").split())
-    if not flat or _REJECT_SUBJECT_RE.search(flat):
+    if not flat or _REJECT_SUBJECT_RE.search(flat) or is_rejection_subject(flat):
         return False
     return bool(_CONFIRM_SUBJECT_RE.search(flat) or _SUBJECT_ROLE_RE.search(flat))
 
@@ -540,7 +597,11 @@ def _role_tokens(title: str) -> set[str]:
     from app.services.scan.vocab import VAGUE_ROLE_WORDS, title_tokens
 
     cleaned = _ROLE_TAIL_RE.sub(" ", str(title or ""))
-    return {t for t in title_tokens(cleaned) if t not in VAGUE_ROLE_WORDS and t not in _ROLE_NOISE}
+    # Generic for expanding a search does not mean meaningless when comparing
+    # the actual role in an application receipt: AI Engineer and AI Developer
+    # must remain distinguishable, even when the scan gate ignores those words.
+    vague = VAGUE_ROLE_WORDS - {"developer", "engineer", "sviluppatore", "ingegnere"}
+    return {t for t in title_tokens(cleaned) if t not in vague and t not in _ROLE_NOISE}
 
 
 def same_role(a: str, b: str) -> bool:

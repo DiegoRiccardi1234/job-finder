@@ -54,9 +54,12 @@ from app.mail.matcher import (
     MailHeader,
     PendingJob,
     classify,
+    classify_rejection,
     extract_application,
     is_known_sender,
+    is_rejection_subject,
     rank_candidates,
+    rejection_facts,
     sender_domain,
     subject_facts,
 )
@@ -365,6 +368,7 @@ class MailWatcher:
             "state": str(self._db.get_preference(mail_config.PREF_STATE, "") or STATE_UNCONFIGURED),
             "last_error": str(self._db.get_preference(mail_config.PREF_LAST_ERROR, "") or ""),
             "last_run_ts": str(self._db.get_preference(mail_config.PREF_LAST_RUN, "") or ""),
+            "last_success_ts": str(self._db.get_preference("mailwatch_last_success_ts", "") or ""),
             "pending_count": len(self._db.list_pending_applications(self.pending_days())),
             "review_count": len(self.review_items()),
             "body_mode": self.body_mode(),
@@ -465,28 +469,34 @@ class MailWatcher:
         try:
             return self._run(dry_run=dry_run)
         except MailReauthRequired as exc:
-            self._set_state(STATE_REAUTH, safe_error(exc))
+            if not dry_run:
+                self._set_state(STATE_REAUTH, safe_error(exc))
             return {"status": "error", "state": STATE_REAUTH}
         except MailAuthError as exc:
-            self._set_state(STATE_AUTH_FAILED, safe_error(exc))
+            if not dry_run:
+                self._set_state(STATE_AUTH_FAILED, safe_error(exc))
             return {"status": "error", "state": STATE_AUTH_FAILED}
         except MailError as exc:
-            self._set_state(STATE_ERROR, safe_error(exc))
+            if not dry_run:
+                self._set_state(STATE_ERROR, safe_error(exc))
             return {"status": "error", "state": STATE_ERROR}
         except Exception as exc:  # a mailbox must never take the app down
             log.warning("mail check failed: %s", safe_error(exc))
-            self._set_state(STATE_ERROR, safe_error(exc))
+            if not dry_run:
+                self._set_state(STATE_ERROR, safe_error(exc))
             return {"status": "error", "state": STATE_ERROR}
         finally:
             # Even on failure. Otherwise an unreachable mailbox is retried on
             # every tick until someone notices.
-            self._db.set_preference(mail_config.PREF_LAST_RUN, str(int(self._clock())))
+            if not dry_run:
+                self._db.set_preference(mail_config.PREF_LAST_RUN, str(int(self._clock())))
             self._control.end()
 
     def _run(self, *, dry_run: bool) -> dict[str, Any]:
         account = self.account()
         if not account or not account.configured:
-            self._set_state(STATE_UNCONFIGURED)
+            if not dry_run:
+                self._set_state(STATE_UNCONFIGURED)
             return {"status": "skipped", "reason": STATE_UNCONFIGURED}
 
         ttl = self.pending_days()
@@ -505,7 +515,7 @@ class MailWatcher:
         if pending:
             since = min(job.opened_at for job in pending) - CLOCK_SLACK
         else:
-            if self._keep_warm_due():
+            if not dry_run and self._keep_warm_due():
                 self.check_connection()
             since = _now() - timedelta(days=ttl)
         headers = self._headers_since(account, since, MAX_PER_RUN)
@@ -514,10 +524,17 @@ class MailWatcher:
             fresh = set(self._db.filter_unseen_mail(account.address, keys))
             headers = [h for h in headers if h.key in fresh]
 
-        matched = ambiguous = imported = 0
+        matched = ambiguous = imported = rejected = rejection_reviews = 0
         reader = _BodyReader(self, account, MAX_BODY_READS_PER_TICK)
         try:
             for header in headers:
+                rejection = self._process_rejection(
+                    account, header, dry_run=dry_run, allow_auto=True
+                )
+                if rejection:
+                    rejected += int(rejection == "rejected")
+                    rejection_reviews += int(rejection == "rejection_review")
+                    continue
                 result = classify(header, pending, ttl_days=ttl)
                 if result.verdict == "match" and result.job_id is not None:
                     matched += 1
@@ -555,18 +572,83 @@ class MailWatcher:
                 self._backfill_roles(account, reader)
         finally:
             reader.close()
-        self._set_state(STATE_OK)
-        self._db.set_preference(mail_config.PREF_LAST_OK, str(int(self._clock())))
+        if not dry_run:
+            self._set_state(STATE_OK)
+            self._db.set_preference(mail_config.PREF_LAST_OK, str(int(self._clock())))
+            self._db.set_preference("mailwatch_last_success_ts", str(int(self._clock())))
         return {
             "status": "done",
             "checked": len(headers),
             "matched": matched,
             "ambiguous": ambiguous,
             "imported": imported,
+            "rejected": rejected,
+            "rejection_reviews": rejection_reviews,
             "bodies_read": reader.read,
             "bodies_skipped": reader.skipped,
             "dry_run": dry_run,
         }
+
+    def _process_rejection(
+        self,
+        account: MailAccount,
+        header: MailHeader,
+        *,
+        dry_run: bool,
+        allow_auto: bool,
+    ) -> str:
+        if not is_rejection_subject(header.subject):
+            return ""
+        applications = [
+            job
+            for job in (
+                _pending({**row, "link_opened_at": row["applied_at"]})
+                for row in self._db.list_unresolved_applications()
+            )
+            if job is not None
+        ]
+        result = classify_rejection(header, applications)
+        if result.verdict == "no_match":
+            return ""
+        verdict = "rejection_review"
+        if (
+            allow_auto
+            and self._may_attach_alone(header)
+            and result.verdict == "match"
+            and result.job_id is not None
+            and (dry_run or self._db.reject_application_from_mail(result.job_id, result.rule))
+        ):
+            verdict = "rejected"
+        if not dry_run:
+            if verdict == "rejection_review":
+                facts = rejection_facts(header.subject)
+                ids = result.candidates or ((result.job_id,) if result.job_id else ())
+                company = facts.company or next(
+                    (job.company for job in applications if job.job_id in ids), ""
+                )
+                self._db.add_mail_review(
+                    account=account.address,
+                    mail_key=header.key,
+                    kind="rejection",
+                    message_id=header.message_id,
+                    received_at=header.date.isoformat() if header.date else "",
+                    company=company,
+                    sender=_safe_sender(header),
+                    rule=result.rule,
+                    role=facts.role,
+                    candidates=ids,
+                )
+            self._db.record_mail_seen(
+                account=account.address,
+                mail_key=header.key,
+                verdict=verdict,
+                message_id=header.message_id,
+                received_at=header.date.isoformat() if header.date else "",
+                job_id=result.job_id if verdict == "rejected" else None,
+                matched_rule=result.rule,
+                overwrite=True,
+            )
+        return verdict
 
     def _backfill_roles(self, account: MailAccount, reader: _BodyReader) -> None:
         """Fill in the title on proposals that were queued before it was read.
@@ -583,6 +665,8 @@ class MailWatcher:
         if self.body_mode() != mail_config.BODY_MODE_ALWAYS or not reader.supported:
             return
         for row in self._db.list_mail_review(account.address):
+            if row.get("kind") == "rejection":
+                continue
             if str(row.get("role") or "").strip():
                 continue
             company = str(row.get("company") or "")
@@ -790,13 +874,26 @@ class MailWatcher:
             # could not see one of them. Re-reading costs one IMAP fetch, and
             # both queues are keyed by message, so nothing is proposed twice.
             headers = self._headers_since(
-                account, since, MAX_HISTORIC, seen_verdicts=mail_config.DECIDED_VERDICTS
+                account,
+                since,
+                MAX_HISTORIC,
+                seen_verdicts=mail_config.DECIDED_VERDICTS | {"rejected"},
             )
             truncated = len(headers) >= MAX_HISTORIC
             found = 0
             imports = 0
+            rejection_reviews = 0
             reader = _BodyReader(self, account, MAX_BODY_READS_PER_SWEEP)
             for index, header in enumerate(headers, start=1):
+                if self._process_rejection(account, header, dry_run=dry_run, allow_auto=False):
+                    rejection_reviews += 1
+                    if index % 25 == 0:
+                        yield {
+                            "status": "progress",
+                            "current": index,
+                            "total": len(headers),
+                        }
+                    continue
                 # Three questions in this order. Attach before import matters:
                 # a message about a company the archive already knows must offer
                 # to attach, not create a second entry beside the offer it is
@@ -832,10 +929,12 @@ class MailWatcher:
             reader.close()
             if not dry_run:
                 self._db.set_preference(mail_config.PREF_RECOVERY_DONE, "1")
+                self._db.set_preference("mailwatch_last_success_ts", str(int(self._clock())))
             yield {
                 "status": "complete",
                 "proposals": found,
                 "imports": imports,
+                "rejection_reviews": rejection_reviews,
                 "checked": len(headers),
                 "days": window,
                 "dry_run": dry_run,
@@ -872,13 +971,29 @@ class MailWatcher:
         you applied for.
         """
         by_id = {int(item["id"]): item for item in self.review_items()}
-        applied, refused = 0, []
+        applied, rejected, refused = 0, 0, []
         for choice in attach:
             review_id = int(getattr(choice, "review_id", 0) or 0)
             job_id = int(getattr(choice, "job_id", 0) or 0)
             row = by_id.get(review_id)
             if not row or job_id not in {int(c["id"]) for c in row["candidates"]}:
                 refused.append(review_id)
+                continue
+            if row.get("kind") == "rejection":
+                job = self._db.get_job(job_id)
+                try:
+                    received = datetime.fromisoformat(str(row.get("received_at") or ""))
+                    applied_at = datetime.fromisoformat(str((job or {}).get("applied_at") or ""))
+                    timely = received >= applied_at - CLOCK_SLACK
+                except (ValueError, TypeError):
+                    timely = False
+                if timely and self._db.reject_application_from_mail(
+                    job_id, "manual_rejection_review"
+                ):
+                    rejected += 1
+                    self._db.close_mail_review([review_id], "rejected")
+                else:
+                    refused.append(review_id)
                 continue
             if self._db.confirm_application_from_mail(
                 job_id, str(row.get("message_id") or ""), "manual_review"
@@ -889,7 +1004,7 @@ class MailWatcher:
         created: list[int] = []
         for review_id in create or []:
             row = by_id.get(review_id)
-            # Allowed for BOTH kinds. An "attach" proposal only means the archive
+            # Allowed for confirmation proposals. An "attach" proposal means the archive
             # holds offers from that employer — not that one of them is the one
             # applied for. Measured on a real queue: of 53 such proposals, the
             # title read from the body matched an archive offer 15 times; the
@@ -898,7 +1013,7 @@ class MailWatcher:
             # With create refused here, the only answers on offer were attach to
             # the wrong offer or dismiss and lose the application — so the app
             # forced a false record or no record at all.
-            if not row:
+            if not row or row.get("kind") == "rejection":
                 refused.append(review_id)
                 continue
             new_id = self._db.add_application_from_mail(
@@ -917,6 +1032,7 @@ class MailWatcher:
         dismissed = self._db.close_mail_review([i for i in dismiss if i in by_id], "dismissed")
         return {
             "applied": applied,
+            "rejected": rejected,
             "created": created,
             "dismissed": dismissed,
             "refused": refused,

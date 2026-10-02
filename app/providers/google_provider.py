@@ -32,6 +32,7 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 class GoogleProvider(LLMProvider):
     name = "google"
+    default_model = "gemini-3.5-flash-lite"
 
     def __init__(self, api_key: str | None):
         self.api_key = api_key
@@ -62,6 +63,9 @@ class GoogleProvider(LLMProvider):
             for model in models:
                 if not isinstance(model, dict):
                     continue
+                methods = model.get("supportedGenerationMethods")
+                if isinstance(methods, list) and "generateContent" not in methods:
+                    continue
                 name = str(model.get("name", ""))
                 if not name:
                     continue
@@ -74,13 +78,13 @@ class GoogleProvider(LLMProvider):
                 self.key_invalid = True
                 log.warning("Google key marked invalid (401); will skip until reload.")
             else:
-                log.warning("Google list_models failed: %s", exc)
+                log.warning("Google list_models failed: %s", type(exc).__name__)
             return []
 
     def select_model(self, preferred_model: str | None = None) -> str:
         models = self.list_models()
         if not models:
-            fallback = preferred_model or "gemini-2.0-flash"
+            fallback = preferred_model or self.default_model
             self._selected_model = fallback
             return fallback
         selected = choose_best_model(models, preferred_model=preferred_model)

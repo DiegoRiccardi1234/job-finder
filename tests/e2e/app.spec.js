@@ -6,6 +6,11 @@ const { test, expect } = require("@playwright/test");
 
 const VIEWS = ["dashboard", "job-search", "jobs", "mail", "profile", "settings", "info"];
 
+test.beforeEach(async ({ page }) => {
+  // These smoke checks exercise the shell after onboarding, not the tutorial.
+  await page.addInitScript(() => localStorage.setItem("tutorialSeen", "1"));
+});
+
 test("shell loads and every nav tab activates its view", async ({ page }) => {
   const consoleErrors = [];
   page.on("console", (msg) => {

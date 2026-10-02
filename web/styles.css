@@ -2783,10 +2783,12 @@ pre {
     border-bottom: 1px solid var(--border);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     transform: translateY(-130%);
+    visibility: hidden;
+    pointer-events: none;
     transition: transform 0.2s ease;
     z-index: 95;
   }
-  .topnav.open { transform: translateY(0); }
+  .topnav.open { transform: translateY(0); visibility: visible; pointer-events: auto; }
   .topnav .nav-link {
     width: 100%;
     justify-content: flex-start;
@@ -2805,12 +2807,14 @@ pre {
     border-left: 1px solid var(--border);
     background: var(--surface);
     transform: translateX(100%);
+    visibility: hidden;
+    pointer-events: none;
     transition: transform 0.25s ease;
     z-index: 110;
     overflow-y: auto;
     box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
   }
-  .right-rail.drawer-open { transform: translateX(0); }
+  .right-rail.drawer-open { transform: translateX(0); visibility: visible; pointer-events: auto; }
   /* On views that hide the rail (e.g. Info) keep it fully off-screen. */
   .right-rail.hidden { display: block !important; transform: translateX(100%); }
 
@@ -2902,6 +2906,7 @@ pre {
   background: #e11d48; border-radius: 999px;
 }
 .nav-badge.hidden { display: none; }
+.nav-badge--review { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--border); }
 
 /* Reminders & deadlines (F4) */
 .reminders-section { margin: 1.5rem 0; }
@@ -3054,10 +3059,29 @@ pre {
   box-shadow: -10px 0 40px rgba(0, 0, 0, 0.28);
   transform: translateX(100%); transition: transform 0.25s ease;
   padding: 1.2rem 1.3rem;
+  margin: 0; visibility: hidden; pointer-events: none;
 }
-.job-detail-inline.is-open { transform: translateX(0); }
+.job-detail-inline.is-open { transform: translateX(0); visibility: visible; pointer-events: auto; }
 .job-detail-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 999; }
 .job-detail-backdrop.hidden { display: none; }
+.daily-hero { padding-top: 1rem; padding-bottom: 1rem; }
+.daily-hero h1 { font-size: clamp(1.6rem, 2.5vw, 2.4rem); line-height: 1.2; }
+.daily-hero .hero-sub { margin-top: 0.6rem; }
+.daily-hero .provider-technical { display: none; }
+.workflow-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin: 1rem 0; }
+.workflow-status article { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.8rem; }
+.workflow-status strong { font-size: 0.92rem; overflow-wrap: anywhere; }
+.workflow-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.8rem 0; }
+.workflow-notice { padding: 0.8rem 1rem; background: var(--accent-soft, rgba(99, 91, 255, 0.08)); border-left: 3px solid var(--accent); border-radius: 0.3rem; line-height: 1.5; }
+.search-launch-review { padding: 1rem; margin: 1rem 0; border: 1px solid var(--border); border-radius: 0.7rem; overflow-wrap: anywhere; }
+.search-launch-review dl { margin: 0.7rem 0; }
+.search-launch-review dl div { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 0.5rem; margin: 0.3rem 0; }
+.search-launch-review dt { color: var(--text-dim); }
+.search-launch-review dd { margin: 0; }
+@media (max-width: 640px) {
+  .workflow-status { grid-template-columns: 1fr; }
+  .search-launch-review dl div { grid-template-columns: 1fr; gap: 0.15rem; }
+}
 @media (max-width: 640px) {
   .job-detail-inline { width: 100vw; max-width: 100vw; padding: 1rem; }
 }

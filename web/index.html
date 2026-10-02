@@ -28,9 +28,9 @@
     <button type="button" id="updateBannerRun" class="update-banner-btn" data-i18n="update.runNow">Update now</button>
     <button type="button" id="updateBannerClose" class="update-banner-close" aria-label="Dismiss">&times;</button>
   </div>
-  <div id="updateModal" class="update-modal hidden" role="dialog" aria-modal="true">
+  <div id="updateModal" class="update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
     <div class="update-modal-card">
-      <h3 data-i18n="update.modalTitle">Updating...</h3>
+      <h3 id="updateModalTitle" data-i18n="update.modalTitle">Updating...</h3>
       <ol id="updateStepList" class="update-step-list" role="list">
         <li class="update-step pending" data-step="download"><span class="update-step-dot"></span><span class="update-step-label" data-i18n="update.step.download">Downloading new version</span><span class="update-step-percent"></span></li>
         <li class="update-step pending" data-step="verify"><span class="update-step-dot"></span><span class="update-step-label" data-i18n="update.step.verify">Verifying package</span><span class="update-step-percent"></span></li>
@@ -51,7 +51,7 @@
       <button type="button" class="nav-link is-active" data-view="dashboard"><span class="material-symbols-outlined">dashboard</span> <span data-i18n="topbar.dashboard">Dashboard</span><span id="remindersNavBadge" class="nav-badge hidden">0</span></button>
       <button type="button" class="nav-link" data-view="job-search"><span class="material-symbols-outlined">travel_explore</span> <span data-i18n="topbar.jobSearch">Job Search</span></button>
       <button type="button" class="nav-link" data-view="jobs"><span class="material-symbols-outlined">work</span> <span data-i18n="topbar.jobs">Jobs</span></button>
-      <button type="button" class="nav-link" data-view="mail"><span class="material-symbols-outlined">mark_email_read</span> <span data-i18n="topbar.mail">Mail</span><span id="mailNavBadge" class="nav-badge hidden">0</span></button>
+      <button type="button" class="nav-link" data-view="mail"><span class="material-symbols-outlined">mark_email_read</span> <span data-i18n="topbar.mail">Mail</span><span id="mailNavBadge" class="nav-badge nav-badge--review hidden">0</span></button>
       <button type="button" class="nav-link" data-view="profile"><span class="material-symbols-outlined">person</span> <span data-i18n="topbar.profile">Profile</span></button>
       <button type="button" class="nav-link" data-view="settings"><span class="material-symbols-outlined">settings</span> <span data-i18n="topbar.settings">Settings</span></button>
       <button type="button" class="nav-link" data-view="info"><span class="material-symbols-outlined">help</span> <span data-i18n="topbar.info">Info</span></button>
@@ -81,10 +81,10 @@
 
   <!-- Side-by-side comparison: the table could show that a job is a 6, never
        how it differs from the other 6 sitting next to it. -->
-  <div id="compareModal" class="mini-modal hidden" role="dialog" aria-modal="true">
+  <div id="compareModal" class="mini-modal hidden" role="dialog" aria-modal="true" aria-labelledby="compareModalTitle">
     <div class="mini-modal-card compare-card">
       <div class="mini-modal-head">
-        <h3 data-i18n="compare.title">Compare offers</h3>
+        <h3 id="compareModalTitle" data-i18n="compare.title">Compare offers</h3>
         <button type="button" class="icon-btn" data-close-compare aria-label="Close"><span class="material-symbols-outlined">close</span></button>
       </div>
       <div id="compareBody" class="compare-body"></div>
@@ -101,35 +101,35 @@
        hide offers, and until now they were deduced in silence: the upload
        reported skills and roles, never the things that actually gate a job.
        Three of them had no control anywhere in the app at all. -->
-  <div id="cvReviewModal" class="mini-modal hidden" role="dialog" aria-modal="true" tabindex="-1">
+  <div id="cvReviewModal" class="mini-modal hidden" role="dialog" aria-modal="true" aria-labelledby="cvReviewTitle" tabindex="-1">
     <div class="mini-modal-card">
       <div class="mini-modal-head">
-        <h3 data-i18n="cvReview.title">What I read from your CV</h3>
+        <h3 id="cvReviewTitle" data-i18n="cvReview.title">What I read from your CV</h3>
         <button type="button" class="icon-btn" data-close-cvreview aria-label="Close"><span class="material-symbols-outlined">close</span></button>
       </div>
       <p class="micro" data-i18n="cvReview.hint">These decide which offers get hidden. Correct anything I got wrong — what you leave alone stays sourced to your CV.</p>
       <div class="mini-modal-form">
-        <label class="micro" data-i18n="readiness.item.years_experience">Years of experience</label>
+        <label for="cvrYears" class="micro" data-i18n="readiness.item.years_experience">Years of experience</label>
         <span class="cvr-origin" data-cvr-origin="years_experience"></span>
         <input type="number" min="0" max="50" step="any" id="cvrYears" class="profile-add-input" />
 
-        <label class="micro" data-i18n="readiness.item.education_level">Highest degree</label>
+        <label for="cvrEducation" class="micro" data-i18n="readiness.item.education_level">Highest degree</label>
         <span class="cvr-origin" data-cvr-origin="education_level"></span>
         <select id="cvrEducation" class="settings-select"></select>
 
-        <label class="micro" data-i18n="readiness.item.degree_fields">Degree subject</label>
+        <label for="cvrFields" class="micro" data-i18n="readiness.item.degree_fields">Degree subject</label>
         <span class="cvr-origin" data-cvr-origin="degree_fields"></span>
         <input type="text" id="cvrFields" class="profile-add-input" data-i18n-placeholder="cvReview.fieldsPlaceholder" placeholder="informatica, ingegneria" />
 
-        <label class="micro" data-i18n="readiness.item.grade">Degree grade</label>
+        <label for="cvrGrade" class="micro" data-i18n="readiness.item.grade">Degree grade</label>
         <span class="cvr-origin" data-cvr-origin="grade"></span>
         <input type="number" min="60" max="110" id="cvrGrade" class="profile-add-input" />
 
-        <label class="micro" data-i18n="readiness.item.work_rule">Where you can work</label>
+        <label for="cvrCities" class="micro" data-i18n="readiness.item.work_rule">Where you can work</label>
         <span class="cvr-origin" data-cvr-origin="work_rule"></span>
         <input type="text" id="cvrCities" class="profile-add-input" data-i18n-placeholder="profile.matching.citiesPlaceholder" placeholder="City, city" />
 
-        <label class="micro" data-i18n="readiness.item.driving_licence">Category B licence</label>
+        <label for="cvrLicence" class="micro" data-i18n="readiness.item.driving_licence">Category B licence</label>
         <span class="cvr-origin" data-cvr-origin="driving_licence"></span>
         <select id="cvrLicence" class="settings-select">
           <option value="" data-i18n="cvReview.notSaid">Not said</option>
@@ -137,7 +137,7 @@
           <option value="0" data-i18n="common.no">No</option>
         </select>
 
-        <label class="micro" data-i18n="readiness.item.protected_category">Protected categories register</label>
+        <label for="cvrProtected" class="micro" data-i18n="readiness.item.protected_category">Protected categories register</label>
         <span class="cvr-origin" data-cvr-origin="protected_category"></span>
         <select id="cvrProtected" class="settings-select">
           <option value="" data-i18n="cvReview.notSaid">Not said</option>
@@ -153,10 +153,10 @@
     </div>
   </div>
 
-  <div id="manualJobModal" class="mini-modal hidden" role="dialog" aria-modal="true">
+  <div id="manualJobModal" class="mini-modal hidden" role="dialog" aria-modal="true" aria-labelledby="manualJobModalTitle">
     <div class="mini-modal-card">
       <div class="mini-modal-head">
-        <h3 data-i18n="manualJob.title">Add a job</h3>
+        <h3 id="manualJobModalTitle" data-i18n="manualJob.title">Add a job</h3>
         <button type="button" class="icon-btn" data-close-manual aria-label="Close"><span class="material-symbols-outlined">close</span></button>
       </div>
       <form id="manualJobForm" class="mini-modal-form">
@@ -219,21 +219,21 @@
       </section>
 
       <!-- Hero -->
-      <section class="hero-block">
+      <section class="hero-block daily-hero">
         <div class="hero-text">
           <p class="eyebrow" data-i18n="hero.eyebrow">AI-Powered Job Search</p>
-          <h1><span data-i18n="hero.title">Your next chapter,</span><br /><em data-i18n="hero.titleEm">matched to your profile.</em></h1>
-          <p class="hero-sub" data-i18n="hero.subtitle">CV analysis, AI ranking &amp; a practical application plan — decide where to apply in minutes.</p>
+          <h1 data-i18n="workflow.today">Your job search today</h1>
+          <p id="workflowNextAction" class="hero-sub"></p>
         </div>
         <div class="hero-meta">
-          <article class="meta-card">
+          <article class="meta-card provider-technical">
             <span class="meta-icon material-symbols-outlined">auto_awesome</span>
             <div>
               <p class="micro" data-i18n="hero.activeModel">Active Model</p>
               <p id="modelBadge">Model: ...</p>
             </div>
           </article>
-          <article class="meta-card">
+          <article class="meta-card provider-technical">
             <span class="meta-icon material-symbols-outlined">memory</span>
             <div>
               <p class="micro" data-i18n="hero.provider">Provider</p>
@@ -252,6 +252,16 @@
           </article>
         </div>
       </section>
+
+      <section class="workflow-status" aria-label="Search status">
+        <article><span class="micro" data-i18n="workflow.lastScan">Last scan</span><strong id="workflowLastScan">—</strong></article>
+        <article><span class="micro" data-i18n="workflow.activeCv">Active CV</span><strong id="workflowActiveCv">—</strong></article>
+        <article><span class="micro" data-i18n="workflow.goal">What I am looking for</span><strong id="workflowGoal">—</strong></article>
+        <article><span class="micro" data-i18n="workflow.applications">Applications to follow</span><strong id="workflowApplications">—</strong><button type="button" class="ghost-btn small" data-view="jobs" data-workflow-applications data-i18n="workflow.follow">Follow applications</button></article>
+      </section>
+      <p id="workflowStale" class="workflow-notice hidden" data-i18n="workflow.stale">Older archive: check whether listings are still open before applying.</p>
+      <p class="micro workflow-notice" data-i18n="workflow.scoreContext">Stored scores and coach conversations can refer to a previous CV or goal. Re-evaluate an offer with your current profile before relying on its score.</p>
+      <div class="workflow-actions"><button type="button" class="secondary" data-view="job-search" data-i18n="workflow.reviewSearch">Review the search and launch a new scan</button><button type="button" class="ghost-btn" data-view="profile" data-i18n="workflow.updateProfile">Update CV and goals</button></div>
 
       <!-- Action Center -->
       <section class="action-center">
@@ -305,7 +315,7 @@
       </section>
 
       <!-- Inline Job Detail -->
-      <section id="jobDetailInline" class="job-detail-inline" style="display:none;">
+      <section id="jobDetailInline" class="job-detail-inline" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true" inert style="display:none;">
         <div class="section-head">
           <h2 id="detailTitle" data-i18n="offcanvas.details">Dettagli</h2>
           <button id="closeDetailBtn" type="button" class="ghost-btn" aria-label="Close details"><span class="material-symbols-outlined">close</span></button>
@@ -439,7 +449,7 @@
           </select>
           <button id="rescoreBulkBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">autorenew</span> <span id="rescoreBulkLabel" data-i18n="jobs.rescoreBulk">Re-score</span></button>
           <button id="addManualJobBtn" type="button" class="ghost-btn"><span class="material-symbols-outlined">add</span> <span data-i18n="manualJob.addShort">Add job</span></button>
-          <button id="deleteAllJobsBtn" type="button" class="ghost-btn danger" title="Delete all jobs" data-i18n-title="jobs.deleteAllTitle"><span class="material-symbols-outlined">delete_sweep</span> <span data-i18n="jobs.deleteAll">Delete all</span></button>
+          <button id="deleteAllJobsBtn" type="button" class="ghost-btn" data-i18n-title="workflow.archiveAllConfirm"><span class="material-symbols-outlined">inventory_2</span> <span data-i18n="workflow.archiveAll">Archive all</span></button>
         </div>
         <!-- "showing X of Y" exists because the row cap used to hide offers in
              silence: 174 matched, 123 were rendered, and nothing said so. -->
@@ -502,6 +512,8 @@
             <em data-i18n="jobSearch.noProfile">Upload a CV from the Profile tab to see suggestions.</em>
           </div>
           <div id="wizardRoleSuggestions" class="chip-row search-role-chips"></div>
+          <p id="searchTermsSource" class="micro"></p>
+          <div class="workflow-actions"><button id="useProfileTermsBtn" type="button" class="ghost-btn small" data-i18n="workflow.useProfile">Use current profile terms</button><button id="restoreLastScanBtn" type="button" class="ghost-btn small" data-i18n="workflow.restoreScan">Restore last scan terms</button></div>
         </section>
 
         <form id="scanForm" class="search-section search-form">
@@ -579,6 +591,7 @@
             </div>
           </details>
 
+          <section id="searchLaunchReview" class="search-launch-review" aria-live="polite"></section>
           <button type="submit" class="action-main search-launch">
             <span class="material-symbols-outlined">rocket_launch</span>
             <strong data-i18n="settings.startScan">Start Scan</strong>
@@ -687,6 +700,7 @@
             <button id="mailDisconnectBtn" class="danger" data-i18n="mail.disconnect">Disconnect</button>
           </div>
           <p id="mailState" class="provider-status-text micro"></p>
+          <p id="mailOperationalStatus" class="micro workflow-notice"></p>
           <div class="mail-row">
             <label class="micro"><input type="checkbox" id="mailEnabled" /> <span data-i18n="mail.auto">Check automatically while the app is open</span></label>
             <label class="micro" for="mailInterval" data-i18n="mail.intervalMinutes">Every (minutes)</label>
@@ -749,7 +763,7 @@
             <p class="micro" data-i18n="mail.review.intro">These look like confirmations but could not be assigned on their own. Nothing has been changed.</p>
             <div id="mailReviewList"></div>
             <div class="mail-actions">
-              <button id="mailReviewApplyBtn" class="secondary" data-i18n="mail.review.apply">Mark selected as applied</button>
+              <button id="mailReviewApplyBtn" class="secondary" data-i18n="workflow.confirmMail">Confirm selected messages</button>
               <button id="mailReviewDismissBtn" class="secondary" data-i18n="mail.review.dismiss">Ignore all</button>
             </div>
           </div>
@@ -1239,13 +1253,13 @@
             <span class="model-picker-label">Auto</span>
             <span class="material-symbols-outlined mp-chevron">expand_more</span>
           </button>
-          <div id="modelPickerPop" class="model-picker-pop hidden" role="dialog" aria-label="Provider &amp; model">
+          <div id="modelPickerPop" class="model-picker-pop hidden" role="dialog" aria-labelledby="mpProviderTitle mpModelTitle">
             <div class="mp-col">
-              <div class="mp-col-title" data-i18n="coach.pickProvider">Provider</div>
+              <div id="mpProviderTitle" class="mp-col-title" data-i18n="coach.pickProvider">Provider</div>
               <div id="mpProviders" class="mp-list"></div>
             </div>
             <div class="mp-col">
-              <div class="mp-col-title" data-i18n="coach.pickModel">Model</div>
+              <div id="mpModelTitle" class="mp-col-title" data-i18n="coach.pickModel">Model</div>
               <div id="mpModels" class="mp-list"></div>
             </div>
           </div>
@@ -1436,10 +1450,10 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Post-scan summary modal -->
-  <div id="postScanModal" class="post-scan-modal hidden" role="dialog" aria-modal="true">
+  <div id="postScanModal" class="post-scan-modal hidden" role="dialog" aria-modal="true" aria-labelledby="postScanModalTitle">
     <div class="post-scan-card">
       <div class="post-scan-head">
-        <h3 data-i18n="postScan.title">Scan complete</h3>
+        <h3 id="postScanModalTitle" data-i18n="postScan.title">Scan complete</h3>
         <button type="button" class="icon-btn" data-close-postscan aria-label="Close"><span class="material-symbols-outlined">close</span></button>
       </div>
       <div class="post-scan-stats">

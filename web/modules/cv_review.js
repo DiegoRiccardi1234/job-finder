@@ -38,6 +38,7 @@ const ROWS = [
 
 let _facts = null;
 let _initial = {};
+let _returnFocus = null;
 const $ = (id) => document.getElementById(id);
 
 /** The value a control currently holds, in the shape PATCH /api/profile wants. */
@@ -76,7 +77,7 @@ function same(a, b) {
 
 function provenanceBadge(origin) {
   const label =
-    origin === "cv"
+    origin === "da_verificare" ? t("workflow.verifySource") : origin === "cv"
       ? t("profile.matching.fromCv")
       : origin === "manuale"
         ? t("profile.matching.fromYou")
@@ -119,9 +120,14 @@ function paintProvenance() {
 
 function close() {
   $("cvReviewModal")?.classList.add("hidden");
+  if (_returnFocus?.isConnected) _returnFocus.focus();
 }
 
 async function confirmFacts() {
+  for (const row of ROWS) {
+    const el = $(row.el);
+    if (el && !el.reportValidity()) return;
+  }
   const body = {};
   for (const row of ROWS) {
     const now = readControl(row);
@@ -166,6 +172,7 @@ export async function showCvReview() {
   }
   fillControls();
   paintProvenance();
+  _returnFocus = document.activeElement;
   modal.classList.remove("hidden");
   modal.focus?.();
 }

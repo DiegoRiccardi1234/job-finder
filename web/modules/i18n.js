@@ -62,6 +62,16 @@ export function getCurrentLang() {
   return _currentLang;
 }
 
+// Optional copy (for example a longer tooltip) may fall back to a required
+// short label. Missing optional variants are not missing translations.
+export function tOptional(key, params = {}) {
+  const keys = key.split(".");
+  const read = (dictionary) => keys.reduce((value, part) => value?.[part], dictionary);
+  const value = read(_i18nStrings) ?? read(_i18nFallback);
+  if (value === undefined) return "";
+  return String(value).replace(/\{(\w+)\}/g, (_, name) => params[name] !== undefined ? params[name] : `{${name}}`);
+}
+
 export function onLanguageChange(callback) {
   _onLanguageChange = typeof callback === "function" ? callback : null;
 }

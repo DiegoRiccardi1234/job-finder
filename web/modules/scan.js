@@ -7,6 +7,7 @@ import { t } from "./i18n.js";
 import { showPostScanModal } from "./update.js";
 import { loadJobs } from "./job_list.js";
 import { loadRecommendations } from "./job_detail.js";
+import { renderSearchReview, refreshWorkflow } from "./workflow.js";
 
 const _noopTags = { getTags: () => [], addMultiple: () => false, clear: () => {} };
 let _deps = {
@@ -65,9 +66,13 @@ export function readScanConfig() {
   const checked = (name) =>
     Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map((cb) => cb.value);
   const salaryRaw = document.getElementById("scanMinSalary")?.value.trim();
+  const withPending = (tags, id) => {
+    const pending = document.getElementById(id)?.value.trim();
+    return pending && !tags.includes(pending) ? [...tags, pending] : [...tags];
+  };
   return {
-    terms: getKeywords.getTags().slice(),
-    location: getLocations.getTags().slice(),
+    terms: withPending(getKeywords.getTags(), "keywordsInput"),
+    location: withPending(getLocations.getTags(), "locationsInput"),
     country: document.getElementById("scanCountry")?.value || "",
     is_remote: document.getElementById("remoteToggle")?.checked || false,
     sites: checked("scanSites"),
@@ -104,6 +109,7 @@ export function applyScanConfig(cfg) {
   setChecks("scanWorkType", cfg.work_types);
   const sal = document.getElementById("scanMinSalary");
   if (sal) sal.value = cfg.min_salary ? String(cfg.min_salary) : "";
+  renderSearchReview(readScanConfig());
 }
 
 // Role words that match anything on a job board. "AI Specialist" alone returned
@@ -168,6 +174,7 @@ async function _onScanSubmit(event) {
   }
 
   const termsText = getKeywords.getTags().join(", ");
+  renderSearchReview(readScanConfig());
   warnAboutVagueTerms(getKeywords.getTags());
   const siteCheckboxes = document.querySelectorAll('input[name="scanSites"]:checked');
   const selectedSites = Array.from(siteCheckboxes).map(cb => cb.value);
@@ -304,7 +311,7 @@ async function _onScanSubmit(event) {
             showToast(t("scan.postScanRenderFailed"), "info");
           }
         }, 600);
-        Promise.all([loadJobs(), loadRecommendations()]);
+        Promise.all([loadJobs(), loadRecommendations(), refreshWorkflow()]);
       } else if (data.error) {
         // The daily request budget is a known, explainable stop — not a crash.
         const quotaStop = String(data.error).startsWith("daily_limit_");
@@ -322,17 +329,20 @@ async function _onScanSubmit(event) {
     progressText.textContent = t("scan.connectionLost");
     showToast(t("scan.connectionLost") || "Scan connection lost", "error");
     setTimeout(() => { overlay.style.display = "none"; }, 2000);
-    Promise.all([loadJobs(), loadRecommendations()]);
+    Promise.all([loadJobs(), loadRecommendations(), refreshWorkflow()]);
   };
 
-  document.getElementById("cancelScanBtn").onclick = () => {
+  document.getElementById("cancelScanBtn").onclick = async () => {
     evtSource.close();
     // Tell the server to stop too — closing the EventSource alone leaves the
     // scan churning (and spending LLM quota) in the background.
-    fetch("/api/scan/cancel", { method: "POST" }).catch(() => {});
+    let stopped = false;
+    try { stopped = (await fetch("/api/scan/cancel", { method: "POST" })).ok; }
+    catch { /* report the uncertainty below */ }
     overlay.style.display = "none";
     overlay.classList.remove("minimized");
-    Promise.all([loadJobs(), loadRecommendations()]);
+    showToast(t(stopped ? "workflow.scanStopped" : "workflow.stopFailed"), stopped ? "info" : "error");
+    Promise.all([loadJobs(), loadRecommendations(), refreshWorkflow()]);
   };
 
   const minimizeBtn = document.getElementById("minimizeScanBtn");

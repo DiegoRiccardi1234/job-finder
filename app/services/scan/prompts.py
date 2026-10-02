@@ -114,6 +114,13 @@ _SCORING_RULES = (
     '<=5 "Salta".\n'
     "- Confronta i REQUISITI dell'offerta con il CV: titolo di studio, voto minimo, "
     "anni di esperienza, livello di lingua.\n"
+    "- Developer/Engineer non sono esclusi per il titolo: confronta le MANSIONI con "
+    "l'obiettivo dichiarato. Condividere Python o un'altra tecnologia non basta "
+    "a rendere coerente un lavoro di sviluppo puro con un obiettivo di analisi "
+    "funzionale o automazione/integrazione AI. Se le attivita sono lontane "
+    "dall'obiettivo, spiegalo in punti_deboli e abbassa il punteggio; non inventare "
+    "un blocco obbligatorio o una competenza tecnica mancante. Le tecnologie che "
+    "il candidato vuole imparare non sono competenze gia possedute.\n"
     "- Se l'offerta richiede un titolo di studio superiore a quello del candidato "
     "(es. laurea magistrale o PhD quando il CV ha una triennale), un voto minimo più alto "
     "del suo, più anni di esperienza, o un livello di lingua superiore: ABBASSA "

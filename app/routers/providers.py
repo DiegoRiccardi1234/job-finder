@@ -37,19 +37,16 @@ def _clears_quality_floor(model: str) -> bool:
     return size == 0 or size >= SCORING_MIN_SIZE_B
 
 
-def _health_sort_key(model: str, health: dict[str, dict[str, Any]]) -> tuple[int, float, float]:
-    """Sort key: healthy (status 0) first, then higher 5-min uptime, then lower
-    latency. Models with no stats sort last (treated as unknown, not down)."""
+def _health_sort_key(model: str, health: dict[str, dict[str, Any]]) -> tuple[int, int]:
+    """Healthy first, uptime in 2% bands; stable sorting preserves quality ties."""
     h = health.get(model)
     if not h:
-        return (2, 0.0, float("inf"))
+        return (2, 0)
     down = 0 if h.get("status") == 0 else 1
     up5m = h.get("up5m")
-    lat = h.get("lat_ms")
     return (
         down,
-        -(float(up5m) if isinstance(up5m, (int, float)) else 0.0),
-        float(lat) if isinstance(lat, (int, float)) else float("inf"),
+        -int(float(up5m) // 2) if isinstance(up5m, (int, float)) else 0,
     )
 
 
@@ -189,15 +186,16 @@ def build_router(container: AppContainer) -> APIRouter:
             # already health-sorted, so this keeps "healthiest" semantics and
             # merely skips the too-small ones; the displayed list still shows
             # every size. Fall back to the plain healthiest, then to anything.
-            healthy = [m for m in candidates if health.get(m, {}).get("status") == 0]
+            usable = model_stats.rank_healthy_models(candidates, health)
+            healthy = [m for m in usable if health.get(m, {}).get("status") == 0]
             best = (
                 next((m for m in healthy if _clears_quality_floor(m)), None)
                 or (healthy[0] if healthy else None)
-                or (candidates[0] if candidates else None)
+                or (usable[0] if usable else None)
             )
             mode = "stats"
         else:
-            top_models = candidates[: max(1, min(top, 5))]
+            top_models = model_stats.rank_healthy_models(candidates, health)[: max(1, min(top, 5))]
             # The real scoring prompt on a fixed sample offer, not {"ok": true}:
             # passing a two-field toy object says nothing about emitting the
             # app's schema over a full posting, which is the load that truncates.

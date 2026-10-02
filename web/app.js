@@ -1,7 +1,8 @@
 import { api, escapeHtml, setText, truncate, showToast, renderCoachMarkdown } from "./modules/helpers.js";
 import { initTheme } from "./modules/theme.js";
 import { initLayout, syncStickyOffset } from "./modules/layout.js";
-import { loadShortlist as _loadShortlistApi, addToShortlist as _addToShortlistApi, removeFromShortlist as _removeFromShortlistApi } from "./modules/shortlist.js";
+import { refreshWorkflow, updateSearchSource, renderSearchReview, markSearchEdited } from "./modules/workflow.js";
+import { addToShortlist as _addToShortlistApi, removeFromShortlist as _removeFromShortlistApi } from "./modules/shortlist.js";
 import { initI18n, t, loadLanguage, getCurrentLang, onLanguageChange } from "./modules/i18n.js";
 import {
   loadProfile as loadProfileView,
@@ -419,6 +420,8 @@ async function loadProfiles() {
 async function activateProfile(profileId) {
   if (!profileId) return;
   await api(`/api/profiles/${profileId}/activate`, { method: "POST" });
+  document.dispatchEvent(new CustomEvent("profile-updated"));
+  await loadProfiles();
   showToast(t("toast.profileActive", { id: profileId }), "info");
   // Refresh the views that depend on the active profile so they don't go stale.
   await Promise.allSettled([
@@ -611,6 +614,9 @@ document.getElementById("cvForm").addEventListener("submit", async (event) => {
     await loadProfiles();
     await loadProfileView();
     await loadRecommendations();
+    invalidateReadiness();
+    refreshWorkflow();
+    setText("searchTermsSource", t("workflow.profileChanged"));
     // The facts are not in the upload response - they are derived afterwards by
     // candidate_facts - so the card asks the server for them rather than reading
     // the payload. Only after an upload: a panel that reappears on every visit
@@ -851,6 +857,9 @@ if (_focusOpenBtn) _focusOpenBtn.addEventListener("click", async () => {
   activateView("jobs");
   await loadJobs();
 });
+document.querySelector("[data-workflow-applications]")?.addEventListener("click", async () => {
+  setJobsBucket("applied"); activateView("jobs"); await loadJobs();
+});
 
 document.querySelectorAll("[data-view]").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -874,6 +883,8 @@ document.querySelectorAll("[data-view]").forEach((btn) => {
       // endpoint walks a week of usage per model, so it is worth exactly one
       // request — when somebody opens the tab that shows it.
       loadRateLimits().catch(() => {});
+      loadKeysStatus().catch(() => {});
+      loadLocalModels().catch(() => {});
     }
   });
 });
@@ -897,6 +908,8 @@ async function prefillSearchForm() {
   if (window.getLocations && !window.getLocations.getTags().length) {
     window.getLocations.addMultiple(report.suggested_locations || []);
   }
+  await updateSearchSource();
+  updateWizardReview();
 }
 
 const _primaryProviderEl = document.getElementById("primaryProvider");
@@ -909,12 +922,10 @@ if (_primaryProviderEl) {
 const _chatProviderEl = document.getElementById("chatModelSelector");
 if (_chatProviderEl) {
   // Options are data-driven from PROVIDER_CATALOG (single source of truth).
-  populateChatProviderSelector();
   _chatProviderEl.addEventListener("change", () => {
     populateChatModelSelector(_chatProviderEl.value);
   });
   // Unified popover that mirrors the (now hidden) provider/model selects.
-  initModelPicker();
 }
 
 // ─── Job Search ──────────────────────────────────────────
@@ -930,6 +941,7 @@ function _refreshChipState() {
 
 function updateWizardReview() {
   _refreshChipState();
+  renderSearchReview(readScanConfig());
 }
 
 async function loadWizardProfile() {
@@ -946,7 +958,8 @@ async function loadWizardProfile() {
     }
     const summary = profile.summary_json || {};
     const skills = Array.isArray(summary.skills) ? summary.skills.slice(0, 12) : [];
-    const roles = Array.isArray(summary.preferred_roles) ? summary.preferred_roles : [];
+    const report = await fetchReadiness();
+    const roles = Array.isArray(report?.suggested_terms) ? report.suggested_terms : [];
     const skillList = skills.length ? skills.map((s) => `<span class="search-tag">${escapeHtml(s)}</span>`).join("") : `<em>—</em>`;
     summaryEl.innerHTML = `
       <div class="search-summary-row">
@@ -1184,10 +1197,10 @@ document.getElementById("exportApplicationsBtn")?.addEventListener("click", () =
 });
 
 document.getElementById("deleteAllJobsBtn").addEventListener("click", async () => {
-  if (!confirm(t("jobs.deleteAllConfirm"))) return;
+  if (!confirm(t("workflow.archiveAllConfirm"))) return;
   try {
     const res = await api("/api/jobs", { method: "DELETE" });
-    showToast(t("jobs.deletedAll", { count: res.deleted }), "info");
+    showToast(t("workflow.archivedAll", { count: res.archived ?? res.deleted }), "info");
     await Promise.all([loadJobs(), loadRecommendations()]);
   } catch (error) {
     showToast(`${t("toast.deleteError")}: ${error.message}`, "info");
@@ -1337,6 +1350,7 @@ function setupSharedLayout() {
     detail.style.display = ""; // now controlled via .is-open, not inline display
   }
   document.getElementById("jobDetailBackdrop")?.addEventListener("click", closeJobDetail);
+  enableModalDismiss(detail, closeJobDetail);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeJobDetail();
   });
@@ -1344,6 +1358,9 @@ function setupSharedLayout() {
 
 async function bootstrap() {
   await initI18n();
+  populateChatProviderSelector();
+  initModelPicker();
+  refreshWorkflow();
   refreshModelPickerLabel();
   // loadJobs: after an on-demand re-score the list still shows "to evaluate".
   initJobDetail({ pinJobToActiveSession, loadJobs });
@@ -1384,6 +1401,7 @@ async function bootstrap() {
   await loadKeysStatus();
   await loadMailboxStatus();
   await loadProfiles();
+  await loadRoleShortlist();
   await Promise.all([loadJobs(), loadRecommendations()]);
   await loadAnalytics();
   await loadUsage();
@@ -1394,7 +1412,6 @@ async function bootstrap() {
   // Probes the GPU and asks Ollama: slow enough to keep off the critical path,
   // and useless until the user opens Settings anyway.
   initMatchingFacts();
-  loadLocalModels();
   await loadSchedulerStatus();
   await loadChatPrompts();
   // i18n is ready here, so the session dropdown / empty-state get localised
@@ -1405,6 +1422,7 @@ async function bootstrap() {
   // Shows only if the conversation is empty, with localised suggestion labels.
   renderChatEmptyState();
 }
+document.addEventListener("profile-updated", () => { invalidateReadiness(); refreshWorkflow(); setText("searchTermsSource", t("workflow.profileChanged")); });
 
 bootstrap().catch((error) => {
   console.error(error);
@@ -1529,15 +1547,24 @@ initChatActions({
 });
 
 async function loadRoleShortlist() {
-  const roles = await _loadShortlistApi();
-  if (roles.length && getKeywords && typeof getKeywords.addMultiple === "function") {
-    getKeywords.addMultiple(roles);
-  }
-  // Whatever the shortlist did not cover — the roles read off the CV, the last
-  // search actually run — comes from the same chain the scan follows.
+  // Readiness is the canonical chain: don't restore a separate old shortlist.
   await prefillSearchForm();
 }
-loadRoleShortlist();
+document.getElementById("scanForm")?.addEventListener("input", () => { markSearchEdited(); updateWizardReview(); });
+document.getElementById("useProfileTermsBtn")?.addEventListener("click", async () => {
+  invalidateReadiness(); getKeywords.clear(); await prefillSearchForm();
+});
+document.getElementById("restoreLastScanBtn")?.addEventListener("click", async () => {
+  try {
+    const health = await api("/api/health");
+    const prefs = health.preferences || {};
+    const terms = JSON.parse(prefs.last_scan_terms || "[]");
+    if (!Array.isArray(terms) || !terms.length) { showToast(t("workflow.noPreviousScan"), "info"); return; }
+    getKeywords.clear(); getKeywords.addMultiple(terms);
+    setText("searchTermsSource", `${t("workflow.termSource")}: ${t("readiness.sourceLastScan")}. ${t("workflow.formWins")}`);
+    updateWizardReview();
+  } catch (err) { showToast(`${t("toast.actionError")}: ${err.message}`, "error"); }
+});
 
 // ─── Update Banner ──────────────────────────────────────────────
 
@@ -1729,6 +1756,7 @@ function wireMobileChrome() {
     rail?.classList.remove("drawer-open");
     if (overlay) { overlay.classList.remove("active"); overlay.hidden = true; }
     fab?.classList.remove("hidden");
+    navToggle?.focus();
   };
 
   navToggle?.addEventListener("click", () => {
@@ -1741,11 +1769,15 @@ function wireMobileChrome() {
   fab?.addEventListener("click", () => {
     rail?.classList.add("drawer-open");
     topnav?.classList.remove("open");
+    navToggle?.setAttribute("aria-expanded", "false");
     fab.classList.add("hidden");
     showOverlay();
   });
 
   overlay?.addEventListener("click", closeAll);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && (topnav?.classList.contains("open") || rail?.classList.contains("drawer-open"))) closeAll();
+  });
 }
 
 

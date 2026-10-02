@@ -11,6 +11,7 @@ the code that called it.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from app.mail.matcher import (
     MailHeader,
     PendingJob,
     classify,
+    classify_rejection,
     company_from_sender,
     extract_application,
     is_confirmation_subject,
@@ -31,6 +33,127 @@ from app.mail.matcher import (
 from app.mail.watcher import MailWatcher
 
 _NOW = datetime(2026, 8, 7, 10, 0, tzinfo=UTC)
+
+
+def test_agency_position_code_is_neither_company_nor_role() -> None:
+    facts = subject_facts("Candidatura per la posizione JN -062026-740365 completata!")
+    assert facts.company == facts.role == ""
+    assert is_confirmation_subject("Candidatura per la posizione JN -062026-740365 completata!")
+
+
+@pytest.mark.parametrize("subject", [
+    "Unfortunately, your application update", "Interview invitation", "Job alert: AI Consultant",
+])
+def test_generic_updates_never_reject_an_application(subject: str) -> None:
+    assert classify_rejection(_header(subject, "careers@reply.com"), [_pending()]).verdict == "no_match"
+
+
+def test_rejection_needs_employer_role_and_a_preceding_application() -> None:
+    header = _header("Application rejected: Python Automation Developer at Reply", "careers@reply.com")
+    candidate = replace(_pending(), title="Python Automation Developer")
+    assert classify_rejection(header, [candidate]).job_id == 1
+    assert classify_rejection(
+        _header("Your application for Python Automation Developer at Reply was rejected", "careers@reply.com"),
+        [candidate],
+    ).job_id == 1
+    assert classify_rejection(header, [candidate, replace(candidate, job_id=2)]).verdict == "ambiguous"
+    assert classify_rejection(header, [replace(candidate, opened_at=_NOW + timedelta(days=1))]).job_id is None
+    assert classify_rejection(
+        _header("Application rejected: AI Consultant at Reply", "careers@reply.com"), [_pending()]
+    ).verdict == "ambiguous", "A vague title is never enough for automatic rejection"
+    assert classify_rejection(
+        _header(header.subject, "careers@attacker.example"), [_pending()]
+    ).verdict == "no_match"
+    assert classify_rejection(
+        _header("Purtroppo non sei stato selezionato", "careers@reply.com"), [_pending()]
+    ).verdict == "ambiguous"
+
+
+def _rejection_setup(client: TestClient, tmp_path: Path, subject: str) -> tuple[int, MailWatcher]:
+    from app.db import Database
+    from app.mail.imap_client import ImapMailbox
+
+    db = Database(tmp_path / "data" / "searcher.db")
+    try:
+        job_id, _, _ = db.upsert_job({
+            "titolo": "Python Automation Developer", "azienda": "Reply", "link": "https://example.com/rejection",
+        })
+        db.set_job_action(job_id, "applied")
+    finally:
+        db.close()
+    client.post("/api/mail/config", json={
+        "address": "me@libero.it", "auth": "password", "secret": "test-secret", "body_mode": "never",
+    })
+    fake = FakeIMAP4("h", 993)
+    fake.messages[3] = (
+        b"From: careers@reply.com\r\nSubject: " + _encode_subject(subject).encode("ascii")
+        + b"\r\nDate: " + _rfc2822_now().encode()
+        + b"\r\nMessage-ID: <rejection@example.com>\r\n\r\n"
+    )
+    watcher = client.app.state.container.mailwatch
+    watcher._imap_factory = lambda account: ImapMailbox(account, imap_factory=lambda *a, **k: fake)
+    return job_id, watcher
+
+
+def test_rejection_watcher_dry_run_then_records_only_outcome(client: TestClient, tmp_path: Path) -> None:
+    job_id, watcher = _rejection_setup(client, tmp_path, "Application rejected: Python Automation Developer at Reply")
+    db = watcher._db
+    before = db.conn.total_changes
+    dry = watcher.run_once(dry_run=True)
+    assert dry["rejected"] == 1 and db.conn.total_changes == before
+    assert watcher.status()["last_success_ts"] == ""
+    assert db.get_job(job_id)["status"] == "applied"
+    assert watcher.run_once()["rejected"] == 1
+    success = watcher.status()["last_success_ts"]
+    assert success
+    job = client.get(f"/api/jobs/{job_id}").json()["job"]
+    assert job["outcome"] == "rejected" and job["status"] == "rejected"
+    assert db.count_jobs() == 1
+    assert watcher.run_once()["rejected"] == 0
+    assert client.post(f"/api/mail/undo/{job_id}").status_code == 200
+    assert db.get_job(job_id)["status"] == "applied"
+    assert db.get_job(job_id)["outcome"] is None
+    assert db.get_job(job_id)["applied_at"] == job["applied_at"]
+
+
+def test_rejection_respects_ask_mode_and_cannot_replace_an_accepted_offer(client: TestClient, tmp_path: Path) -> None:
+    job_id, watcher = _rejection_setup(client, tmp_path, "Application rejected: Python Automation Developer at Reply")
+    watcher._db.set_preference("mailwatch_attach_mode", "ask")
+    assert watcher.run_once()["rejection_reviews"] == 1
+    row = client.get("/api/mail/review").json()["items"][0]
+    watcher._db.set_job_outcome(job_id, "accepted")
+    result = client.post("/api/mail/review/resolve", json={"attach": [{
+        "review_id": row["review_id"], "job_id": job_id,
+    }]}).json()
+    assert result["rejected"] == 0 and result["refused"] == [row["review_id"]]
+    assert watcher._db.get_job(job_id)["outcome"] == "accepted"
+
+
+def test_ambiguous_rejection_review_cannot_create_application(client: TestClient, tmp_path: Path) -> None:
+    job_id, watcher = _rejection_setup(client, tmp_path, "Purtroppo non sei stato selezionato")
+    assert watcher.run_once()["rejection_reviews"] == 1
+    review = client.get("/api/mail/review").json()
+    assert review["counts"]["rejection"] == 1
+    row = review["items"][0]
+    assert row["kind"] == "rejection" and row["suggestion"] != "create"
+    refused = client.post("/api/mail/review/resolve", json={"create": [row["review_id"]]}).json()
+    assert row["review_id"] in refused["refused"]
+    resolved = client.post("/api/mail/review/resolve", json={"attach": [{
+        "review_id": row["review_id"], "job_id": job_id,
+    }]}).json()
+    assert resolved["rejected"] == 1 and resolved["applied"] == 0
+    assert watcher._db.get_job(job_id)["outcome"] == "rejected"
+    assert watcher._db.count_jobs() == 1
+
+
+def test_historic_rejection_reexamines_old_no_match_but_only_proposes(client: TestClient, tmp_path: Path) -> None:
+    job_id, watcher = _rejection_setup(client, tmp_path, "Application rejected: Python Automation Developer at Reply")
+    # Earlier versions filed this message as a confirmation miss.
+    watcher._db.record_mail_seen(account="me@libero.it", mail_key="imap:42:3", verdict="no_match")
+    events = list(watcher.run_historic(90))
+    assert events[-1]["rejection_reviews"] == 1
+    assert watcher._db.get_job(job_id)["status"] == "applied"
+    assert client.get("/api/mail/review").json()["items"][0]["kind"] == "rejection"
 
 
 def _pending(job_id: int = 1, company: str = "Reply", minutes_ago: int = 30) -> PendingJob:

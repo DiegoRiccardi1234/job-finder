@@ -499,7 +499,7 @@ async function _saveOnboarding() {
     }
   }
   if (failed) showToast(t("profile.onboarding.saveFailed"), "error");
-  else showToast(t("profile.onboarding.saved"), "info");
+  else { showToast(t("profile.onboarding.saved"), "info"); document.dispatchEvent(new CustomEvent("profile-updated")); }
 }
 
 export async function loadProfile() {
@@ -552,6 +552,7 @@ async function _persistField(field, list) {
     _state.profile = res.profile;
     const summary = _state.profile?.summary_json || {};
     _renderChips(_chipContainerId(field), summary[field] || [], field);
+    document.dispatchEvent(new CustomEvent("profile-updated"));
     showToast(t("profile.chipSaved") || "Saved", "info");
     return true;
   } catch (err) {
@@ -562,7 +563,8 @@ async function _persistField(field, list) {
 
 async function _activateProfile(id) {
   try {
-    await api(`/api/profiles/${id}/activate`, { method: "POST" });
+  await api(`/api/profiles/${id}/activate`, { method: "POST" });
+    document.dispatchEvent(new CustomEvent("profile-updated"));
     await loadProfile();
     showToast(t("profile.activated") || "Profile activated", "info");
   } catch (err) {
@@ -734,7 +736,7 @@ const _FACT_ROWS = [
 
 function _sourceTag(origin) {
   const key =
-    origin === "manuale"
+    origin === "da_verificare" ? "workflow.verifySource" : origin === "manuale"
       ? "profile.matching.fromYou"
       : origin === "cv"
         ? "profile.matching.fromCv"
@@ -776,6 +778,17 @@ export async function loadMatchingFacts() {
       `<strong>${escapeHtml(_facts.rule_summary || "—")}</strong> ${_sourceTag(_facts.sources?.work_rule)}</div>`,
   );
   view.innerHTML = rows.join("");
+  if (_facts.needs_review?.includes("work_rule")) {
+    view.insertAdjacentHTML("beforeend", `<p class="workflow-notice micro">${escapeHtml(t("workflow.cityLegacy"))}</p><div class="workflow-actions"><button type="button" id="factsUseCvCityBtn" class="ghost-btn small">${escapeHtml(t("workflow.useCvCity"))}</button><button type="button" id="factsKeepCityBtn" class="ghost-btn small">${escapeHtml(t("workflow.keepCity"))}</button></div>`);
+    document.getElementById("factsUseCvCityBtn")?.addEventListener("click", async () => {
+      try { await api("/api/profile", { method: "PATCH", body: JSON.stringify({ base_cities: [] }) }); await loadMatchingFacts(); }
+      catch (err) { showToast(`${t("toast.actionError")}: ${err.message}`, "error"); }
+    });
+    document.getElementById("factsKeepCityBtn")?.addEventListener("click", async () => {
+      try { await api("/api/profile", { method: "PATCH", body: JSON.stringify({ base_cities: _facts.base_cities }) }); await loadMatchingFacts(); }
+      catch (err) { showToast(`${t("toast.actionError")}: ${err.message}`, "error"); }
+    });
+  }
 }
 
 function _openFactsEditor() {
@@ -853,8 +866,12 @@ async function _saveFacts() {
     ...tri("factLicence", "driving_licence"),
     ...tri("factProtected", "protected_category"),
   };
+  for (const key of Object.keys(body)) {
+    const normalize = (value) => Array.isArray(value) ? value.map((x) => String(x).trim().toLowerCase()).sort() : value ?? null;
+    if (JSON.stringify(normalize(body[key])) === JSON.stringify(normalize(_facts?.[key]))) delete body[key];
+  }
   try {
-    await api("/api/profile", { method: "PATCH", body: JSON.stringify(body) });
+    if (Object.keys(body).length) await api("/api/profile", { method: "PATCH", body: JSON.stringify(body) });
     showToast(t("profile.matching.saved"), "info");
     _closeFactsEditor();
     await loadMatchingFacts();

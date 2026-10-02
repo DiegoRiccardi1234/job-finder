@@ -139,6 +139,8 @@ class ProviderManager:
         self.active_provider_name: str = "none"
         self.active_model: str = "none"
         self._models_cache: dict[str, tuple[float, list[str]]] = {}
+        self._models_locks = {name: threading.Lock() for name in self.providers}
+        self._catalog_status: dict[str, str] = {}
         self._metadata_cache: tuple[float, dict[str, Any]] | None = None
         # When each provider was first observed key_invalid (for the re-probe
         # cooldown). Reset for free on reload_providers (new manager instance).
@@ -184,15 +186,7 @@ class ProviderManager:
                 continue
 
             try:
-                selected_model = provider.select_model(
-                    preferred_model=self.settings.preferred_model
-                )
-            except Exception as exc:
-                log.warning("Provider %s select_model failed: %s", provider_name, exc)
-                continue
-
-            try:
-                models = provider.list_models()
+                models = self.get_models(provider_name).get("models", [])
                 if models:
                     selected_model = choose_best_model(
                         models=models,
@@ -200,12 +194,18 @@ class ProviderManager:
                         policy=self.settings.model_selection_policy,
                         penalized=self._penalized_model_ids(provider_name),
                     )
+                else:
+                    selected_model = self._catalog_fallback(provider)
+                    if not selected_model:
+                        continue
+                if provider.name == "openrouter":
+                    ranked = self._ranked_models_for(provider, 1)
+                    if not ranked:
+                        continue
+                    selected_model = ranked[0]
             except Exception as exc:
-                log.info(
-                    "Provider %s list_models failed, using select_model result: %s",
-                    provider_name,
-                    exc,
-                )
+                log.warning("Provider %s selection failed: %s", provider_name, type(exc).__name__)
+                continue
 
             # ``select_model``/``list_models`` return a fallback string without
             # raising even when the key is revoked (they flip ``key_invalid`` on
@@ -231,11 +231,11 @@ class ProviderManager:
         log.warning("No LLM provider available; chat/LLM features will fall back.")
 
     def metadata(self, force_refresh: bool = False) -> dict[str, Any]:
-        """Aggregate provider availability + model lists. Cached for 60s.
+        """Return local configuration and the last known catalog, without I/O.
 
-        Skips ``list_models()`` on providers flagged ``key_invalid`` so a stale
-        / revoked key (e.g. expired Cerebras free tier) doesn't trigger an HTTP
-        401 on every health poll.
+        A health poll must remain usable when a configured remote or local
+        service is offline. Only an explicit refresh requests catalogs; those
+        requests share the same cache as the model picker and inference.
         """
         now = _time.time()
         if (
@@ -254,22 +254,20 @@ class ProviderManager:
                 available = False
 
             key_invalid = self._key_invalid_active(name, provider)
-            models: list[str] = []
-            # Skip the network call when we already know the key is bad — it
-            # will only produce another 401 in the log.
-            if available and not key_invalid:
-                try:
-                    models = provider.list_models()
-                except Exception as exc:
-                    log.info("Provider %s list_models error: %s", name, exc)
-                    models = []
-                # The provider may have flipped key_invalid during list_models.
+            if force_refresh and available and not key_invalid:
+                self.get_models(name, force_refresh=True)
                 key_invalid = self._key_invalid_active(name, provider)
-
+            cached_catalog = self._models_cache.get(name)
+            models = list(cached_catalog[1]) if cached_catalog else []
             providers_metadata[name] = {
                 "available": available and not key_invalid,
+                "configured": available or key_invalid,
                 "models": models,
                 "key_invalid": key_invalid,
+                "catalog_status": (
+                    "invalid" if key_invalid else self._catalog_status.get(name, "unknown")
+                ),
+                "fetched_at": cached_catalog[0] if cached_catalog else None,
             }
 
         result = {
@@ -289,6 +287,7 @@ class ProviderManager:
         """
         self._metadata_cache = None
         self._models_cache = {}
+        self._catalog_status = {}
         self._key_invalid_since = {}
         for provider in self.providers.values():
             if hasattr(provider, "key_invalid"):
@@ -374,6 +373,29 @@ class ProviderManager:
             effective["min_size_b"] = 0
         return effective
 
+    def _catalog_fallback(self, provider: LLMProvider) -> str:
+        """Use a provider's declared fallback without repeating its cached catalog call."""
+        if hasattr(provider, "default_model"):
+            return str(
+                self.settings.preferred_model
+                or getattr(provider, "_selected_model", None)
+                or getattr(provider, "default_model", "")
+            )
+        # Compatibility for third-party providers that expose only select_model.
+        return provider.select_model(preferred_model=self.settings.preferred_model)
+
+    def _healthy_shortlist(self, provider: LLMProvider, ranked: list[str], limit: int) -> list[str]:
+        """Check at most two bounded quality-ranked batches before skipping a provider."""
+        width = max(limit * 4, 4)
+        first = ranked[:width]
+        health = model_stats.get_model_health(provider, first)
+        usable = model_stats.rank_healthy_models(first, health)
+        if not usable:
+            second = ranked[width : width * 2]
+            health = model_stats.get_model_health(provider, second)
+            usable = model_stats.rank_healthy_models(second, health)
+        return usable
+
     def _penalized_model_ids(self, provider_name: str) -> set[str]:
         """Model ids currently penalized for ``provider_name`` (stale entries
         pruned per-reason). Fed to rank_models as ``penalized=`` to sink them
@@ -400,25 +422,35 @@ class ProviderManager:
         if not provider.is_available():
             return {"models": [], "recommended": None, "cached": False, "fetched_at": 0.0}
 
-        now = _time.time()
-        cached_entry = self._models_cache.get(provider_name)
-        if (
-            not force_refresh
-            and cached_entry is not None
-            and now - cached_entry[0] < _MODELS_CACHE_TTL_SECONDS
-        ):
-            models = cached_entry[1]
-            cached = True
-            fetched_at = cached_entry[0]
-        else:
-            try:
-                models = provider.list_models()
-            except Exception as exc:
-                log.warning("Provider %s list_models() raised: %s", provider_name, exc)
-                models = []
-            self._models_cache[provider_name] = (now, models)
-            cached = False
-            fetched_at = now
+        # Concurrent setup/health/model requests must not multiply a slow
+        # catalog call. Locks are per provider, so independent catalogs can
+        # still refresh concurrently. Metadata itself never acquires this lock.
+        lock = self._models_locks.setdefault(provider_name, threading.Lock())
+        with lock:
+            now = _time.time()
+            cached_entry = self._models_cache.get(provider_name)
+            if (
+                not force_refresh
+                and cached_entry is not None
+                and now - cached_entry[0] < _MODELS_CACHE_TTL_SECONDS
+            ):
+                models = cached_entry[1]
+                cached = True
+                fetched_at = cached_entry[0]
+            else:
+                try:
+                    models = provider.list_models()
+                    self._catalog_status[provider_name] = "ready" if models else "empty"
+                except Exception as exc:
+                    log.warning(
+                        "Provider %s catalog unavailable (%s)", provider_name, type(exc).__name__
+                    )
+                    models = []
+                    self._catalog_status[provider_name] = "error"
+                self._models_cache[provider_name] = (now, models)
+                self._metadata_cache = None
+                cached = False
+                fetched_at = now
 
         recommended = (
             choose_best_model(
@@ -429,6 +461,16 @@ class ProviderManager:
             if models
             else None
         )
+        if models and provider.name == "openrouter":
+            ranked = rank_models(
+                models,
+                preferred_model=self.settings.preferred_model,
+                policy=self._policy_for(provider_name, None),
+                limit=8,
+                penalized=self._penalized_model_ids(provider_name),
+            )
+            usable = self._healthy_shortlist(provider, ranked, 1)
+            recommended = usable[0] if usable else None
         return {
             "models": models,
             "recommended": recommended,
@@ -583,19 +625,14 @@ class ProviderManager:
             # (no inference, no network) and persistent. Scoring calls only.
             if not ignore_penalties and (policy_override or {}).get("hard_floor"):
                 penalized = penalized | self._empirically_unfit(provider.name)
-            # OpenRouter exposes free live health stats (uptime/latency, no
-            # inference). Fold models that are down RIGHT NOW into the penalized
-            # set so scoring rotates off them before hitting a 429. Bounded to the
-            # name-ranked shortlist so we never fetch stats for the whole catalog;
-            # empty health (non-OR / network down) leaves behaviour unchanged.
+            # Check only the quality-ranked shortlist. Known dead endpoints are
+            # excluded; absent network signals preserve the original candidates.
             if provider.name == "openrouter":
                 # From ``pool``, not from the full catalog: the no-credit filter
                 # above narrowed it, and re-ranking ``models`` here would undo it.
-                shortlist = _rank(pool, penalized, max(limit * 4, limit))
-                health = model_stats.get_model_health(provider, shortlist)
-                if health:
-                    penalized = penalized | model_stats.unhealthy_ids(health)
-                    pool = shortlist
+                shortlist = _rank(pool, penalized, max(limit * 8, 8))
+                healthy = self._healthy_shortlist(provider, shortlist, limit)
+                return sorted(healthy, key=lambda m: m in penalized)[:limit]
             ranked = _rank(pool, penalized, limit)
             # A local endpoint is not a catalog to be chosen from: it holds the
             # one or two models the user downloaded, plus the wide-context
@@ -616,18 +653,22 @@ class ProviderManager:
                 return ranked
         policy = effective_policy
         try:
-            fallback = provider.select_model(preferred_model=self.settings.preferred_model)
+            fallback = self._catalog_fallback(provider)
         except Exception:
             fallback = (
                 self.settings.preferred_model
-                or self.active_model
+                or (self.active_model if self.active_provider is provider else "")
                 or str(getattr(provider, "default_model", ""))
             )
         # rank_models only de-ranks penalized models (the catalog path always
         # has alternatives); this single-model fallback has none, so proposing
         # a penalized model would re-run the exact failure we just recorded.
-        if fallback in penalized:
+        if not fallback or fallback in penalized:
             return []
+        if provider.name == "openrouter":
+            health = model_stats.get_model_health(provider, [fallback])
+            if fallback in model_stats.unhealthy_ids(health):
+                return []
         # select_model() knows nothing about the caller's policy, so under a hard
         # floor (scan scoring) it can hand back exactly the toy/reasoning model the
         # floor exists to keep out. Skip the provider instead.
@@ -665,6 +706,10 @@ class ProviderManager:
             if provider is None:
                 return []
             if explicit_model:
+                if provider.name == "openrouter":
+                    health = model_stats.get_model_health(provider, [explicit_model])
+                    if explicit_model in model_stats.unhealthy_ids(health):
+                        return []
                 return [(provider, explicit_model)]
             ranked = self._ranked_models_for(provider, K, policy_override)
             if not ranked:

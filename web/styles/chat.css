@@ -436,3 +436,26 @@
   border-radius: 6px;
 }
 .no-key-banner-link--primary:hover { filter: brightness(1.1); }
+
+@media (max-width: 640px) {
+  .no-key-banner {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 10px;
+    padding: 12px 16px;
+  }
+  .no-key-banner .material-symbols-outlined { grid-column: 1; grid-row: 1; }
+  .no-key-banner-text,
+  .no-key-banner-hint,
+  .no-key-banner-link {
+    grid-column: 2;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .no-key-banner-text,
+  .no-key-banner-hint { line-height: 1.45; }
+  .no-key-banner-link { justify-self: start; padding-top: 3px; padding-bottom: 3px; }
+}

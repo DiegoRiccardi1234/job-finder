@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 import sys
@@ -55,21 +56,36 @@ def create_app(workspace_dir: Path) -> FastAPI:
         if getattr(sys, "frozen", False)
         else workspace_dir / "web"
     )
+    asset_digest = hashlib.sha256()
+    asset_paths = sorted(
+        (
+            path
+            for path in web_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() in {".html", ".js", ".css", ".json", ".svg"}
+        ),
+        key=lambda path: path.relative_to(web_dir).as_posix(),
+    )
+    for asset_path in asset_paths:
+        relative_name = asset_path.relative_to(web_dir).as_posix().encode("utf-8")
+        content = asset_path.read_bytes()
+        asset_digest.update(len(relative_name).to_bytes(8, "big"))
+        asset_digest.update(relative_name)
+        asset_digest.update(len(content).to_bytes(8, "big"))
+        asset_digest.update(content)
+    asset_version = f"{__version__}-{asset_digest.hexdigest()[:10]}"
+    fastapi_app.state.asset_version = asset_version
 
     def _render_versioned(rel_path: str, media_type: str) -> Response:
-        """Serve an app-owned asset with the release version injected for busting.
+        """Bust the asset graph when its content changes, even within one release.
 
-        ``{{VERSION}}`` placeholders (index.html, styles.css) are replaced with
-        ``__version__``; JS files additionally get ``?v=`` appended to every
-        relative module import so the whole ES-module graph busts from one source
-        (``app.version.__version__``) — no manual ``?v=`` bumping, and consistent
-        query strings keep each module a single shared instance. Read per request:
-        fine for a localhost single-user app.
+        URL placeholders and relative JS imports share the revision computed at
+        startup. Visible version labels retain the public release version.
         """
         text = (web_dir / rel_path).read_text(encoding="utf-8")
+        text = text.replace("?v={{VERSION}}", f"?v={asset_version}")
         text = text.replace("{{VERSION}}", __version__)
         if rel_path.endswith(".js"):
-            text = _JS_IMPORT_RE.sub(rf"\g<1>\g<2>?v={__version__}\g<3>", text)
+            text = _JS_IMPORT_RE.sub(rf"\g<1>\g<2>?v={asset_version}\g<3>", text)
         return Response(content=text, media_type=media_type)
 
     @fastapi_app.get("/")

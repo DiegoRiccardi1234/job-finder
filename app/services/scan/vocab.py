@@ -141,6 +141,10 @@ VAGUE_ROLE_WORDS = {
     "consulente",
     "analyst",
     "analista",
+    "developer",
+    "engineer",
+    "sviluppatore",
+    "ingegnere",
     "manager",
     "coordinator",
     "coordinatore",
@@ -252,11 +256,30 @@ def description_on_topic(
     return False
 
 
+_SENIOR_ROLE_RE = re.compile(
+    r"\b(?:senior|sr\.?|lead|principal)\s+(?:[\w+/-]+\s+){0,3}"
+    r"(?:developer|engineer|consultant|analyst|architect|scientist|specialist"
+    r"|sviluppator\w*|ingegner\w*|consulent\w*|analist\w*)\b",
+    re.IGNORECASE,
+)
+
+
 def pre_filtro(titolo: str, descrizione: str) -> tuple[bool, str]:
+    title = titolo.lower()
     testo = (titolo + " " + descrizione).lower()
     for frase in BLACKLIST:
-        if frase in testo:
+        # A junior working WITH a senior engineer is a mentored opening, not
+        # a senior role. Seniority labels describe the position only in its
+        # title; numeric experience/contract restrictions still read the body.
+        title_only = frase.startswith(("senior ", "lead ", "principal ")) or frase in {
+            "cto",
+            "ciso",
+        }
+        if frase in (title if title_only else testo):
             return True, frase
+    senior = _SENIOR_ROLE_RE.search(titolo)
+    if senior:
+        return True, senior.group(0).lower()
     return False, ""
 
 

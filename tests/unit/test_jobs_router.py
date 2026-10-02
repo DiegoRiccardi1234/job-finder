@@ -169,19 +169,22 @@ def test_favorite_roundtrip(client: TestClient, tmp_path: Path) -> None:
 # --- delete ------------------------------------------------------------------
 
 
-def test_delete_job_and_404_on_second_delete(client: TestClient, tmp_path: Path) -> None:
+def test_delete_job_is_reversible_and_idempotent(client: TestClient, tmp_path: Path) -> None:
     jid = _seed_job(tmp_path)
     client.post(f"/api/jobs/{jid}/action", json={"action": "applied"})  # child row
-    assert client.delete(f"/api/jobs/{jid}").json() == {"ok": True, "deleted_id": jid}
-    assert client.delete(f"/api/jobs/{jid}").status_code == 404
-    assert client.get(f"/api/jobs/{jid}/timeline").json()["actions"] == []  # children gone
+    response = client.delete(f"/api/jobs/{jid}").json()
+    assert response["archived_id"] == jid and response["status"] == "archived"
+    assert client.delete(f"/api/jobs/{jid}").status_code == 200
+    assert len(client.get(f"/api/jobs/{jid}/timeline").json()["actions"]) == 2
+    assert client.post(f"/api/jobs/{jid}/restore").json() == {"ok": True, "status": "applied"}
+    assert client.get(f"/api/jobs/{jid}").json()["job"]["applied_at"]
 
 
 def test_delete_all_jobs_reports_count(client: TestClient, tmp_path: Path) -> None:
     _seed_job(tmp_path)
     _seed_job(tmp_path, titolo="Altro", azienda="Beta", link="https://example.com/job/2")
-    assert client.delete("/api/jobs").json() == {"ok": True, "deleted": 2}
-    assert client.get("/api/jobs").json() == {"jobs": [], "shown": 0, "total": 0}
+    assert client.delete("/api/jobs").json() == {"ok": True, "deleted": 2, "archived": 2}
+    assert client.get("/api/jobs", params={"status": "archived"}).json()["total"] == 2
 
 
 # --- manual add --------------------------------------------------------------

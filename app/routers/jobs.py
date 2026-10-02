@@ -622,12 +622,19 @@ def build_router(container: AppContainer) -> APIRouter:
         deleted = container.db.delete_job(job_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Job not found")
-        return {"ok": True, "deleted_id": job_id}
+        return {"ok": True, "archived_id": job_id, "status": "archived", "deleted_id": job_id}
 
     @router.delete("/api/jobs")
     def delete_all_jobs() -> dict[str, Any]:
         count = container.db.delete_all_jobs()
-        return {"ok": True, "deleted": count}
+        return {"ok": True, "archived": count, "deleted": count}
+
+    @router.post("/api/jobs/{job_id}/restore")
+    def restore_job(job_id: int) -> dict[str, Any]:
+        status = container.db.restore_archived_job(job_id)
+        if status is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {"ok": True, "status": status}
 
     # ── Score feedback: measuring whether the AI's scores are any good ───────
 

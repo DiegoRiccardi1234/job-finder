@@ -5,6 +5,8 @@ import { api, escapeHtml, showToast } from "./helpers.js";
 import { t } from "./i18n.js";
 
 let _onOpenJob = null;
+const DASHBOARD_LIMIT = 8;
+let _expanded = false;
 
 function _fmtDate(iso) {
   if (!iso) return "";
@@ -36,8 +38,13 @@ export async function loadReminders() {
   const count = typeof data.count === "number" ? data.count : reminders.length + stale.length;
 
   if (badge) {
-    badge.textContent = String(count);
-    badge.classList.toggle("hidden", count === 0);
+    // The navbar signals scheduled reminders. Older applications remain in the
+    // dashboard card, where their age and next action can be read in context.
+    badge.textContent = String(reminders.length);
+    badge.title = t("reminders.title");
+    badge.setAttribute("role", "img");
+    badge.setAttribute("aria-label", `${t("reminders.title")}: ${reminders.length}`);
+    badge.classList.toggle("hidden", reminders.length === 0);
   }
 
   const list = document.getElementById("remindersList");
@@ -76,13 +83,31 @@ export async function loadReminders() {
         `</button>`,
     );
   }
-  list.innerHTML = rows.join("");
-  list.querySelectorAll("[data-job]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const id = parseInt(el.dataset.job, 10);
-      if (id && typeof _onOpenJob === "function") _onOpenJob(id);
+  // Keep every reminder locally, but render a short dashboard preview. The
+  // caller can deliberately expand the complete list without another request.
+  let toggle = document.getElementById("showAllRemindersBtn");
+  if (!toggle) {
+    toggle = document.createElement("button");
+    toggle.id = "showAllRemindersBtn";
+    toggle.type = "button";
+    toggle.className = "ghost-btn small";
+    toggle.setAttribute("aria-controls", "remindersList");
+    list.after(toggle);
+  }
+  const render = () => {
+    list.innerHTML = (_expanded ? rows : rows.slice(0, DASHBOARD_LIMIT)).join("");
+    toggle.hidden = rows.length <= DASHBOARD_LIMIT;
+    toggle.textContent = `${t(_expanded ? "common.close" : "jobs.bucket.all")} (${rows.length})`;
+    toggle.setAttribute("aria-expanded", String(_expanded));
+    list.querySelectorAll("[data-job]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const id = parseInt(el.dataset.job, 10);
+        if (id && typeof _onOpenJob === "function") _onOpenJob(id);
+      });
     });
-  });
+  };
+  toggle.onclick = () => { _expanded = !_expanded; render(); };
+  render();
 }
 
 // HTML for the reminder editor embedded in the job-detail timeline card.

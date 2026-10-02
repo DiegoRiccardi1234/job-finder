@@ -22,6 +22,7 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 class AnthropicProvider(LLMProvider):
     name = "anthropic"
+    default_model = "claude-3-5-sonnet-latest"
 
     def __init__(self, api_key: str | None):
         self.api_key = api_key
@@ -66,7 +67,7 @@ class AnthropicProvider(LLMProvider):
     def select_model(self, preferred_model: str | None = None) -> str:
         models = self.list_models()
         if not models:
-            fallback = preferred_model or "claude-3-5-sonnet-latest"
+            fallback = preferred_model or self.default_model
             self._selected_model = fallback
             return fallback
         selected = choose_best_model(models, preferred_model=preferred_model)

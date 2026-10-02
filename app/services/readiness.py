@@ -153,11 +153,17 @@ def profile_readiness(db: Database) -> dict[str, Any]:
         )
 
     blocking = [i.id for i in items if i.severity == BLOCKING and i.status == "missing"]
-    warnings = [i.id for i in items if i.severity == WARNING and i.status == "missing"]
+    needs_review = [i.id for i in items if i.source == "da_verificare"]
+    warnings = [
+        i.id
+        for i in items
+        if i.severity == WARNING and (i.status == "missing" or i.id in needs_review)
+    ]
     return {
         "ready": not blocking,
         "blocking": blocking,
         "warnings": warnings,
+        "needs_review": needs_review,
         "items": [asdict(i) for i in items],
         # The same chain the scan will use, so the search form can be filled in
         # with what the app would have used anyway — visibly, and editable.

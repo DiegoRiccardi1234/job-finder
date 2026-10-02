@@ -39,7 +39,7 @@ export async function loadSavedSearches() {
     item.className = "saved-search-item";
     item.innerHTML =
       `<button type="button" class="saved-search-run" data-id="${s.id}">` +
-      `<span class="material-symbols-outlined">play_arrow</span>` +
+      `<span class="material-symbols-outlined">tune</span>` +
       `<span class="saved-search-main"><strong>${escapeHtml(s.name)}</strong>` +
       `<span class="saved-search-sub">${escapeHtml(_summarize(s.config))}</span></span></button>` +
       `<button type="button" class="saved-search-del ghost-btn small" data-del="${s.id}" aria-label="Delete"><span class="material-symbols-outlined">delete</span></button>`;
@@ -51,7 +51,7 @@ export async function loadSavedSearches() {
       if (!s) return;
       if (typeof _applyConfig === "function") _applyConfig(s.config);
       showToast(t("savedSearch.loaded", { name: s.name }), "info");
-      if (typeof _submitScan === "function") _submitScan();
+      // The normal launch button starts a preset after its filters are reviewed.
     });
   });
   list.querySelectorAll("[data-del]").forEach((el) => {

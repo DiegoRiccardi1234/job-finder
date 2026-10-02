@@ -10,7 +10,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ParamSpec, TypeVar
 
-from app.scoring_schema import ANALYSIS_VERSION_KEY, ANSWERED_BY_KEY, CURRENT_ANALYSIS_VERSION
+from app.scoring_schema import (
+    ANALYSIS_VERSION_KEY,
+    ANSWERED_BY_KEY,
+    CURRENT_ANALYSIS_VERSION,
+)
 from app.services.scan.companies import canonical_company
 
 logger = logging.getLogger(__name__)
@@ -231,6 +235,22 @@ class Database:
         keep their badge while a failed scrape leaves the prior run's badges."""
         self.conn.execute("UPDATE jobs SET is_new = 0")
         self.conn.commit()
+
+    def get_last_scan(self) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT id, started_at, finished_at, location, is_remote, terms_json, "
+            "totale_trovati, totale_nuovi, totale_analizzati, totale_scartati "
+            "FROM scan_runs ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return dict(row) if row else None
+
+    def count_pending_applications(self) -> int:
+        row = self.conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status IN ('applied', 'interviewing') "
+            "AND applied_at IS NOT NULL AND applied_at <> '' "
+            "AND COALESCE(outcome, '') IN ('', 'pending')"
+        ).fetchone()
+        return int(row[0]) if row else 0
 
     @_synchronized
     def finish_scan(
@@ -887,9 +907,14 @@ class Database:
     def undo_mail_confirmation(self, job_id: int) -> bool:
         """Take back an automatic marking, leaving a manual one untouched."""
         row = self.conn.execute(
-            "SELECT apply_confirmed_by FROM jobs WHERE id = ?", (job_id,)
+            "SELECT apply_confirmed_by, status, outcome FROM jobs WHERE id = ?", (job_id,)
         ).fetchone()
-        if not row or row[0] != "email":
+        if (
+            not row
+            or row[0] != "email"
+            or row[1] != "applied"
+            or row[2] not in (None, "", "pending")
+        ):
             return False
         self.conn.execute(
             "UPDATE jobs SET status = 'open', applied_at = NULL, applied_profile_id = NULL, "
@@ -1010,6 +1035,7 @@ class Database:
             "COALESCE(MAX(a.created_at), j.updated_at) AS last_at "
             "FROM jobs j LEFT JOIN job_actions a ON a.job_id = j.id "
             "WHERE j.status IN ('applied', 'interviewing') "
+            "AND COALESCE(j.outcome, '') IN ('', 'pending') "
             "GROUP BY j.id "
             "HAVING julianday('now') - julianday(last_at) >= ? "
             "ORDER BY last_at ASC",
@@ -1233,26 +1259,119 @@ class Database:
         )
         self.conn.commit()
 
-    # Tables holding per-job child rows. Their FKs are inert (PRAGMA
-    # foreign_keys is never enabled, and job_actions has no ON DELETE anyway),
-    # so deletes must clear them explicitly or they accumulate as orphans.
-    _JOB_CHILD_TABLES = ("job_actions", "recruiters", "pinned_jobs")
-
     @_synchronized
     def delete_job(self, job_id: int) -> bool:
-        for tbl in self._JOB_CHILD_TABLES:
-            self.conn.execute(f"DELETE FROM {tbl} WHERE job_id = ?", (job_id,))
-        cur = self.conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
-        self.conn.commit()  # single commit: parent+children go atomically
-        return cur.rowcount > 0
+        """Ordinary removal archives, preserving deduplication and history."""
+        row = self.conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            return False
+        if row[0] != "archived":
+            self.set_job_action(job_id, "archived")
+        return True
 
     @_synchronized
     def delete_all_jobs(self) -> int:
-        for tbl in self._JOB_CHILD_TABLES:
-            self.conn.execute(f"DELETE FROM {tbl}")
-        cur = self.conn.execute("DELETE FROM jobs")
+        """Archive the collection without deleting parent or child rows."""
+        rows = self.conn.execute("SELECT id FROM jobs WHERE status <> 'archived'").fetchall()
+        stamp = now_iso()
+        self.conn.executemany(
+            "INSERT INTO job_actions(job_id, action, notes, created_at) VALUES (?, 'archived', '', ?)",
+            [(row[0], stamp) for row in rows],
+        )
+        self.conn.execute(
+            "UPDATE jobs SET status = 'archived', link_opened_at = NULL, updated_at = ? "
+            "WHERE status <> 'archived'",
+            (stamp,),
+        )
         self.conn.commit()
-        return cur.rowcount or 0
+        return len(rows)
+
+    @_synchronized
+    def restore_archived_job(self, job_id: int) -> str | None:
+        row = self.get_job(job_id)
+        if not row:
+            return None
+        if row.get("status") != "archived":
+            return str(row.get("status") or "open")
+        previous = self.conn.execute(
+            "SELECT action FROM job_actions WHERE job_id = ? "
+            "AND action IN ('applied', 'interviewing', 'rejected', 'reopened') "
+            "ORDER BY id DESC LIMIT 1",
+            (job_id,),
+        ).fetchone()
+        action = (
+            str(previous[0]) if previous else ("applied" if row.get("applied_at") else "reopened")
+        )
+        self.set_job_action(job_id, action, "Ripristinata dall'archivio")
+        return "open" if action == "reopened" else action
+
+    def list_unresolved_applications(self) -> list[dict[str, Any]]:
+        """Mail outcomes target only actual applications without a final outcome."""
+        rows = self.conn.execute(
+            "SELECT id, titolo, azienda, applied_at FROM jobs "
+            "WHERE status IN ('applied', 'interviewing') AND applied_at IS NOT NULL "
+            "AND applied_at <> '' AND COALESCE(outcome, '') IN ('', 'pending', 'no_response')"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    @_synchronized
+    def reject_application_from_mail(self, job_id: int, rule: str) -> bool:
+        """Record a rejection without inventing an application or replacing a final outcome."""
+        row = self.conn.execute(
+            "SELECT 1 FROM jobs WHERE id = ? AND status IN ('applied', 'interviewing') "
+            "AND applied_at IS NOT NULL AND applied_at <> '' "
+            "AND COALESCE(outcome, '') IN ('', 'pending', 'no_response')",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            return False
+        stamp = now_iso()
+        self.conn.execute(
+            "UPDATE jobs SET status = 'rejected', outcome = 'rejected', outcome_at = ?, "
+            "updated_at = ?, link_opened_at = NULL WHERE id = ?",
+            (stamp, stamp, job_id),
+        )
+        self.conn.execute(
+            "INSERT INTO job_actions(job_id, action, notes, created_at) VALUES (?, 'rejected', ?, ?)",
+            (job_id, f"auto:mail:{rule}", stamp),
+        )
+        self.conn.commit()
+        return True
+
+    @_synchronized
+    def undo_mail_rejection(self, job_id: int) -> bool:
+        row = self.get_job(job_id)
+        if not row or row.get("status") != "rejected" or row.get("outcome") != "rejected":
+            return False
+        rejected = self.conn.execute(
+            "SELECT id, action, notes FROM job_actions WHERE job_id = ? "
+            "AND action IN ('applied', 'interviewing', 'rejected', 'reopened', 'archived') "
+            "ORDER BY id DESC LIMIT 1",
+            (job_id,),
+        ).fetchone()
+        if (
+            not rejected
+            or rejected["action"] != "rejected"
+            or not str(rejected["notes"]).startswith("auto:mail:")
+        ):
+            return False
+        previous = self.conn.execute(
+            "SELECT action FROM job_actions WHERE job_id = ? AND id < ? "
+            "AND action IN ('applied', 'interviewing') ORDER BY id DESC LIMIT 1",
+            (job_id, rejected["id"]),
+        ).fetchone()
+        status = str(previous[0]) if previous else "applied"
+        stamp = now_iso()
+        self.conn.execute(
+            "UPDATE jobs SET status = ?, outcome = NULL, outcome_at = NULL, updated_at = ? WHERE id = ?",
+            (status, stamp, job_id),
+        )
+        self.conn.execute(
+            "INSERT INTO job_actions(job_id, action, notes, created_at) VALUES (?, ?, ?, ?)",
+            (job_id, status, "Annullato esito registrato dalla posta", stamp),
+        )
+        self.conn.commit()
+        return True
 
     def _jobs_where(
         self,
@@ -1580,6 +1699,19 @@ class Database:
             return None
         data = dict(row)
         data["sources"] = _parse_sources(data.get("sources_json"))
+        data["mail_rejection"] = False
+        if data.get("status") == "rejected" and data.get("outcome") == "rejected":
+            last = self.conn.execute(
+                "SELECT action, notes FROM job_actions WHERE job_id = ? "
+                "AND action IN ('applied', 'interviewing', 'rejected', 'reopened', 'archived') "
+                "ORDER BY id DESC LIMIT 1",
+                (job_id,),
+            ).fetchone()
+            data["mail_rejection"] = bool(
+                last
+                and last["action"] == "rejected"
+                and str(last["notes"]).startswith("auto:mail:")
+            )
         return data
 
     def job_has_analysis(self, job_id: int) -> bool:

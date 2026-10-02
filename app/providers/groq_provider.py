@@ -32,6 +32,7 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 class GroqProvider(LLMProvider):
     name = "groq"
+    default_model = "meta-llama/llama-4-maverick-17b-128e-instruct"
 
     def __init__(self, api_key: str | None):
         self.api_key = api_key
@@ -58,7 +59,7 @@ class GroqProvider(LLMProvider):
     def select_model(self, preferred_model: str | None = None) -> str:
         models = self.list_models()
         if not models:
-            fallback = preferred_model or "meta-llama/llama-4-maverick-17b-128e-instruct"
+            fallback = preferred_model or self.default_model
             self._selected_model = fallback
             return fallback
         selected = choose_best_model(models, preferred_model=preferred_model)

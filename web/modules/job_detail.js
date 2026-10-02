@@ -24,13 +24,29 @@ export function initJobDetail(deps) {
   _deps = { ..._deps, ...deps };
 }
 
+let _detailReturnFocus = null;
 export function openJobDetail() {
-  document.getElementById("jobDetailInline")?.classList.add("is-open");
+  const panel = document.getElementById("jobDetailInline");
+  if (!panel?.classList.contains("is-open")) _detailReturnFocus = document.activeElement;
+  panel?.classList.add("is-open");
+  panel?.removeAttribute("inert");
+  panel?.setAttribute("aria-hidden", "false");
   document.getElementById("jobDetailBackdrop")?.classList.remove("hidden");
+  // Let the browser apply visibility/inert before moving focus; otherwise the
+  // focus request can land while the closed panel is still non-interactive.
+  requestAnimationFrame(async () => {
+    await Promise.all(panel?.getAnimations().map((animation) => animation.finished.catch(() => {})) || []);
+    if (panel?.classList.contains("is-open")) panel.querySelector("#closeDetailBtn, button")?.focus({ preventScroll: true });
+  });
 }
 
 export function closeJobDetail() {
-  document.getElementById("jobDetailInline")?.classList.remove("is-open");
+  const panel = document.getElementById("jobDetailInline");
+  if (!panel?.classList.contains("is-open")) return;
+  panel.classList.remove("is-open");
+  if (_detailReturnFocus?.isConnected) _detailReturnFocus.focus();
+  panel.setAttribute("inert", "");
+  panel.setAttribute("aria-hidden", "true");
   document.getElementById("jobDetailBackdrop")?.classList.add("hidden");
 }
 
@@ -192,6 +208,13 @@ export async function showJobDetail(jobId) {
     "detailScoredBy",
     job.analysis_model ? t("jobs.scoredBy", { model: job.analysis_model }) : "",
   );
+  let context = document.getElementById("detailScoreContext");
+  if (!context) {
+    context = document.createElement("p"); context.id = "detailScoreContext"; context.className = "micro workflow-notice";
+    document.getElementById("detailScoredBy")?.after(context);
+  }
+  context.textContent = t("workflow.scoreContext");
+  context.classList.toggle("hidden", job.punteggio_ai === null || job.punteggio_ai === undefined);
 
   const detailLinkBtn = document.getElementById("detailLinkBtn");
   if (detailLinkBtn) {
@@ -218,7 +241,9 @@ export async function showJobDetail(jobId) {
   // it, a mail that picked the wrong offer could not be taken back at all.
   const undoBtn = document.getElementById("detailUndoMailBtn");
   if (undoBtn) {
-    undoBtn.style.display = job.apply_confirmed_by === "email" ? "" : "none";
+    const undoConfirmation = job.apply_confirmed_by === "email" && !job.outcome && ["applied", "interviewing"].includes(normalizeJobStatus(job.status));
+    undoBtn.style.display = job.mail_rejection || undoConfirmation ? "" : "none";
+    undoBtn.textContent = t(job.mail_rejection ? "workflow.undoRejection" : "jobs.undoMail");
     undoBtn.dataset.jobId = String(job.id);
   }
 

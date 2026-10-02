@@ -56,8 +56,10 @@ def test_parse_picks_healthiest_and_uses_p50() -> None:
     assert s["maxc"] == 32768
 
 
-def test_parse_no_endpoints_returns_none() -> None:
-    assert ms._parse_endpoints({"data": {"endpoints": []}}) is None
+def test_parse_no_endpoints_distinguishes_dead_from_unknown() -> None:
+    dead = ms._parse_endpoints({"data": {"endpoints": []}})
+    assert dead is not None
+    assert ms.unhealthy_ids({"dead": dead}) == {"dead"}
     assert ms._parse_endpoints({}) is None
 
 
@@ -170,4 +172,44 @@ def test_ranked_models_for_sinks_down_models(
     )
     ranked = mgr._ranked_models_for(prov, 5)
     assert ranked[0] == "b-70b-instruct"
-    assert ranked[-1] == "a-120b-instruct"
+    assert "a-120b-instruct" not in ranked
+
+    monkeypatch.setattr(ms, "get_model_health", lambda p, ids: {m: {"status": -1} for m in ids})
+    assert mgr._ranked_models_for(prov, 5) == []
+
+
+def test_public_health_keeps_free_slug_without_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def get(url: str, **kwargs: Any) -> SimpleNamespace:
+        calls.append((url, kwargs))
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: _endpoints({"status": 0, "uptime_last_5m": 100}),
+        )
+
+    monkeypatch.setattr(ms, "requests", SimpleNamespace(get=get))
+    provider = SimpleNamespace(name="openrouter", api_key=None)
+    assert ms.get_model_health(provider, ["vendor/model:free"])  # type: ignore[arg-type]
+    assert calls[0][0].endswith("/models/vendor/model:free/endpoints")
+    assert "headers" not in calls[0][1]
+
+
+def test_five_minute_health_and_quality_bands() -> None:
+    picked = ms._parse_endpoints(
+        _endpoints(
+            {"status": 0, "uptime_last_5m": 60, "uptime_last_30m": 100},
+            {"status": 0, "uptime_last_5m": 99, "uptime_last_30m": 70, "latency_last_30m": 12},
+        )
+    )
+    assert picked is not None and picked["up5m"] == 99 and picked["lat_ms"] == 12
+    health = {
+        "quality": {"status": 0, "up5m": 98.1},
+        "slightly-up": {"status": 0, "up5m": 99.9},
+        "degraded": {"status": 0, "up5m": 40},
+    }
+    assert ms.rank_healthy_models(["quality", "slightly-up", "degraded"], health) == [
+        "quality",
+        "slightly-up",
+    ]
+    assert ms.rank_healthy_models(["quality", "slightly-up"], {}) == ["quality", "slightly-up"]

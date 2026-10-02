@@ -79,6 +79,19 @@ def _json_list(db: Database, key: str) -> list[str]:
     return _clean(data) if isinstance(data, list) else []
 
 
+def parse_preferred_roles(raw: str) -> list[str]:
+    """Read explicit JSON roles and the CSV values written by older uploads."""
+    text = str(raw or "").strip()
+    if not text:
+        return []
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        # Broken JSON is not a job title. Plain historical CSV remains valid.
+        return [] if text.startswith(("[", "{")) else _clean(text.split(","))
+    return _clean(value) if isinstance(value, list) else []
+
+
 def resolve_search_terms(
     db: Database, explicit: Sequence[str] | None = None
 ) -> tuple[list[str], TermsOrigin]:
@@ -96,9 +109,21 @@ def resolve_search_terms(
     shortlist = _clean(roles_shortlist.load(db))
     if shortlist:
         return shortlist, "shortlist"
-    # ``preferred_roles`` is what the CV extractor writes; it is a comma-joined
-    # string, not JSON, and it is the last thing that is still about this user.
-    from_cv = _clean((db.get_preference("preferred_roles", "") or "").split(","))
+    stored = db.get_preference("preferred_roles", "") or ""
+    if stored.strip():
+        # Preserve explicit empty lists too: clearing a preference must not
+        # resurrect roles inferred from the CV. CSV origin remains historical.
+        roles = parse_preferred_roles(stored)
+        return roles, "profile" if stored.strip().startswith("[") else "cv"
+    profile = db.get_active_candidate_profile() or {}
+    summary = profile.get("summary_json") or {}
+    if isinstance(summary, str):
+        try:
+            summary = json.loads(summary)
+        except (TypeError, ValueError):
+            summary = {}
+    inferred = summary.get("preferred_roles") if isinstance(summary, dict) else None
+    from_cv = _clean(inferred) if isinstance(inferred, list) else []
     if from_cv:
         return from_cv, "cv"
     return [], "none"

@@ -249,7 +249,9 @@ def build_router(container: AppContainer) -> APIRouter:
             # this is an application the archive never held: on a real queue
             # that was 38 of 53.
             "suggested_job_id": only,
-            "suggestion": "attach" if only else ("create" if role and candidates else ""),
+            "suggestion": "attach"
+            if only
+            else ("create" if role and candidates and item["kind"] != "rejection" else ""),
         }
 
     @router.get("/api/mail/review")
@@ -265,6 +267,7 @@ def build_router(container: AppContainer) -> APIRouter:
             "counts": {
                 "attach": sum(1 for i in items if i["kind"] == "attach"),
                 "import": sum(1 for i in items if i["kind"] == "import"),
+                "rejection": sum(1 for i in items if i["kind"] == "rejection"),
             },
         }
 
@@ -308,7 +311,9 @@ def build_router(container: AppContainer) -> APIRouter:
     @router.post("/api/mail/undo/{job_id}")
     def mail_undo(job_id: int) -> dict[str, Any]:
         """Take back a marking the mailbox made. Manual ones are left alone."""
-        if not container.db.undo_mail_confirmation(job_id):
+        if not (
+            container.db.undo_mail_rejection(job_id) or container.db.undo_mail_confirmation(job_id)
+        ):
             raise HTTPException(status_code=400, detail="not_auto_confirmed")
         return {"ok": True}
 

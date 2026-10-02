@@ -358,27 +358,79 @@ def _job_with_children(db: Database, link: str) -> int:
     return job_id
 
 
-def test_delete_job_removes_child_rows(tmp_path: Path) -> None:
-    """FK ON DELETE CASCADE is inert (PRAGMA foreign_keys never enabled):
-    deleting a job must explicitly clear actions/recruiter/pins or they
-    accumulate as orphans forever."""
+def test_delete_job_archives_and_preserves_history(tmp_path: Path) -> None:
     db = Database(tmp_path / "d.db")
     try:
         job_id = _job_with_children(db, "https://example.com/1")
         assert db.delete_job(job_id) is True
-        assert all(v == 0 for v in _child_counts(db, job_id).values())
+        counts = _child_counts(db, job_id)
+        assert counts == {"job_actions": 2, "recruiters": 1, "pinned_jobs": 1}
+        assert db.get_job(job_id)["status"] == "archived"
+        original_at = db.get_job(job_id)["applied_at"]
+        assert db.restore_archived_job(job_id) == "applied"
+        assert db.get_job(job_id)["applied_at"] == original_at
     finally:
         db.close()
 
 
-def test_delete_all_jobs_removes_child_rows(tmp_path: Path) -> None:
+def test_delete_all_jobs_archives_without_removing_child_rows(tmp_path: Path) -> None:
     db = Database(tmp_path / "d.db")
     try:
         j1 = _job_with_children(db, "https://example.com/1")
         j2 = _job_with_children(db, "https://example.com/2")
         assert db.delete_all_jobs() == 2
         for jid in (j1, j2):
-            assert all(v == 0 for v in _child_counts(db, jid).values())
+            assert _child_counts(db, jid) == {"job_actions": 2, "recruiters": 1, "pinned_jobs": 1}
+            assert db.get_job(jid)["status"] == "archived"
+        assert db.delete_all_jobs() == 0
+    finally:
+        db.close()
+
+
+def test_archived_offer_is_not_new_when_collected_again(tmp_path: Path) -> None:
+    db = Database(tmp_path / "archive.db")
+    try:
+        payload = {"titolo": "Automation Analyst", "azienda": "Reply", "sede": "Torino", "link": "url1"}
+        job_id, _, _ = db.upsert_job(payload)
+        db.delete_job(job_id)
+        again, is_new, status = db.upsert_job(payload)
+        assert (again, is_new, status) == (job_id, False, "archived")
+        alternate, is_new, status = db.upsert_job({**payload, "link": "url2"})
+        assert (alternate, is_new, status) == (job_id, False, "archived")
+        assert db.restore_archived_job(job_id) == "open"
+    finally:
+        db.close()
+
+
+def test_resolved_outcomes_do_not_produce_stale_application_nudges(tmp_path: Path) -> None:
+    db = Database(tmp_path / "outcomes.db")
+    try:
+        job_id = _job_with_children(db, "url")
+        db.conn.execute("UPDATE job_actions SET created_at = '2020-01-01' WHERE job_id = ?", (job_id,))
+        db.conn.commit()
+        assert db.list_reminders()["stale"]
+        db.set_job_outcome(job_id, "no_response")
+        assert db.list_reminders()["stale"] == []
+        db.set_job_outcome(job_id, "accepted")
+        assert db.reject_application_from_mail(job_id, "rejection_company_role") is False
+        assert db.get_job(job_id)["outcome"] == "accepted"
+    finally:
+        db.close()
+
+
+def test_operational_summary_reads_real_scan_and_pending_outcomes(tmp_path: Path) -> None:
+    db = Database(tmp_path / "status.db")
+    try:
+        assert db.get_last_scan() is None and db.count_pending_applications() == 0
+        run_id = db.begin_scan("Torino", False, ["Analista funzionale"])
+        db.finish_scan(run_id, 12, 3, 5, 2)
+        scan = db.get_last_scan()
+        assert scan["id"] == run_id and scan["totale_trovati"] == 12
+        assert scan["finished_at"] and scan["location"] == "Torino"
+        jid = _job_with_children(db, "url")
+        assert db.count_pending_applications() == 1
+        db.set_job_outcome(jid, "offer")
+        assert db.count_pending_applications() == 0
     finally:
         db.close()
 

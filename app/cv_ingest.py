@@ -385,6 +385,14 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
     # built on LLM evaluation work came out as "Junior Python Developer, Junior
     # Frontend Developer" purely because it mentioned python and react.
     role_map = [
+        ("analisi funzionale", "Junior Functional Analyst"),
+        ("analista funzionale", "Junior Functional Analyst"),
+        ("functional analysis", "Junior Functional Analyst"),
+        ("functional analyst", "Junior Functional Analyst"),
+        ("automazione", "Junior Automation / AI Integration"),
+        ("automation", "Junior Automation / AI Integration"),
+        ("integrazioni ai", "Junior Automation / AI Integration"),
+        ("ai integration", "Junior Automation / AI Integration"),
         ("llm", "AI QA / LLM Evaluation"),
         ("hallucination", "AI QA / LLM Evaluation"),
         ("prompt engineering", "AI QA / LLM Evaluation"),
@@ -403,7 +411,6 @@ def summarize_profile(markdown_text: str) -> dict[str, Any]:
         ("data analysis", "Junior Data Analyst"),
         ("data analytics", "Junior Data Analyst"),
         ("machine learning", "Junior ML Engineer"),
-        ("automation", "Junior Automation Engineer"),
         ("devops", "Junior DevOps Engineer"),
         ("python", "Junior Python Developer"),
         ("react", "Junior Frontend Developer"),
