@@ -1,10 +1,10 @@
 {
   "openrouter_free_models": [
+    "apodex/apodex-1.1-mini:free",
     "cohere/north-mini-code:free",
     "dots-studio/dots-3-note-preview:free",
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
-    "inclusionai/ling-3.0-flash-fin:free",
     "inclusionai/ling-3.0-flash-sante:free",
     "liquid/lfm-2.5-2.6b:free",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
@@ -19,10 +19,10 @@
     "thinkingmachines/inkling:free"
   ],
   "pages": {
-    "cerebras_pricing": "7f1c18dac38c4f29",
-    "google_pricing": "a791e75c54fed847",
+    "cerebras_pricing": "609b5e0ffa61d30a",
+    "google_pricing": "bf1664899d42ff83",
     "google_rate_limits": "965e9bc0414b1c6a",
-    "groq_limits": "80a6130ac06b24f0",
-    "openrouter_limits": "57a163abd5860e77"
+    "groq_limits": "c1e3dc650e514d35",
+    "openrouter_limits": "fd9914236d7e2ffd"
   }
 }
