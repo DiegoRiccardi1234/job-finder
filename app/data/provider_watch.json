@@ -1,26 +1,28 @@
 {
   "openrouter_free_models": [
-    "apodex/apodex-1.1-mini:free",
     "cohere/north-mini-code:free",
     "dots-studio/dots-3-note-preview:free",
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
     "liquid/lfm-2.5-2.6b:free",
+    "minimax/minimax-m3.1-flash:free",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
     "nvidia/nemotron-3.5-content-safety:free",
     "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3.5-super-vl:free",
     "poolside/laguna-s-2.1:free",
     "poolside/laguna-xs-2.1:free",
     "thinkingmachines/inkling-small:free",
-    "thinkingmachines/inkling:free"
+    "thinkingmachines/inkling:free",
+    "xingchen-agi/xing4.0-29b-a4b:free"
   ],
   "pages": {
     "cerebras_pricing": "609b5e0ffa61d30a",
-    "google_pricing": "574d828cd7e6ef1a",
-    "google_rate_limits": "a421d98d5e572488",
+    "google_pricing": "7b760baf22cf4a13",
+    "google_rate_limits": "f18ea6cdd054080f",
     "groq_limits": "11d9f0be3e0c7329",
-    "openrouter_limits": "3017204c99ebfb71"
+    "openrouter_limits": "00411ce994e0b3ce"
   }
 }
