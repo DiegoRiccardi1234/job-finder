@@ -45,7 +45,16 @@ def test_icon_generation_is_byte_reproducible_and_matches_committed_asset(tmp_pa
     first, second = tmp_path / "first.ico", tmp_path / "second.ico"
     build_icon(first)
     build_icon(second)
-    assert first.read_bytes() == second.read_bytes() == DEFAULT_OUTPUT.read_bytes()
+    assert first.read_bytes() == second.read_bytes()
+    # Pillow's native PNG compressor can differ between Windows/Linux wheels.
+    # Verify the committed artwork exactly after decoding, rather than requiring
+    # a particular lossless compression stream from another platform.
+    with Image.open(first) as generated, Image.open(DEFAULT_OUTPUT) as committed:
+        assert generated.ico.sizes() == committed.ico.sizes()
+        for size in ICON_SIZES:
+            actual = generated.ico.getimage((size, size)).convert("RGBA")
+            expected = committed.ico.getimage((size, size)).convert("RGBA")
+            assert actual.tobytes() == expected.tobytes(), f"ICO frame {size} differs"
 
 
 def test_all_three_frozen_executables_reference_the_verified_icon() -> None:

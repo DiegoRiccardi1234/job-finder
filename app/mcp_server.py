@@ -7,6 +7,7 @@ This entry point deliberately never imports app.main or opens searcher.db.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -15,6 +16,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from mcp.server import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 from starlette.requests import Request
@@ -201,9 +203,16 @@ class _AuthenticatedMCP:
 
 def create_mcp_http_app(container: AppContainer) -> tuple[MCPServer[Any], ASGIApp]:
     """Mount the app at /mcp; enter server.session_manager.run() in host lifespan."""
+    from app.agent_tools import AgentToolError
     from app.routers.agent import get_service
 
-    server = create_mcp_server(get_service(container).dispatch)
+    def dispatch(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return get_service(container).dispatch(name, arguments)
+        except AgentToolError as exc:
+            raise ToolError(_safe_error_code(exc.code)) from None
+
+    server = create_mcp_server(dispatch)
     http_app = server.streamable_http_app(
         streamable_http_path="/",
         stateless_http=True,
@@ -211,6 +220,14 @@ def create_mcp_http_app(container: AppContainer) -> tuple[MCPServer[Any], ASGIAp
         max_request_body_size=350_000,
     )
     return server, _AuthenticatedMCP(http_app, container)
+
+
+def _safe_error_code(value: Any) -> str:
+    return (
+        value
+        if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,159}", value)
+        else "invalid_request"
+    )
 
 
 class RemoteDispatcher:
@@ -245,15 +262,14 @@ class RemoteDispatcher:
                 f"{self.url}/api/agent/tools/{name}", json={"arguments": arguments}
             )
         except httpx.HTTPError:
-            raise ValueError("jobfinder_unreachable_open_the_local_app") from None
+            raise ToolError("jobfinder_unreachable_open_the_local_app") from None
         if not response.is_success:
             try:
                 detail = response.json().get("detail", "jobfinder_request_failed")
             except ValueError:
                 detail = "jobfinder_request_failed"
             # Only the app's short machine codes are safe to echo to the model.
-            code = detail if isinstance(detail, str) and len(detail) <= 160 else "invalid_request"
-            raise ValueError(code)
+            raise ToolError(_safe_error_code(detail))
         result: dict[str, Any] = response.json()
         return result
 

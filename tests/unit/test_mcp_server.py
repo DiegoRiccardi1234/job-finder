@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from mcp import Client
+from mcp.server.mcpserver.exceptions import ToolError
 
 from app.db import Database
 from app.mcp_server import RemoteDispatcher, create_mcp_http_app, create_mcp_server
@@ -107,7 +108,42 @@ def test_stdio_adapter_sends_capability_only_to_app_and_reports_safe_errors(tmp_
 
     dispatcher.client = httpx.Client(transport=httpx.MockTransport(handle), headers={"Authorization": "Bearer " + "a" * 64})
     try:
-        with pytest.raises(ValueError, match="profile_changed"):
+        with pytest.raises(ToolError, match="profile_changed"):
             dispatcher("jobfinder_get_context", {})
+    finally:
+        dispatcher.close()
+
+
+@pytest.mark.parametrize("failure", ["unreachable", "stale_context", "private_detail"])
+def test_sdk_preserves_expected_actionable_errors_without_leaking_details(tmp_path, failure):
+    token = tmp_path / "token"
+    token.write_text("a" * 64)
+    dispatcher = RemoteDispatcher("http://127.0.0.1:8000", token)
+    dispatcher.client.close()
+
+    def respond(request):
+        if failure == "unreachable":
+            raise httpx.ConnectError("private-token-fixture", request=request)
+        detail = "profile_changed_prepare_again" if failure == "stale_context" else "private-token-fixture"
+        return httpx.Response(409, json={"detail": detail})
+
+    dispatcher.client = httpx.Client(transport=httpx.MockTransport(respond))
+
+    async def run():
+        async with Client(create_mcp_server(dispatcher)) as client:
+            result = await client.call_tool("jobfinder_list_jobs", {"limit": 1})
+            assert result.is_error
+            text = str(result.content)
+            expected = {
+                "unreachable": "jobfinder_unreachable_open_the_local_app",
+                "stale_context": "profile_changed_prepare_again",
+                "private_detail": "invalid_request",
+            }[failure]
+            assert expected in text
+            assert "private-token-fixture" not in text
+            assert "a" * 64 not in text
+
+    try:
+        asyncio.run(run())
     finally:
         dispatcher.close()

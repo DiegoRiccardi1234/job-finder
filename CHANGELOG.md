@@ -19,6 +19,7 @@
 - Tag builds prepare both Windows ZIPs in a draft GitHub release for artifact verification before publication.
 
 ### Fixed
+- Expected MCP failures preserve actionable error codes, including the instruction to open the local app, while withholding private or unexpected error details.
 - Updates support both Windows layouts, preserve private state and existing OCR files, and include bundled OCR files when the destination is empty.
 - Concurrent update requests acquire an atomic lock; failed or previous updater processes cannot release another updater's lock.
 
