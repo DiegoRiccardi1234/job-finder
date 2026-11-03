@@ -163,7 +163,7 @@ def _spawn(args: list[str], cwd: str) -> subprocess.Popen[str]:
             cwd=cwd,
             env=_child_env(),
             shell=False,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)) if os.name == "nt" else 0,
         )
     except OSError:
         raise RuntimeConnectionError("not_installed") from None
