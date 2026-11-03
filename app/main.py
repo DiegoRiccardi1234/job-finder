@@ -11,6 +11,9 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.container import AppContainer
+from app.mcp_server import create_mcp_http_app
+from app.routers import agent as agent_router
+from app.routers import ai_connections as ai_connections_router
 from app.routers import chat as chat_router
 from app.routers import jobs as jobs_router
 from app.routers import mail as mail_router
@@ -38,12 +41,17 @@ _JS_IMPORT_RE = re.compile(r'((?:from|import)\s*\(?\s*["\'])(\.\.?/[^"\']+\.js)(
 
 def create_app(workspace_dir: Path) -> FastAPI:
     container = AppContainer(workspace_dir)
+    mcp_server, mcp_app = create_mcp_http_app(container)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        container.autoscan.start()
-        yield
-        container.shutdown()
+        async with mcp_server.session_manager.run():
+            if os.environ.get("JOBFINDER_PAUSE_BACKGROUND") != "1":
+                container.autoscan.start()
+            try:
+                yield
+            finally:
+                container.shutdown()
 
     fastapi_app = FastAPI(title="Job Finder", version=__version__, lifespan=lifespan)
     # The container was reachable only through the closures of the routers, so a
@@ -51,6 +59,7 @@ def create_app(workspace_dir: Path) -> FastAPI:
     # and background work with no test around its wiring is how the end-of-scan
     # audit stayed broken for weeks.
     fastapi_app.state.container = container
+    fastapi_app.mount("/mcp", mcp_app)
     web_dir = (
         Path(sys._MEIPASS) / "web"  # type: ignore[attr-defined]
         if getattr(sys, "frozen", False)
@@ -126,6 +135,8 @@ def create_app(workspace_dir: Path) -> FastAPI:
         scheduler_router,
         saved_searches_router,
         mail_router,
+        agent_router,
+        ai_connections_router,
     ):
         fastapi_app.include_router(module.build_router(container))
 

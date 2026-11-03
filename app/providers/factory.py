@@ -7,6 +7,7 @@ import time as _time
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
+from app.ai_connections import ConnectionRegistry
 from app.config import AppSettings
 from app.log import get_logger
 from app.providers.anthropic_provider import AnthropicProvider
@@ -116,6 +117,12 @@ def _scoring_variant_in(models: list[str]) -> str | None:
 class ProviderManager:
     def __init__(self, settings: AppSettings) -> None:
         self.settings = settings
+        self.connections = ConnectionRegistry(settings.data_dir)
+        self._connection_provider_lock = threading.RLock()
+        self._connection_providers: dict[str, tuple[str, LLMProvider]] = {}
+        self._connection_cancellations = {
+            task: threading.Event() for task in ("chat", "scoring", "cv")
+        }
         self.providers: dict[str, LLMProvider] = {
             "cerebras": CerebrasProvider(api_key=settings.cerebras_api_key),
             "groq": GroqProvider(api_key=settings.groq_api_key),
@@ -273,7 +280,9 @@ class ProviderManager:
         result = {
             "active_provider": self.active_provider_name,
             "active_model": self.active_model,
-            "available": self.active_provider is not None,
+            "available": self.active_provider is not None or self.has_routed_connections(),
+            "connections_configured": self.has_routed_connections(),
+            "routing": self.connections.routing(),
             "providers": providers_metadata,
         }
         self._metadata_cache = (now, result)
@@ -926,12 +935,64 @@ class ProviderManager:
         (primary provider, model) pin — a deliberate choice, so NO failover.
         Otherwise fall back to the auto-selection ``policy_override``.
         """
+        if self.has_connection_route("cv"):
+            return {"task": "cv"}
         if model_id:
             primary = (
                 self.settings.llm_provider_order[0] if self.settings.llm_provider_order else None
             )
             return {"provider_name": primary, "model_name": model_id}
         return {"policy_override": policy_override}
+
+    def has_connection_route(self, task: str) -> bool:
+        return bool(self.connections.route(task))
+
+    def has_routed_connections(self) -> bool:
+        return any(self.has_connection_route(task) for task in ("chat", "scoring", "cv"))
+
+    def cancel_connections(self, task: str | None = None) -> None:
+        for scope, event in self._connection_cancellations.items():
+            if task is None or scope == task:
+                event.set()
+        for key, (_, provider) in list(self._connection_providers.items()):
+            cancel = getattr(provider, "cancel_active", None)
+            scope = key.split("::", 1)[0]
+            if (task is None or scope == task) and callable(cancel):
+                cancel()
+
+    def reset_connection_cancellation(self, task: str | None = None) -> None:
+        for scope, event in self._connection_cancellations.items():
+            if task is None or scope == task:
+                event.clear()
+        for key, (_, provider) in list(self._connection_providers.items()):
+            reset = getattr(provider, "reset_cancel", None)
+            scope = key.split("::", 1)[0]
+            if (task is None or scope == task) and callable(reset):
+                reset()
+
+    def _connection_completion(
+        self,
+        task: str,
+        endpoint: str,
+        call: Callable[[LLMProvider, str], Any],
+        provider_name: str | None,
+        model_name: str | None,
+        policy_override: dict[str, Any] | None,
+    ) -> tuple[bool, Any]:
+        from app.providers.connection_routing import run_route
+
+        explicit_connection = provider_name and self.connections.get(provider_name)
+        if explicit_connection or (not provider_name and self.has_connection_route(task)):
+            return True, run_route(
+                self,
+                task,
+                endpoint,
+                call,
+                route_override=[provider_name] if explicit_connection and provider_name else None,
+                model_override=model_name,
+                policy_override=policy_override,
+            )
+        return False, None
 
     def complete_json(
         self,
@@ -940,7 +1001,18 @@ class ProviderManager:
         provider_name: str | None = None,
         model_name: str | None = None,
         policy_override: dict[str, Any] | None = None,
+        task: str = "cv",
     ) -> dict[str, Any]:
+        handled, result = self._connection_completion(
+            task,
+            "complete_json",
+            lambda p, m: p.complete_json(prompt=prompt, model=m, max_tokens=max_tokens),
+            provider_name,
+            model_name,
+            policy_override,
+        )
+        if handled:
+            return cast("dict[str, Any]", result)
         return self._run_with_failover(
             endpoint="complete_json",
             explicit_provider=provider_name,
@@ -955,6 +1027,10 @@ class ProviderManager:
         Returns just the model id of the first failover candidate under
         ``policy_override``, or ``"none"`` when no provider is available.
         """
+        if self.has_connection_route("scoring"):
+            cid = self.connections.route("scoring")[0]
+            row = self.connections.get(cid) or {}
+            return str(row.get("model") or cid)
         candidates = self._failover_candidates(None, None, policy_override)
         return candidates[0][1] if candidates else "none"
 
@@ -965,7 +1041,18 @@ class ProviderManager:
         provider_name: str | None = None,
         model_name: str | None = None,
         policy_override: dict[str, Any] | None = None,
+        task: str = "chat",
     ) -> str:
+        handled, result = self._connection_completion(
+            task,
+            "chat",
+            lambda p, m: p.chat(messages=messages, model=m, max_tokens=max_tokens),
+            provider_name,
+            model_name,
+            policy_override,
+        )
+        if handled:
+            return cast("str", result)
         return self._run_with_failover(
             endpoint="chat",
             explicit_provider=provider_name,

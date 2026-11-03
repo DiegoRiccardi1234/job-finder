@@ -107,6 +107,7 @@ def build_router(container: AppContainer) -> APIRouter:
         running = container.scan_control.running
         if running:
             container.scan_control.cancel()
+            container.providers.cancel_connections("scoring")
         return {"ok": True, "cancelling": running}
 
     @router.get("/api/countries")

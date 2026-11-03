@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-11-03
+
+### Added
+- Optional subscription-backed Codex and Claude Code connections, managed in the background, with independent chat/scoring/CV routing and explicit ordered fallbacks.
+- Named OpenAI-compatible connections, native-client diagnostics, and account quota display when the runtime provides it.
+- Authenticated local MCP over Streamable HTTP and stdio, collect-only searches, validated external scoring, reversible offer management and UI-confirmed profile/application proposals.
+- Organized Windows bundles with a small root launcher and `LEGGIMI.txt`, runtime/OCR tools under `app/`, private data under `state/`, and a verified reversible migration from the legacy layout.
+- Separate portable and updater-compatible ZIP assets so historical updaters keep reading the existing user archive.
+- A recognizable Windows application icon for the launcher and bundled program components.
+- Setup instructions for each user's own runtime/account and local MCP configuration, including use from Codex CLI across working folders.
+
+### Changed
+- Subscription connections are optional and disabled by default. Existing API settings and per-task routing remain unchanged until the user makes a choice; neither an update nor the public release enables a runtime or registers an MCP server for other users.
+- Runtime status distinguishes a saved sign-in or reported plan name from verified current model access. Missing quota data stays unavailable rather than being estimated from token counts.
+- Tag builds prepare both Windows ZIPs in a draft GitHub release for artifact verification before publication.
+
+### Fixed
+- Updates support both Windows layouts, preserve private state and existing OCR files, and include bundled OCR files when the destination is empty.
+- Concurrent update requests acquire an atomic lock; failed or previous updater processes cannot release another updater's lock.
+
 ## [2.4.0] — 2026-10-02
 
 ### Added

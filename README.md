@@ -18,19 +18,69 @@
 
 > Upload CV → AI Coach suggests roles → one-click scan with live AI scoring.
 
+The demo and screenshots show earlier versions of the core workflow. They are
+not screenshots of the v2.5.0 connection and MCP settings; historical version
+labels in those images do not identify the current download.
+
 ---
 
 ## For non-developers (Windows)
 
+**v2.5.0** adds optional Codex/Claude Code subscription connections, explicit
+per-task fallbacks, named compatible endpoints such as Hermes, and
+[local MCP access](DOCS/jobfinder-mcp.md) from assistants or the CLI.
+Each user chooses their own connection and signs in with their own account.
+No subscription is required to keep using the existing API providers, and an
+update does not enable a new runtime or change existing routing automatically.
+
+The Windows portable build keeps only `JobFinder.exe`, `LEGGIMI.txt`, `app/`
+and `state/` in its main folder. `app/` contains the runtime, MCP adapter,
+updater, libraries and `vendor/` OCR tools; `state/` contains private data.
+Keep both folders beside the launcher. Older published bundles still use
+`data/`; moving to the new layout requires the verified migration rather than
+manually moving individual files. `JobFinder-portable.zip` contains the clean
+layout for new installations. `JobFinder-windows.zip` stays flat as the transport
+used by historical updaters: existing organized installations map its program
+files into `app/` and keep their `state/` data.
+
 Don't want to install Python? Grab the standalone Windows bundle from the [latest release](https://github.com/DiegoRiccardi1234/job-finder/releases/latest):
 
-1. Download `JobFinder-windows.zip` from the release assets.
+1. Download `JobFinder-portable.zip` from the release assets (older releases offer only the legacy `JobFinder-windows.zip`).
 2. Right-click → "Extract All" anywhere you like.
 3. Open the extracted folder and double-click `JobFinder.exe`.
 4. Your browser opens automatically on `http://127.0.0.1:8000`.
-5. The app shows a "No API key configured" banner. Open **Settings → AI**: the top of the page names the free provider to use right now and links straight to its signup — it reads what the app has measured on your own key, and it knows when a free tier is closing (v2.0.0). Paste the key, you're done.
+5. Open **Settings → AI** and choose one of the setup paths below. The app may show a setup banner until you configure a usable connection.
 
-Everything stays on your machine: the SQLite DB, your CV, your notes. The bundle is just Python packaged as a single executable, with no telemetry. It does make outbound calls, and the **Info tab lists every one of them**: the LLM provider you configure, the LinkedIn / Indeed scrape, your mailbox if you connect one, and the update check. Nothing else — the charting library and the icon font ship inside the bundle (v1.7.7), so the rest of the app works offline.
+### Choose your AI connection
+
+- **API provider:** add your own key in the existing provider cards. Free tiers and paid providers remain available according to each provider's terms and limits.
+- **Codex subscription:** install the official Codex client, sign in with your own ChatGPT account, enable Codex under **AI connections and assistants**, select it for chat/scoring/CV tasks, and save the task routing. Job Finder runs the client in the background; you do not keep a terminal open.
+- **Claude Code subscription:** the same optional path requires a current, eligible Claude Code plan. A free Claude account or an old cached plan label does not prove access. You can leave Claude disabled.
+- **Compatible endpoint:** save the URL/model of an already configured service, such as a local Hermes gateway. The gateway still needs its own model provider.
+
+Diagnostics do not send a model prompt. **Test connection** sends a short
+synthetic request and uses that account's quota. Only fallbacks explicitly
+selected for a task are used. Read the [connection guide](DOCS/ai-connections.md)
+for authentication, quota visibility and data handling.
+
+### Use Job Finder from an assistant
+
+Keep Job Finder open, generate its MCP configuration in Settings, and add it
+to your own assistant client. For **Codex CLI in any working folder**, use
+your user-level MCP configuration rather than a repository-local configuration;
+start a new CLI session after setup. The login and MCP registration belong to
+that user and computer, not to everyone who downloads Job Finder.
+Codex desktop, Claude Desktop and Cowork have different client setup paths;
+generated configurations are not a claim that every desktop client has been
+live-tested. See the [MCP guide](DOCS/jobfinder-mcp.md).
+
+Your database, CV, notes and settings are stored on your machine. The Windows
+bundle contains the program and its dependencies, with no app telemetry.
+Online features make outbound calls: the API provider or subscription client
+you select, LinkedIn/Indeed scraping, an optional connected mailbox, and update
+checks. An assistant connected through MCP receives the context requested by
+its tools. The charting library and icon font ship inside the bundle, so local
+navigation and saved data remain available offline. OCR tools ship in `app/vendor/`.
 
 > **Windows SmartScreen**: the first launch may show "Windows protected your PC". Click **More info** → **Run anyway**. The exe is unsigned (code-signing certificates cost ~$200/year and are out of scope for a personal project).
 
@@ -55,11 +105,15 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Features
 
+- **Optional subscription-backed AI (v2.5.0)** — use your own Codex or Claude Code account through the official local runtime. Chat, scoring and CV/generation have separate primary connections and explicitly ordered fallbacks; existing API routing stays unchanged until you select a new route.
+- **Local MCP (v2.5.0)** — consult saved offers, collect new postings without nested AI calls, submit validated external evaluations, and manage notes/favourites/archives. Changes to profile, criteria and application states require confirmation in Job Finder; no MCP tool sends applications or email.
+- **Named compatible connections (v2.5.0)** — keep several endpoints such as Hermes alongside existing API providers, with secret-preserving edits and status/quota only when the runtime supplies those data.
+- **Organized Windows package (v2.5.0)** — a root launcher with the Job Finder icon, `app/` for program/OCR components, `state/` for private data, and separate portable and updater-compatible ZIP assets.
 - **Smart CV analysis** — Upload PDF / DOCX / TXT or images (JPG / PNG / AVIF / WEBP / TIFF / BMP / SVG). Scanned PDFs and image CVs are read via Tesseract OCR; the LLM extracts skills, seniority, languages, and ideal roles — with the narrative summary written in your UI language (v1.5.0+).
 - **Profile tab** — Inspect what the AI understood from your CV, edit `preferred_roles` / `skills` / `languages` inline (chip-list with PATCH), switch between previously uploaded CVs (multi-CV history with **Set active**, delete unwanted CVs).
 - **AI Career Coach** — Chat that learns your preferences, suggests search terms via clickable role pills, and can autofill the scan form via structured `action` payloads. Quick-prompt suggestions derived from your CV. Override the active provider **and model** per turn; a one-shot toast offers to persist the choice as default.
 - **Provider cards** (Settings) — One card per LLM (Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI/Grok, Zhipu GLM, Mistral, Cloudflare Workers AI, OVHcloud, plus any OpenAI-compatible endpoint of your own) with its own state (empty → configured → fetching → active), per-provider Save & fetch, ⭐-recommended model dropdown populated live from the provider's `list_models`, and a refresh button (5-min TTL cache).
-- **Job Search** — Flat layout with profile-derived role chips, keyword/location tag inputs, parallel LinkedIn + Indeed scan with one-click delete on jobs you don't want.
+- **Job Search** — Flat layout with profile-derived role chips, keyword/location tag inputs, parallel LinkedIn + Indeed scan and reversible archiving of jobs you don't want.
 - **Multi-source scan** — LinkedIn + Indeed in parallel, streamed via Server-Sent Events.
 - **Personalized scoring** — Each job gets a 1-10 AI score with pros/cons and an apply/skip recommendation.
 - **Kanban tracking** — Open → Applied → Interviewing → Rejected, with **drag-and-drop** between columns to change status (v1.6.0).
@@ -114,7 +168,7 @@ The result is a portfolio-grade FastAPI app with a multi-provider LLM backbone, 
 
 ## Demo
 
-The animated hero above walks through the full flow end-to-end:
+The earlier-version animated demo above illustrates the core flow:
 
 1. **Dashboard** with personalized hero, analytics, and the always-on AI Career Coach.
 2. **Settings** — ten AI Provider cards with per-provider state, ⭐-recommended model dropdowns.
@@ -131,6 +185,8 @@ The animated hero above walks through the full flow end-to-end:
 ### Static screenshots
 
 For readers who can't render the GIF, these still frames cover the main flows:
+the images are historical examples, not an assertion that their header version
+or provider settings match v2.5.0.
 
 | Dashboard + Analytics | Career Coach in action |
 |-----------------------|------------------------|
@@ -174,7 +230,7 @@ For readers who can't render the GIF, these still frames cover the main flows:
 ```mermaid
 flowchart LR
     subgraph Browser
-        UI[Vanilla JS UI<br/>i18n · Glassmorphism]
+        UI[Vanilla JS UI<br/>i18n · responsive layout]
     end
 
     subgraph Backend["FastAPI backend (localhost:8000)"]
@@ -184,7 +240,8 @@ flowchart LR
         ScanSvc[scanner_service<br/>analyze_offer · run_scan]
         CV[cv_ingest<br/>PDF/DOCX/IMG → markdown<br/>OCR fallback · content validation]
         Roles[roles_shortlist<br/>dedup + persistence]
-        Mig[migrations<br/>10 numbered steps<br/>idempotent runner]
+        Mig[migrations<br/>31 numbered steps<br/>idempotent runner]
+        MCP[Authenticated local MCP<br/>collect · evaluate · propose]
     end
 
     subgraph LLM["ProviderManager (retry + backoff)"]
@@ -197,7 +254,9 @@ flowchart LR
     end
 
     Scraper[python-jobspy<br/>LinkedIn + Indeed]
-    DB[(SQLite WAL<br/>data/searcher.db)]
+    Native[Optional local runtimes<br/>Codex · Claude Code]
+    Assistant[User's MCP assistant<br/>desktop or CLI]
+    DB[(SQLite WAL<br/>state/searcher.db packaged<br/>data/searcher.db source)]
 
     UI <-->|fetch / SSE| RL
     RL --> API
@@ -209,6 +268,10 @@ flowchart LR
     ScanSvc --> LLM
     ScanSvc --> Scraper
     CV --> LLM
+    LLM --> Native
+    Assistant <-->|stdio or local HTTP| MCP
+    MCP --> ScanSvc
+    MCP --> DB
     Mig -.boot.-> DB
     API --> DB
     ScanSvc --> DB
@@ -232,16 +295,17 @@ The chat service is split into single-responsibility modules:
 |-------|-----------|
 | Backend | Python 3.11+, FastAPI, uvicorn |
 | Database | SQLite (WAL mode, `threading.Lock` shared connection, numbered migrations) |
-| Frontend | Vanilla JS (ES2020 modules), CSS3 glassmorphism, no framework |
-| AI / LLM | 13-provider factory: Cerebras, Groq, OpenAI, Anthropic, Google, OpenRouter, DeepSeek, xAI, GLM, Mistral, Cloudflare Workers AI, OVHcloud, plus any OpenAI-compatible endpoint — failover, measured rate limits, exponential-backoff retry |
-| OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs (JPG/PNG/AVIF/WEBP/TIFF). Bundle ships **5 languages**: EN/IT/ES/FR/DE (~13 MB tessdata) |
+| Frontend | Vanilla JS (ES2020 modules), CSS design tokens and responsive layout, no framework |
+| AI / LLM | Existing 13-provider factory plus optional Codex/Claude Code runtimes and named compatible endpoints; explicit per-task routing and fallbacks |
+| MCP | Official Python SDK, authenticated loopback Streamable HTTP and stdio adapter |
+| OCR | Tesseract 5.x (via `pytesseract` + `pdf2image`) — scanned PDFs and image CVs. Windows bundle includes `eng`, `ita`, `spa`, `fra`, `deu` and `osd` |
 | Scraping | [python-jobspy](https://github.com/Bunsly/JobSpy) |
 | Streaming | Server-Sent Events |
-| Testing | pytest (985 unit tests across 96 files), Playwright (9 E2E specs) |
+| Testing | pytest unit/integration tests, native-protocol subprocess tests, Playwright UI tests and isolated frozen-bundle verification |
 | Quality | ruff, mypy strict, pre-commit, coverage badge published from CI |
 | Deployment | Multi-stage Dockerfile + docker-compose, healthcheck, non-root user |
 | Distribution | Standalone Windows bundle via PyInstaller (`make build-exe`) — Tesseract bundled, auto-update over GitHub Releases |
-| Logging | stdlib `logging` + RotatingFileHandler → `data/logs/app.log` |
+| Logging | stdlib `logging` + RotatingFileHandler → `state/logs/app.log` in the organized Windows package, `data/logs/app.log` in source/legacy workspaces |
 
 ---
 
@@ -316,7 +380,7 @@ vendor/tesseract/            Bundled Tesseract OCR (created by build_exe.py)
 
 ### Prerequisites
 - Python 3.11+
-- At least one LLM API key (any of the 13 supported providers; Settings → AI says which free one to get)
+- For AI tasks, either a configured API provider/compatible endpoint or your own eligible Codex/Claude Code account and official local client; subscription runtimes are optional
 - Tesseract OCR (optional but recommended — required to upload image CVs and scanned PDFs):
   - **Windows**: `winget install UB-Mannheim.TesseractOCR`
   - **macOS**: `brew install tesseract tesseract-lang`
@@ -353,10 +417,10 @@ The container exposes the app on `${PORT:-8000}` and persists the SQLite DB and 
 
 ### First-time setup
 
-1. Open **Settings** and paste at least one LLM API key.
+1. Open **Settings → AI** and configure your preferred API provider, compatible endpoint, or optional subscription connection. Each task can have its own saved route.
 2. Upload your CV (PDF / DOCX / TXT, max 5 MB).
 3. Chat with the AI Coach — it will ask about preferences.
-4. Open **Job Search** and run the 3-step wizard (or let the chatbot pre-fill the form).
+4. Open **Job Search**, review the terms/locations and start a scan (or let the coach propose the search terms).
 5. Review the dashboard and move jobs through the Kanban board.
 
 ---
@@ -461,7 +525,7 @@ Live LLM E2E tests are opt-in — set `RUN_LIVE_LLM=1` to run them; otherwise th
 
 ## Logging
 
-Logging is configured once in `AppContainer.__init__`. Output goes to stderr **and** to a rotating log file at `data/logs/app.log` (1 MB × 3 backups). Set `LOG_LEVEL=DEBUG` to see provider selection details.
+Logging is configured once in `AppContainer.__init__`. Output goes to stderr **and** to a rotating log file at `state/logs/app.log` in the organized Windows package, or `data/logs/app.log` in source/legacy workspaces (1 MB × 3 backups). Set `LOG_LEVEL=DEBUG` to see provider selection details. Native-runtime prompts, raw client payloads and credentials are not logged.
 
 ```
 2026-04-22 22:08:43 | INFO    | app.main              | AppContainer initializing
@@ -514,25 +578,36 @@ Existing migrations:
 - `028_driving_licence.py` — the blocker that was declared and never checked.
 - `029_analysis_model.py` — `jobs.analysis_model`: which model wrote a verdict. Filled from here on; old rows stay NULL rather than being attributed by guesswork.
 
-The full list is `ls app/migrations/` — 29 of them today.
+- `030_dedup_keys_rehash.py` — rebuilds deduplication keys for existing offers.
+- `031_agent_operations.py` — idempotent MCP operations and reviewable proposals.
+
+The full list is in `app/migrations/` — 31 migrations.
 
 ---
 
 ## Local data
 
-Everything lives in `data/`:
+Source checkouts and legacy Windows installations use `data/`. The new Windows
+layout uses `state/` for the same contents, directly without a nested `data/`:
 - `searcher.db` — SQLite (WAL journal mode, 16 tables)
 - `demo.db` — the throwaway database behind the screenshots (`python scripts/seed_demo.py --force`)
 - `local_secrets.json` — provider API keys (gitignored)
 - `settings.json` — user preferences
+- `ai_connections.json` — named AI connections and explicit task routing
+- `ai_connection_secrets.json` — private keys for compatible connections
+- `agent/mcp-token.txt` — private local MCP capability, created by explicit setup
 - `logs/app.log` — rotating application log
 
-Back up the `data/` folder before major updates.
+Close Job Finder and back up the complete `state/` folder (or `data/` in the
+legacy/source layout) before major updates. Keep backups private.
 
 ---
 
 ## Documentation
 
+- [AI connections](DOCS/ai-connections.md) — optional subscriptions, compatible endpoints, fallback routing and local state.
+- [Native runtimes](DOCS/agent-runtimes.md) — personal runtime setup, diagnostics and quota boundaries.
+- [Local MCP](DOCS/jobfinder-mcp.md) — connect your assistant, including Codex CLI across working folders; keep Job Finder open.
 - [DB schema reference](DOCS/schema.md) — table-by-table breakdown of `data/searcher.db`.
 - [Security notes](DOCS/security.md) — localhost threat model, secret storage, network surface.
 - [Contributing guide](CONTRIBUTING.md) — local dev workflow, Makefile targets, quality gates.

@@ -13,7 +13,7 @@ Behavior:
     2. Download the latest GitHub release ZIP, OR use --zip if given.
     3. Extract into a temp dir.
     4. ``app.update_sync.sync_install_dir`` copies bundle files over
-       the install dir, preserving ``data/``, ``.env``, ``.env.local``.
+       the install dir, preserving user state, vendor runtimes and environment files.
     5. Restart JobFinder.exe.
     6. On any failure, leave the install dir intact — the user can
        still launch the old version.
@@ -50,9 +50,11 @@ def _bootstrap_internal_path() -> None:
     candidates = [Path(sys.executable).resolve().parent / "_internal"]
     for i, arg in enumerate(sys.argv):
         if arg == "--install-dir" and i + 1 < len(sys.argv):
-            candidates.append(Path(sys.argv[i + 1]).resolve() / "_internal")
+            root = Path(sys.argv[i + 1]).resolve()
+            candidates.extend((root / "app" / "_internal", root / "_internal"))
         elif arg.startswith("--install-dir="):
-            candidates.append(Path(arg.split("=", 1)[1]).resolve() / "_internal")
+            root = Path(arg.split("=", 1)[1]).resolve()
+            candidates.extend((root / "app" / "_internal", root / "_internal"))
     for cand in candidates:
         if cand.exists():
             sys.path.insert(0, str(cand))
@@ -61,7 +63,13 @@ def _bootstrap_internal_path() -> None:
 
 _bootstrap_internal_path()
 
-from app.update_sync import sync_install_dir  # noqa: E402
+from app.install_layout import (  # noqa: E402
+    LAYOUT_MARKER,
+    installation_root,
+    is_organized,
+    state_dir,
+)
+from app.update_sync import release_update_lock, sync_install_dir  # noqa: E402
 from app.version import _fetch_latest_release  # noqa: E402
 
 
@@ -108,9 +116,48 @@ def _download_latest(target_dir: Path) -> Path:
 
 
 def _open_log(install_dir: Path):
-    log_path = install_dir / "data" / "logs" / "updater.log"
+    log_path = state_dir(installation_root(install_dir)) / "logs" / "updater.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     return log_path.open("a", encoding="utf-8")
+
+
+def _bundle_root(extracted: Path) -> Path:
+    """Accept a direct bundle or one wrapper, never mistake app/ for the wrapper."""
+    if (extracted / "JobFinder.exe").is_file():
+        marker = extracted / "app" / LAYOUT_MARKER
+        if marker.exists() and (
+            not is_organized(extracted) or not (extracted / "app" / "JobFinder.exe").is_file()
+        ):
+            raise RuntimeError("archive contains an invalid organized layout")
+        return extracted
+    candidates = [
+        child for child in extracted.iterdir()
+        if child.is_dir() and (child / "JobFinder.exe").is_file()
+    ]
+    if len(candidates) != 1:
+        raise RuntimeError("archive does not contain one JobFinder Windows bundle")
+    return _bundle_root(candidates[0])
+
+
+def _extract_bundle(zip_path: Path, destination: Path) -> Path:
+    """Keep every extracted member in staging; never write through ZIP paths."""
+    from pathlib import PurePosixPath
+
+    destination.mkdir(parents=True, exist_ok=True)
+    staging_root = destination.resolve()
+    with zipfile.ZipFile(zip_path) as archive:
+        for item in archive.infolist():
+            parts = PurePosixPath(item.filename.replace("\\", "/"))
+            if (
+                parts.is_absolute()
+                or ".." in parts.parts
+                or any(":" in part for part in parts.parts)
+                or ((item.external_attr >> 16) & 0o170000) == 0o120000
+                or not (destination / Path(*parts.parts)).resolve().is_relative_to(staging_root)
+            ):
+                raise RuntimeError("unsafe path in release archive")
+        archive.extractall(destination)
+    return _bundle_root(destination)
 
 
 def _show_misuse_dialog() -> None:
@@ -136,6 +183,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--install-dir", required=True, type=Path)
     parser.add_argument("--parent-pid", required=True, type=int)
+    parser.add_argument("--lock-owner", default=None, help="Owner capability of the app's update lock")
     parser.add_argument(
         "--zip",
         type=Path,
@@ -151,7 +199,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    install_dir = args.install_dir.resolve()
+    install_dir = installation_root(args.install_dir)
+    user_state_dir = state_dir(install_dir)
     log_file = _open_log(install_dir)
 
     def log(msg: str) -> None:
@@ -193,20 +242,14 @@ def main() -> int:
                     event("download_done", bytes=zip_path.stat().st_size)
 
                 extract_dir = tmp / "extracted"
-                extract_dir.mkdir()
                 event("verify_start")
-                with zipfile.ZipFile(zip_path) as z:
-                    z.extractall(extract_dir)
+                source = _extract_bundle(zip_path, extract_dir)
                 log(f"extracted into {extract_dir}")
                 event("verify_done")
 
-                # The ZIP root is the `JobFinder/` folder produced by PyInstaller.
-                inner_dirs = [p for p in extract_dir.iterdir() if p.is_dir()]
-                source = inner_dirs[0] if len(inner_dirs) == 1 else extract_dir
-
                 event("replace_start")
                 count = sync_install_dir(source=source, target=install_dir)
-                log(f"sync done: {count} files written, data/ preserved")
+                log(f"sync done: {count} files written; state/data/vendor preserved")
                 event("replace_done", files=count)
 
             exe = install_dir / "JobFinder.exe"
@@ -235,30 +278,24 @@ def main() -> int:
             # Best-effort lockfile cleanup so the next update isn't blocked
             # by a stale lock. The backend TTL covers crash cases.
             with contextlib.suppress(OSError):
-                (install_dir / "data" / "update.lock").unlink(missing_ok=True)
-            # The Updater.exe we are running was copied into a temp dir to
-            # avoid self-overwrite during sync. We can't rmdir while the
-            # process is alive — spawn a detached cmd that waits, then
-            # removes the dir. If this fails, %TEMP% will still be cleaned
-            # by Windows Storage Sense eventually.
-            if args.temp_launcher_dir and sys.platform == "win32":
-                with contextlib.suppress(OSError):
-                    subprocess.Popen(
-                        [
-                            "cmd",
-                            "/c",
-                            f'timeout /t 5 /nobreak >nul & rmdir /s /q "{args.temp_launcher_dir}"',
-                        ],
-                        close_fds=True,
-                        creationflags=subprocess.DETACHED_PROCESS
-                        | subprocess.CREATE_NEW_PROCESS_GROUP,
-                    )
+                release_update_lock(
+                    user_state_dir / "update.lock", args.lock_owner,
+                    legacy_parent_pid=args.parent_pid,
+                )
+            # This updater runs from staging. Do not send a caller-provided path
+            # to a second shell for delayed recursive deletion. Windows' normal
+            # temporary-file cleanup can reclaim the staged helper after exit.
+            if args.temp_launcher_dir:
+                event("staging_retained", path=str(args.temp_launcher_dir))
             return 0
         except Exception as exc:
             log(f"FAILED: {exc!r}")
             event("error", message=repr(exc))
             with contextlib.suppress(OSError):
-                (install_dir / "data" / "update.lock").unlink(missing_ok=True)
+                release_update_lock(
+                    user_state_dir / "update.lock", args.lock_owner,
+                    legacy_parent_pid=args.parent_pid,
+                )
             return 1
 
 

@@ -296,7 +296,9 @@ def handle_chat_message(
         # has a Google key, Gemini's Search grounding is free (1500/day) and
         # gives a current, sourced answer. No key, no network, no match on the
         # question -> nothing happens and the local snapshot still applies.
-        if market_web.looks_like_market_question(message):
+        has_route = getattr(provider_manager, "has_connection_route", None)
+        connection_routed = callable(has_route) and has_route("chat")
+        if not connection_routed and market_web.looks_like_market_question(message):
             grounded = market_web.ask(
                 db,
                 getattr(provider_manager.settings, "google_api_key", None),

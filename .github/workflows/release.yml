@@ -55,8 +55,11 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/JobFinder-windows.zip
+          files: |
+            dist/JobFinder-windows.zip
+            dist/JobFinder-portable.zip
           body_path: release-notes.md
+          draft: true
           fail_on_unmatched_files: true
 
       - name: Upload artifact (manual run)
@@ -64,5 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: JobFinder-windows
-          path: dist/JobFinder-windows.zip
+          path: |
+            dist/JobFinder-windows.zip
+            dist/JobFinder-portable.zip
           retention-days: 14

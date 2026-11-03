@@ -187,6 +187,7 @@ def generate_with_profile(
     policy_override: dict[str, Any] | None = None,
     provider_name: str | None = None,
     model_name: str | None = None,
+    task: str = "cv",
 ) -> str:
     """Generate profile-tailored content for a job. Returns the text body.
 
@@ -205,6 +206,9 @@ def generate_with_profile(
     if redact:
         profile_markdown, token_map = redact_pii(profile_markdown, candidate_name)
     budget = max_tokens if max_tokens is not None else MAX_TOKENS.get(content_type, 700)
+    from app.providers.connection_routing import task_kwargs
+
+    routed_kwargs = task_kwargs(provider_manager, task)
     try:
         prompt = build_prompt(
             content_type, profile_markdown, job_info, extra_block=extra_block, language=language
@@ -215,9 +219,16 @@ def generate_with_profile(
             provider_name=provider_name,
             model_name=model_name,
             policy_override=policy_override,
+            **routed_kwargs,
         )
         content = _extract_content(result, content_type)
-    except Exception:
+    except Exception as exc:
+        # Changing JSON to prose cannot repair expired auth, quota, cancellation
+        # or a truncated native completion. Do not spend a second agent turn.
+        if routed_kwargs and (
+            not isinstance(exc, ValueError) or type(exc).__name__ == "TruncatedCompletionError"
+        ):
+            raise
         prose_prompt = build_prompt(
             content_type,
             profile_markdown,
@@ -232,6 +243,7 @@ def generate_with_profile(
             provider_name=provider_name,
             model_name=model_name,
             policy_override=policy_override,
+            **routed_kwargs,
         )
     content = restore_pii(content, token_map)
     if restore_contact_info and redact:

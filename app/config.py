@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from app.install_layout import is_organized, state_dir
+
 # There is deliberately no built-in list of search terms and no default city.
 # Both used to exist, taken from the person who wrote this app, and an empty
 # search form silently resolved to them — then stored them as the user's own
@@ -263,8 +265,13 @@ def _load_dotenv(workspace_dir: Path) -> None:
 
 
 def load_settings(workspace_dir: Path) -> AppSettings:
+    # A marked bundle keeps mutable files directly in state/, never state/data.
+    # Real environment variables win; organized state/.env wins over a legacy
+    # root .env if an old installation still has both during migration.
+    data_dir = state_dir(workspace_dir)
+    if is_organized(workspace_dir):
+        _load_dotenv(data_dir)
     _load_dotenv(workspace_dir)
-    data_dir = workspace_dir / "data"
     config_path = data_dir / "settings.json"
     cfg = _load_optional_json(config_path)
 
@@ -275,7 +282,9 @@ def load_settings(workspace_dir: Path) -> AppSettings:
         db_path.parent.mkdir(parents=True, exist_ok=True)
     else:
         db_path = data_dir / "searcher.db"
-    groq_key_file = workspace_dir / "groq key.txt"
+    groq_key_file = (
+        data_dir / "groq key.txt" if is_organized(workspace_dir) else workspace_dir / "groq key.txt"
+    )
     local_secrets = _load_optional_json(data_dir / LOCAL_SECRETS_FILE)
     if not isinstance(local_secrets, dict):
         local_secrets = {}

@@ -1,9 +1,12 @@
 import contextlib
 import os
 import re
+import sys
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
+from app.install_layout import installation_root, vendor_dir
 from app.log import get_logger
 
 log = get_logger(__name__)
@@ -26,6 +29,12 @@ def _get_ocr_lang(override: str | None = None) -> str:
     return os.environ.get("JOBFINDER_OCR_LANG", _DEFAULT_OCR_LANG)
 
 
+def _bundled_vendor_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return vendor_dir(installation_root(Path(sys.executable)))
+    return Path(__file__).resolve().parents[1] / "vendor"
+
+
 def _resolve_tesseract_cmd() -> str | None:
     """Locate the ``tesseract`` binary, preferring a bundled portable copy.
 
@@ -39,11 +48,9 @@ def _resolve_tesseract_cmd() -> str | None:
     override = os.environ.get("JOBFINDER_TESSERACT_CMD")
     if override and os.path.isfile(override):
         return override
-    here = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(here)
-    bundled = os.path.join(project_root, "vendor", "tesseract", "tesseract.exe")
-    if os.path.isfile(bundled):
-        return bundled
+    bundled = _bundled_vendor_dir() / "tesseract" / "tesseract.exe"
+    if bundled.is_file():
+        return str(bundled)
     import shutil
 
     found = shutil.which("tesseract") or shutil.which("tesseract.exe")
@@ -56,6 +63,15 @@ def _resolve_tesseract_cmd() -> str | None:
     ):
         if os.path.isfile(default):
             return default
+    return None
+
+
+def _resolve_poppler_path() -> str | None:
+    """Find an optional portable Poppler tree beside the application runtime."""
+    poppler = _bundled_vendor_dir() / "poppler"
+    for candidate in (poppler / "Library" / "bin", poppler / "bin", poppler):
+        if (candidate / "pdftoppm.exe").is_file() or (candidate / "pdftoppm").is_file():
+            return str(candidate)
     return None
 
 
@@ -148,7 +164,12 @@ def _extract_text_pdf_via_ocr(data: bytes) -> str:
         log.info("pdf2image not installed; cannot OCR scanned PDF")
         return ""
     try:
-        images = convert_from_bytes(data, dpi=200)
+        poppler_path = _resolve_poppler_path()
+        images = (
+            convert_from_bytes(data, dpi=200, poppler_path=poppler_path)
+            if poppler_path
+            else convert_from_bytes(data, dpi=200)
+        )
     except Exception as exc:
         # pdf2image needs poppler; on Windows the bundle ships it under vendor/poppler.
         log.warning("PDF rasterize failed (poppler missing?): %s", exc)

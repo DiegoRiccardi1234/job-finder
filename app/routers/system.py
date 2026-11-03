@@ -8,12 +8,13 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
+from app.install_layout import installation_root, runtime_dir
+from app.update_sync import UpdateInProgressError, claim_update_lock, release_update_lock
 from app.version import get_version_info
 
 if TYPE_CHECKING:
@@ -104,38 +105,33 @@ def build_router(container: AppContainer) -> APIRouter:
                 detail=f"No newer version available (current {current}, latest {latest}).",
             )
 
-        install_dir = Path(sys.executable).resolve().parent
-        updater_exe = install_dir / "Updater.exe"
+        install_dir = installation_root(Path(sys.executable))
+        updater_exe = runtime_dir(install_dir) / "Updater.exe"
         if not updater_exe.exists():
             raise HTTPException(
                 status_code=500,
-                detail=f"Updater.exe not found next to JobFinder.exe (looked in {install_dir}).",
+                detail=f"Updater.exe not found in runtime directory (looked in {updater_exe.parent}).",
             )
 
         # Lockfile guard: refuse if another updater spawn happened recently.
         # The double-click race shipped two parallel Updater.exe processes
         # both racing on JobFinder.exe and producing PermissionError.
-        lock_path = container.workspace_dir / "data" / "update.lock"
+        lock_path = container.settings.data_dir / "update.lock"
         # Must exceed the updater's worst-case runtime so the lock never goes
         # "stale" mid-update and lets a second Updater.exe spawn: download
         # (urlopen timeout 120s) + 3s grace + copy-retry backoff (~31s) ≈ 150s+.
         lock_ttl_seconds = 180
-        if lock_path.exists():
-            try:
-                age = time.time() - lock_path.stat().st_mtime
-            except OSError:
-                age = lock_ttl_seconds + 1  # treat unreadable lock as stale
-            if age < lock_ttl_seconds:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "update_already_in_progress",
-                        "lock_age_s": int(age),
-                        "lock_ttl_s": lock_ttl_seconds,
-                    },
-                )
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_path.write_text(f"{os.getpid()}\n{latest}\n", encoding="utf-8")
+        try:
+            lock_owner = claim_update_lock(lock_path, str(latest), lock_ttl_seconds)
+        except UpdateInProgressError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "update_already_in_progress",
+                    "lock_age_s": exc.age_seconds,
+                    "lock_ttl_s": exc.ttl_seconds,
+                },
+            ) from None
 
         # Launch Updater.exe from a temp copy so the install-dir copy is
         # unlocked while the new bundle is staged on top. Without this,
@@ -156,7 +152,7 @@ def build_router(container: AppContainer) -> APIRouter:
                 shutil.copytree(internal_src, launcher_dir / "_internal")
         except OSError as exc:
             with contextlib.suppress(OSError):
-                lock_path.unlink(missing_ok=True)
+                release_update_lock(lock_path, lock_owner)
             raise HTTPException(
                 status_code=500,
                 detail=f"Could not stage Updater.exe in temp dir: {exc!r}",
@@ -165,19 +161,26 @@ def build_router(container: AppContainer) -> APIRouter:
         creationflags = 0
         if sys.platform == "win32":
             creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        subprocess.Popen(
-            [
-                str(launcher_exe),
-                "--install-dir",
-                str(install_dir),
-                "--parent-pid",
-                str(os.getpid()),
-                "--temp-launcher-dir",
-                str(launcher_dir),
-            ],
-            close_fds=True,
-            creationflags=creationflags,
-        )
+        try:
+            subprocess.Popen(
+                [
+                    str(launcher_exe),
+                    "--install-dir",
+                    str(install_dir),
+                    "--parent-pid",
+                    str(os.getpid()),
+                    "--lock-owner",
+                    lock_owner,
+                    "--temp-launcher-dir",
+                    str(launcher_dir),
+                ],
+                close_fds=True,
+                creationflags=creationflags,
+            )
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                release_update_lock(lock_path, lock_owner)
+            raise HTTPException(500, detail="Could not start the staged updater.") from exc
 
         # Give the response a moment to flush, then hard-exit so the updater
         # can replace our files. Graceful uvicorn shutdown is too slow.
@@ -192,7 +195,7 @@ def build_router(container: AppContainer) -> APIRouter:
         error-state link. Lets non-developer users grab `updater.log`
         for support without hunting through `data/logs/` by hand.
         """
-        log_dir = container.workspace_dir / "data" / "logs"
+        log_dir = container.settings.data_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         if sys.platform == "win32":
             os.startfile(str(log_dir))
@@ -227,7 +230,7 @@ def build_router(container: AppContainer) -> APIRouter:
         completed (lockfile already gone) or it crashed (no live updater
         will fight us for files).
         """
-        lock_path = container.workspace_dir / "data" / "update.lock"
+        lock_path = container.settings.data_dir / "update.lock"
         existed = lock_path.exists()
         with contextlib.suppress(OSError):
             lock_path.unlink(missing_ok=True)
@@ -241,7 +244,7 @@ def build_router(container: AppContainer) -> APIRouter:
         ``EVENT {...}`` JSON line, and maps the event name to a step + percent.
         Falls back to ``{"step": "idle"}`` if the log is missing or empty.
         """
-        log_path = container.workspace_dir / "data" / "logs" / "updater.log"
+        log_path = container.settings.data_dir / "logs" / "updater.log"
         if not log_path.exists():
             return {"step": "idle", "percent": 0, "event": None}
         try:

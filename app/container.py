@@ -92,9 +92,18 @@ class AppContainer:
 
     def shutdown(self) -> None:
         self.autoscan.shutdown()
+        cancel = getattr(self.providers, "cancel_connections", None)
+        if callable(cancel):
+            cancel()
+        tools = getattr(self, "agent_tools", None)
+        if tools is not None and not tools.shutdown(close_callback=self.db.close):
+            return
         self.db.close()
 
     def reload_providers(self) -> None:
+        cancel = getattr(self.providers, "cancel_connections", None)
+        if callable(cancel):
+            cancel()
         self.settings = load_settings(self.workspace_dir)
         self.providers = ProviderManager(self.settings)
         self.providers._db = self.db
@@ -115,11 +124,15 @@ class AppContainer:
         status["scoring_model"] = self.settings.scoring_model or ""
         status["chat_model"] = self.settings.chat_model or ""
         status["cv_model"] = self.settings.cv_model or ""
+        routed = getattr(self.providers, "has_routed_connections", None)
+        status["connections_configured"] = bool(callable(routed) and routed())
         return status
 
     def has_provider_configured(self) -> bool:
         status = self.keys_status()
-        return any(status[flag] for flag in _PROVIDER_FLAGS)
+        return any(status[flag] for flag in _PROVIDER_FLAGS) or bool(
+            status["connections_configured"]
+        )
 
     def feature_enabled(self, name: str, default: bool = True) -> bool:
         """Return whether an optional feature is enabled.

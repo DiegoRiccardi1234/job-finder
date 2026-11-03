@@ -1054,6 +1054,56 @@
       <div data-subtabs-panels="settings">
         <section class="subtab-panel is-active" role="tabpanel" data-subtab-panel="ai" id="settings-panel-ai" aria-labelledby="settings-tab-ai">
           <div class="settings-grid">
+        <article class="card-block card-block--wide" id="agentConnectionsCard">
+          <h3><span class="material-symbols-outlined">hub</span> <span data-i18n="agentConnections.title">AI connections and assistants</span></h3>
+          <p class="micro" data-i18n="agentConnections.subtitle">Use your own Codex or Claude subscription, or connect a compatible service. No terminal needs to stay open during normal use.</p>
+          <div class="agent-row-actions">
+            <button type="button" class="secondary" data-agent-action="new" data-i18n="agentConnections.newConnection">Add compatible connection</button>
+            <button type="button" class="ghost-btn small" data-agent-action="refresh" data-i18n="agentConnections.refresh">Refresh connections</button>
+          </div>
+          <p id="agentConnectionsMessage" class="micro" role="status" aria-live="polite"></p>
+          <div id="agentConnectionsList" class="agent-connections-list"></div>
+          <p class="micro" data-i18n="agentConnections.testHint">Test sends a short synthetic prompt and uses the selected connection's quota. Diagnostics do not send a prompt.</p>
+          <p class="micro" data-i18n="agentConnections.entitlementHint">Sign-in and a reported plan name do not guarantee an active subscription or available quota.</p>
+          <details class="agent-install-help">
+            <summary data-i18n="agentConnections.setupHelp">Installation and sign-in help</summary>
+            <p class="micro" data-i18n="agentConnections.setupHint">For AI inside Job Finder, install the official runtime and sign in with your own account. Job Finder detects it and runs it in the background. To use Job Finder from a desktop assistant, configure MCP below.</p>
+            <ul>
+              <li><a href="https://learn.chatgpt.com/docs/cli" target="_blank" rel="noopener noreferrer">Codex</a></li>
+              <li><a href="https://code.claude.com/docs/en/setup" target="_blank" rel="noopener noreferrer">Claude Code</a></li>
+              <li><a href="https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/api-server.md" target="_blank" rel="noopener noreferrer">Hermes</a></li>
+            </ul>
+          </details>
+          <form id="agentConnectionForm" class="agent-editor" hidden>
+            <h4 id="agentConnectionEditorTitle" data-i18n="agentConnections.newConnection">Add compatible connection</h4>
+            <input type="hidden" id="agentConnectionId" />
+            <label class="agent-field"><span data-i18n="agentConnections.name">Name</span><input id="agentConnectionName" type="text" maxlength="80" required autocomplete="off" /></label>
+            <label class="agent-field"><span data-i18n="agentConnections.kind">Connection type</span><select id="agentConnectionKind"><option value="openai_compatible" data-i18n="agentConnections.compatibleEndpoint">Compatible endpoint</option><option value="codex">Codex</option><option value="claude">Claude Code</option></select></label>
+            <label class="agent-field"><span data-i18n="agentConnections.model">Model (leave empty for the runtime default)</span><input id="agentConnectionModel" type="text" maxlength="200" autocomplete="off" /></label>
+            <div id="agentEndpointFields">
+              <label class="agent-field"><span data-i18n="agentConnections.baseUrl">Base URL</span><input id="agentConnectionUrl" type="url" maxlength="2048" placeholder="http://127.0.0.1:8642/v1" autocomplete="off" /></label>
+              <label class="agent-field"><span data-i18n="agentConnections.apiKey">API key (optional)</span><input id="agentConnectionKey" type="password" autocomplete="new-password" /></label>
+              <label class="feature-toggle"><input type="checkbox" id="agentConnectionClearKey" /> <span data-i18n="agentConnections.clearKey">Remove the saved key</span></label>
+            </div>
+            <label class="feature-toggle"><input type="checkbox" id="agentConnectionEnabled" /> <span data-i18n="agentConnections.enableConnection">Enable this connection</span></label>
+            <p class="micro" data-i18n="agentConnections.enableHint">Enabling makes it selectable. It does not change task routing or start AI work.</p>
+            <div class="agent-row-actions"><button type="submit" class="secondary" data-i18n="agentConnections.saveConnection">Save connection</button><button type="button" class="ghost-btn small" data-agent-action="cancel-edit" data-i18n="agentConnections.cancel">Cancel</button></div>
+          </form>
+          <h4 data-i18n="agentConnections.routingTitle">Choose a connection for each task</h4>
+          <p class="micro" data-i18n="agentConnections.routingHint">Fallbacks run in the order shown, only when the previous connection fails. Add paid APIs only if you want to use their credits.</p>
+          <div id="agentRouting" class="agent-routing"></div>
+          <button type="button" class="secondary" data-agent-action="save-routing" data-i18n="agentConnections.saveRouting" disabled>Save task routing</button>
+          <details class="agent-mcp-details">
+            <summary data-i18n="agentConnections.mcpTitle">Connect a desktop assistant or CLI with MCP</summary>
+            <p class="micro" data-i18n="agentConnections.mcpHint">Keep Job Finder open. Generate a local configuration for your assistant, then add it using that client's settings. No connection is installed automatically.</p>
+            <button type="button" class="ghost-btn small" data-agent-action="setup" data-i18n="agentConnections.generateSetup">Generate MCP configuration</button>
+            <div id="agentMcpConfig" class="agent-mcp-config" hidden></div>
+          </details>
+          <h4 data-i18n="agentConnections.proposalsTitle">Changes proposed by an assistant</h4>
+          <p class="micro" data-i18n="agentConnections.proposalsHint">Profile, preferences and application status changes need your confirmation here. Review the exact values before confirming.</p>
+          <button type="button" class="ghost-btn small" data-agent-action="refresh-proposals" data-i18n="agentConnections.refreshProposals">Check proposals</button>
+          <div id="agentProposals" class="agent-proposals"></div>
+        </article>
         <article class="card-block card-block--wide">
           <h3><span class="material-symbols-outlined">key</span> <span data-i18n="settings.providers.title">AI Providers</span></h3>
           <p class="micro" data-i18n="settings.providers.subtitle">Add an API key for each provider you want to use, then pick one as primary.</p>
@@ -1243,7 +1293,7 @@
                native selects and writes back into them; app.js reads their values
                on send and providers.js keeps them populated. -->
           <select id="chatModelSelector" class="mini-select" title="Override provider" hidden aria-hidden="true">
-            <option value="" data-i18n="coach.autoApi">Auto API</option>
+            <option value="" data-i18n="coach.autoApi">AI settings</option>
           </select>
           <select id="chatModelSelectorModel" class="mini-select" title="Override model" hidden aria-hidden="true" disabled>
             <option value="" data-i18n="chat.modelAuto">Auto model</option>

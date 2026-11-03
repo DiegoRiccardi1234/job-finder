@@ -14,6 +14,8 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from app.install_layout import installation_root, state_dir
+
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PORT", "8000"))
 URL = f"http://{HOST}:{PORT}"
@@ -37,7 +39,7 @@ def _update_in_progress(workspace: Path) -> bool:
     """
     if os.environ.get("JOBFINDER_UPDATED"):
         return False
-    lock = workspace / "data" / "update.lock"
+    lock = state_dir(workspace) / "update.lock"
     try:
         age = time.time() - lock.stat().st_mtime
     except OSError:
@@ -115,13 +117,13 @@ def _harden_stdio() -> None:
 
 
 def _resolve_workspace() -> Path:
-    """Return the dir where the user's data/, .env, settings live.
+    """Return the installation root, separate from its writable data directory.
 
-    Frozen (PyInstaller bundle): parent of the executable.
+    Frozen: marker-aware root (runtime lives in app/ for organized bundles).
     Source run: project root (parent of ``scripts/``).
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        return installation_root(Path(sys.executable))
     return Path(__file__).resolve().parents[1]
 
 
@@ -160,7 +162,7 @@ _TRAY_LABELS = {
 
 def _ui_language(workspace: Path) -> str:
     """Read the persisted UI language from the DB (read-only), default 'en'."""
-    db = workspace / "data" / "searcher.db"
+    db = state_dir(workspace) / "searcher.db"
     try:
         import sqlite3
 
@@ -229,7 +231,7 @@ def _run_tray(workspace: Path) -> None:
 def main() -> int:
     _harden_stdio()
     workspace = _resolve_workspace()
-    (workspace / "data").mkdir(parents=True, exist_ok=True)
+    state_dir(workspace).mkdir(parents=True, exist_ok=True)
 
     if getattr(sys, "frozen", False) and sys.platform == "win32":
         # Don't fight an in-progress self-update: a relaunched exe here would

@@ -5,7 +5,13 @@ const { test, expect } = require("@playwright/test");
 // what no unit test can see is whether the browser still opens the posting
 // after a click handler was added in front of it.
 
-test("opening a posting still opens a tab, and starts the wait", async ({ page, context }) => {
+test.beforeEach(async ({ page }) => {
+  // Exercise link tracking and mailbox UI after onboarding. The delayed
+  // tutorial otherwise covers the posting link after navigation/reload.
+  await page.addInitScript(() => localStorage.setItem("tutorialSeen", "1"));
+});
+
+test("opening a posting still opens a tab, and starts the wait", async ({ page, context, request }) => {
   const consoleErrors = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") consoleErrors.push(msg.text());
@@ -69,10 +75,8 @@ test("opening a posting still opens a tab, and starts the wait", async ({ page, 
     await page.locator(".topnav .nav-link[data-view='jobs']").click();
     await expect(page.locator(".job-flag", { hasText: "hourglass_top" }).first()).toBeVisible();
   } finally {
-    await page.evaluate(
-      (id) => fetch(`/api/jobs/${id}`, { method: "DELETE" }),
-      created,
-    );
+    // Cleanup must not depend on a page that Playwright closes on timeout.
+    await request.delete(`/api/jobs/${created}`, { timeout: 5_000 });
   }
 
   expect(consoleErrors, `console errors: ${consoleErrors.join(" | ")}`).toEqual([]);

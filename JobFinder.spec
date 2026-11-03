@@ -9,6 +9,11 @@ hiddenimports: list[str] = []
 hiddenimports += collect_submodules("app.migrations")
 hiddenimports += collect_submodules("app.providers")
 hiddenimports += collect_submodules("app.mail")
+mcp_imports = collect_submodules(
+    "mcp", filter=lambda name: not name.startswith("mcp.cli") and name != "mcp.__main__"
+)
+hiddenimports += mcp_imports
+hiddenimports += collect_submodules("mcp_types")
 hiddenimports += [
     "openai",
     "groq",
@@ -91,14 +96,32 @@ a_upd = Analysis(
     noarchive=False,
 )
 
+# The MCP adapter needs real stdin/stdout. It is launched by an MCP host,
+# independently of the windowless UI process, and forwards to the running app.
+a_mcp = Analysis(
+    ["app/mcp_server.py"],
+    pathex=["."],
+    binaries=[],
+    datas=[],
+    hiddenimports=mcp_imports + collect_submodules("mcp_types"),
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=excludes,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
 # Share dependencies so Updater.exe doesn't double the bundle size.
 MERGE(
     (a_main, "JobFinder", "JobFinder"),
     (a_upd, "Updater", "Updater"),
+    (a_mcp, "JobFinderMCP", "JobFinderMCP"),
 )
 
 pyz_main = PYZ(a_main.pure, a_main.zipped_data, cipher=block_cipher)
 pyz_upd = PYZ(a_upd.pure, a_upd.zipped_data, cipher=block_cipher)
+pyz_mcp = PYZ(a_mcp.pure, a_mcp.zipped_data, cipher=block_cipher)
 
 exe_main = EXE(
     pyz_main,
@@ -116,7 +139,7 @@ exe_main = EXE(
     # startup write. With console=False the streams are None and launch_exe
     # hardens them; see scripts/launch_exe.py:_harden_stdio.
     console=False,
-    icon=None,
+    icon="web/jobfinder.ico",
 )
 
 exe_upd = EXE(
@@ -130,18 +153,36 @@ exe_upd = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon=None,
+    icon="web/jobfinder.ico",
+)
+
+exe_mcp = EXE(
+    pyz_mcp,
+    a_mcp.scripts,
+    [],
+    exclude_binaries=True,
+    name="JobFinderMCP",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=True,
+    icon="web/jobfinder.ico",
 )
 
 coll = COLLECT(
     exe_main,
     exe_upd,
+    exe_mcp,
     a_main.binaries,
     a_main.zipfiles,
     a_main.datas,
     a_upd.binaries,
     a_upd.zipfiles,
     a_upd.datas,
+    a_mcp.binaries,
+    a_mcp.zipfiles,
+    a_mcp.datas,
     strip=False,
     upx=True,
     upx_exclude=[],

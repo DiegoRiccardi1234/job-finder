@@ -29,7 +29,11 @@ def build_router(container: AppContainer) -> APIRouter:
         # default chat model (pinned on the primary provider), else Auto.
         provider = payload.provider
         model = payload.model
-        if not model and container.settings.chat_model:
+        if (
+            not model
+            and container.settings.chat_model
+            and not container.providers.has_connection_route("chat")
+        ):
             model = container.settings.chat_model
             order = container.settings.llm_provider_order
             provider = provider or (order[0] if order else None)

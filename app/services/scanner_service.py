@@ -427,6 +427,11 @@ def _scoring_call_kwargs(provider_manager: ProviderManager) -> dict[str, Any]:
     model if set (no failover), else auto-select via the speed-biased policy.
     getattr-guarded so test stubs without ``.settings`` still work.
     """
+    from app.providers.connection_routing import task_kwargs
+
+    routed = task_kwargs(provider_manager, "scoring")
+    if routed:
+        return routed
     settings = getattr(provider_manager, "settings", None)
     scoring_model = getattr(settings, "scoring_model", None)
     if scoring_model:
@@ -941,6 +946,8 @@ def run_scan(
     provider_manager: ProviderManager,
     payload: ScanRequest,
     cancel_check: Callable[[], bool] | None = None,
+    *,
+    analysis_mode: str = "auto",
 ) -> Any:
     """Run a job scan and yield progress events for SSE streaming.
 
@@ -952,6 +959,9 @@ def run_scan(
     caller forwards to the client as Server-Sent Events. ``cancel_check`` — when
     it returns True the run stops promptly (user hit stop / tab closed).
     """
+    if analysis_mode not in ("auto", "collect"):
+        raise ValueError("invalid_analysis_mode")
+    collect_only = analysis_mode == "collect"
     cancelled = cancel_check or (lambda: False)
     if scrape_jobs is None:
         yield {"error": "python-jobspy not installed"}
@@ -960,15 +970,21 @@ def run_scan(
     # A scan is the one action that spends hundreds of requests: if today's
     # budget is already gone it stops here, with the numbers, instead of finding
     # out through a wall of 429s halfway through and scoring the rest locally.
-    quota_block = quota.blocks_scan(db)
+    has_route = getattr(provider_manager, "has_connection_route", None)
+    routed_scoring = callable(has_route) and has_route("scoring")
+    quota_block = None if collect_only or routed_scoring else quota.blocks_scan(db)
     if quota_block:
         yield {"error": quota_block, "quota": quota.status(db)}
         return
 
     # Structural penalties are sticky within a scan (long cooldown) but reset
     # between scans, so a model that recovered gets another chance next run.
-    for _reason in ("truncated", "malformed", "timeout"):
-        provider_manager.clear_model_penalties(_reason)
+    if not collect_only:
+        for _reason in ("truncated", "malformed", "timeout"):
+            provider_manager.clear_model_penalties(_reason)
+        reset = getattr(provider_manager, "reset_connection_cancellation", None)
+        if callable(reset):
+            reset("scoring")
 
     profile = db.get_active_candidate_profile()
     profile_markdown = profile["markdown"] if profile else "Profile not loaded."
@@ -1007,11 +1023,12 @@ def run_scan(
     # label: the worker threads need the figure, not the prompt text.
     ral_min, _ral_target = onboarding_ral(db)
     candidate_name = profile.get("name") if profile else None
-    log.info(
-        "Scan scoring model: %s",
-        settings.scoring_model
-        or f"auto → {provider_manager.preview_scoring_model(_SCORING_POLICY)}",
-    )
+    if not collect_only:
+        log.info(
+            "Scan scoring model: %s",
+            settings.scoring_model
+            or f"auto → {provider_manager.preview_scoring_model(_SCORING_POLICY)}",
+        )
 
     # The same job is advertised under different words: an Italian searching
     # "tirocinio" never sees the postings titled "stage" or "internship", which
@@ -1484,6 +1501,10 @@ def run_scan(
             if is_new:
                 totale_nuovi += 1
 
+            if collect_only:
+                yield {"status": "collected", "job_id": job_id, "is_new": is_new}
+                continue
+
             # Skip re-analysis if the user already closed the job.
             if status in {"applied", "rejected", "archived"}:
                 continue
@@ -1660,7 +1681,7 @@ def run_scan(
     # Skip retention archiving on a cancelled run (partial data — don't prune).
     archiviati = (
         0
-        if was_cancelled
+        if was_cancelled or collect_only
         else apply_post_scan_lifecycle(db=db, retention_days=settings.retention_days)
     )
     db.finish_scan(
@@ -1689,6 +1710,7 @@ def run_scan(
         "duration_ms": duration_ms,
         "percent": 100,
         "cancelled": was_cancelled,
+        "analysis_mode": analysis_mode,
         # What the end-of-scan audit found, and what it did about it. Reported
         # even when empty: "no anomalies" is information, and a cap that hid how
         # many were left unchecked would read as "everything was verified".

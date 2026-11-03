@@ -38,7 +38,7 @@ MIN_HEADROOM = 20
 #: as the ``custom`` provider) has no such cap. Counting those calls would let a
 #: local scan, which costs nothing and leaves the machine at no point, exhaust a
 #: budget that exists to protect a cloud account.
-_UNMETERED_PROVIDERS = ("custom",)
+_UNMETERED_PROVIDERS = ("custom", "codex", "claude")
 
 
 def requests_today(db: Any) -> int:

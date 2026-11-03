@@ -56,6 +56,7 @@ import {
 } from "./modules/reminders.js";
 import { initSavedSearches, loadSavedSearches } from "./modules/saved_searches.js";
 import { initLocalModels, loadLocalModels } from "./modules/local_models.js";
+import { initAgentConnections, loadAgentConnections } from "./modules/agent_connections.js";
 import { initWatchlist, loadWatchlist } from "./modules/watchlist.js";
 import {
   initJobBuckets,
@@ -107,6 +108,7 @@ onLanguageChange(() => {
     loadChatPrompts().catch(() => {});
   }
   refreshModelPickerLabel();
+  if (document.getElementById("view-settings")?.classList.contains("is-active")) loadAgentConnections();
 });
 
 // Language selector
@@ -337,7 +339,7 @@ async function loadHealth() {
   setText("modelBadge", `Model: ${health.provider.active_model}`);
 
   const active = String(health.provider.active_provider || "").toLowerCase();
-  const missing = !active || active === "none" || active === "fallback" || health.provider.available === false;
+  const missing = !health.provider.connections_configured && (!active || active === "none" || active === "fallback" || health.provider.available === false);
   ensureNoKeyBanner(missing, t("banner.noKey"));
 
   const prefs = health.preferences || {};
@@ -885,6 +887,7 @@ document.querySelectorAll("[data-view]").forEach((btn) => {
       loadRateLimits().catch(() => {});
       loadKeysStatus().catch(() => {});
       loadLocalModels().catch(() => {});
+      loadAgentConnections().catch(() => {});
     }
   });
 });
@@ -1358,6 +1361,13 @@ function setupSharedLayout() {
 
 async function bootstrap() {
   await initI18n();
+  initAgentConnections({ onChanged: () => {
+    loadHealth().catch(() => {});
+    loadKeysStatus().catch(() => {});
+    refreshOnboardingPlaceholder().catch(() => {});
+    invalidateReadiness();
+    refreshWorkflow();
+  } });
   populateChatProviderSelector();
   initModelPicker();
   refreshWorkflow();

@@ -1,0 +1,40 @@
+JOB FINDER - AVVIO E DATI LOCALI
+
+AVVIO
+Apri JobFinder.exe nella cartella principale. Il programma avvia
+app\JobFinder.exe e apre Job Finder nel browser locale.
+Durante l'uso normale non serve tenere aperto un terminale.
+Per uscire usa il comando Esci nell'app o nell'icona vicino all'orologio.
+
+CARTELLE DA CONSERVARE
+- app\: programma, librerie _internal, strumenti OCR vendor, MCP e updater.
+- state\: CV, offerte, chat, impostazioni, credenziali e dati privati.
+Non cancellare, rinominare o spostare queste cartelle o singoli componenti.
+app\.jobfinder-layout.json identifica il layout: non modificarlo.
+Non servono junction o collegamenti tra le cartelle.
+
+BACKUP
+Chiudi completamente Job Finder e copia tutta state\ in un'altra posizione.
+Non copiare soltanto searcher.db mentre l'app e' aperta.
+Mantieni i backup privati: possono contenere dati personali e credenziali.
+Conserva state\ durante gli aggiornamenti del programma.
+Se una vecchia installazione usa ancora data\, non spostarla a mano.
+
+CODEX E ALTRE CONNESSIONI AI
+In Impostazioni > IA > Connessioni AI e assistenti puoi abilitare Codex.
+Installa prima il client ufficiale e accedi con il tuo account ChatGPT.
+Scegli Codex per le attivita' desiderate e salva i motori delle attivita'.
+La diagnostica non invia prompt. Prova connessione invia una breve richiesta
+sintetica e consuma la quota dell'account.
+Claude Code e' facoltativo e richiede un piano attuale e idoneo.
+Un vecchio login o il nome di un piano non garantiscono accesso AI attivo.
+Le API e gli altri fallback si usano soltanto secondo le scelte salvate.
+
+MCP E ASSISTENTI DESKTOP
+Lascia aperto Job Finder e genera la configurazione MCP dalle Impostazioni.
+Aggiungila al client desiderato seguendo la guida mostrata nell'app.
+Non aprire manualmente app\JobFinderMCP.exe o app\Updater.exe:
+sono componenti ausiliari avviati con parametri dal client o dal programma.
+La capability MCP e' in state\agent\mcp-token.txt: non condividerla.
+La configurazione generata non dimostra che ogni app desktop sia gia'
+stata collaudata: verifica il collegamento nel client che usi.

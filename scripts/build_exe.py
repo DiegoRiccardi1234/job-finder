@@ -4,9 +4,10 @@ Usage:
     python scripts/build_exe.py
 
 Produces:
-    dist/JobFinder/                    # PyInstaller --onedir output
-    dist/JobFinder/vendor/tesseract/   # bundled Tesseract OCR (~50 MB)
-    dist/JobFinder-windows.zip         # zipped distributable
+    dist/JobFinder/                    # launcher, LEGGIMI, app/ and state/
+    dist/JobFinder/app/vendor/tesseract/   # bundled Tesseract OCR (~50 MB)
+    dist/JobFinder-portable.zip        # clean app/state layout for new installs
+    dist/JobFinder-windows.zip         # flat transport for historical updaters
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ import os
 import shutil
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,19 +112,18 @@ def main() -> int:
         print("PyInstaller did not produce dist/JobFinder/", file=sys.stderr)
         return 2
     _bundle_tesseract(bundle)
-    # Quick-start guide next to JobFinder.exe for non-developer users.
-    readme_src = ROOT / "scripts" / "bundle_LEGGIMI.txt"
-    if readme_src.exists():
-        shutil.copy2(readme_src, bundle / "LEGGIMI.txt")
-        print(f"bundled quick-start guide -> {bundle / 'LEGGIMI.txt'}")
-    zip_path = DIST / "JobFinder-windows.zip"
-    print(f"creating {zip_path.name}...")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        for f in bundle.rglob("*"):
-            if f.is_file():
-                z.write(f, f.relative_to(bundle.parent))
-    size_mb = zip_path.stat().st_size // (1024 * 1024)
-    print(f"done: {zip_path} ({size_mb} MB)")
+    from package_windows import organize_bundle, write_release_archives
+
+    raw_bundle = DIST / "JobFinder-runtime"
+    # Both resolved paths are within this build's dist directory. No installed
+    # application or user archive is moved by the distribution build.
+    if not bundle.resolve().is_relative_to(DIST.resolve()) or not raw_bundle.resolve().is_relative_to(DIST.resolve()):
+        raise RuntimeError("Unsafe build paths")
+    bundle.rename(raw_bundle)
+    organize_bundle(raw_bundle, bundle)
+    for zip_path in write_release_archives(raw_bundle, bundle, DIST):
+        size_mb = zip_path.stat().st_size // (1024 * 1024)
+        print(f"done: {zip_path} ({size_mb} MB)")
     return 0
 
 

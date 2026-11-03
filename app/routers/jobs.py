@@ -154,6 +154,7 @@ def build_router(container: AppContainer) -> APIRouter:
             raise HTTPException(status_code=422, detail="no_description")
 
         ctx = build_context(container.db, privacy=container.feature_enabled("privacy_mode", True))
+        container.providers.reset_connection_cancellation("scoring")
         analysis = rescore_job(container.providers, job, ctx)
         container.db.update_job_analysis(job_id=job_id, analysis=analysis)
         return {
@@ -191,6 +192,7 @@ def build_router(container: AppContainer) -> APIRouter:
             if not container.rescore_control.try_begin():
                 yield f"data: {json.dumps({'error': 'rescore_in_progress'})}\n\n"
                 return
+            container.providers.reset_connection_cancellation("scoring")
             try:
                 for event in rescore_jobs(
                     container.db,
@@ -211,6 +213,7 @@ def build_router(container: AppContainer) -> APIRouter:
     def reanalyze_cancel() -> dict[str, Any]:
         was_running = container.rescore_control.running
         container.rescore_control.cancel()
+        container.providers.cancel_connections("scoring")
         return {"cancelling": was_running}
 
     @router.get("/api/jobs/reanalyze/preview")

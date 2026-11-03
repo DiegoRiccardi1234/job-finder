@@ -439,7 +439,7 @@ function populateChatProviderSelector() {
   if (!sel) return;
   const previous = sel.value;
   const autoOpt = sel.querySelector('option[value=""]');
-  const autoHtml = autoOpt ? autoOpt.outerHTML : `<option value="">${t("coach.autoApi") || "Auto API"}</option>`;
+  const autoHtml = autoOpt ? autoOpt.outerHTML : `<option value="">${t("coach.autoApi") || "AI settings"}</option>`;
   sel.innerHTML = autoHtml + PROVIDER_CATALOG
     .map((p) => `<option value="${p.name}" data-label="${escapeHtml(p.label)}">${escapeHtml(p.label)}</option>`)
     .join("");
@@ -950,7 +950,8 @@ async function onSetPrimaryProvider(name, modelOverride) {
 
 function hasAnyProviderConfigured(keys) {
   return Boolean(
-    keys.cerebras_configured
+    keys.connections_configured
+      || keys.cerebras_configured
       || keys.groq_configured
       || keys.openai_configured
       || keys.anthropic_configured
@@ -965,6 +966,7 @@ function hasAnyProviderConfigured(keys) {
 
 function normalizeKeyStatus(keys = {}, provider = {}) {
   return {
+    connections_configured: !!(keys.connections_configured || provider.connections_configured),
     cerebras_configured: !!keys.cerebras_configured,
     groq_configured: !!keys.groq_configured,
     openai_configured: !!keys.openai_configured,

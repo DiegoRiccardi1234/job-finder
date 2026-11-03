@@ -3333,3 +3333,33 @@ th.th-sort.is-sorted[data-dir="desc"]::after { content: " v"; font-size: 0.7em; 
 .limits-table table { width: 100%; }
 .limits-edit { display: flex; gap: 6px; align-items: center; }
 .limits-edit input { width: 5.5rem; }
+
+/* Subscription runtimes, compatible connections and assistant proposals share
+   the existing Settings controls. Long URLs/configs must stay inside the page. */
+#agentConnectionsCard { min-width: 0; }
+#agentConnectionForm[hidden], #agentEndpointFields[hidden], #agentMcpConfig[hidden] { display: none; }
+#agentConnectionsCard h4 { margin: var(--space-5, 24px) 0 var(--space-2); }
+.agent-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.agent-connections-list { margin: var(--space-3) 0; }
+.agent-connection { padding: var(--space-3) 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.agent-connection-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.agent-connection-state, .agent-checked { color: var(--text-secondary); font-size: var(--fs-xs); }
+.agent-endpoint { overflow-wrap: anywhere; }
+.agent-editor { margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--r-md); }
+.agent-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin-bottom: var(--space-3); }
+.agent-field input, .agent-field select, .agent-field textarea { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+.agent-routing { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
+.agent-route { min-width: 0; margin: 0; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.agent-route legend { padding: 0 6px; font-size: var(--fs-sm); font-weight: 600; }
+.agent-fallback-row { display: flex; align-items: end; gap: var(--space-2); margin-bottom: var(--space-2); }
+.agent-fallback-row .agent-field { flex: 1; margin-bottom: 0; }
+.agent-fallback-row button { flex: 0 0 auto; }
+.agent-install-help, .agent-mcp-details { margin-top: var(--space-4, 20px); }
+.agent-install-help summary, .agent-mcp-details summary { cursor: pointer; }
+.agent-config-block { margin-top: var(--space-3); }
+.agent-config-block textarea { font-family: var(--font-mono, monospace); font-size: var(--fs-xs); resize: vertical; }
+.agent-proposal { padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.agent-proposal h5 { margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
+.agent-proposal-payload { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; font-size: var(--fs-xs); }
+.agent-message-error { color: var(--danger, #be3747); }
+@media (max-width: 900px) { .agent-routing { grid-template-columns: 1fr; } }
