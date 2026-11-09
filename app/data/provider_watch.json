@@ -5,21 +5,19 @@
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
     "liquid/lfm-2.5-2.6b:free",
+    "liquid/lfm-3-1.7b:free",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "nvidia/nemotron-3.5-content-safety:free",
     "nvidia/nemotron-3.5-lightning:free",
     "nvidia/nemotron-3.5-super-vl:free",
     "recursive/flint-v1.0:free",
-    "thinkingmachines/inkling-small:free",
-    "thinkingmachines/inkling:free",
     "xingchen-agi/xing4.0-29b-a4b:free"
   ],
   "pages": {
-    "cerebras_pricing": "6fcc7fa61d55c7cd",
-    "google_pricing": "33e8233747bd037b",
-    "google_rate_limits": "e09130f409f5a9c8",
+    "cerebras_pricing": "88c32bccc83d0e5e",
+    "google_pricing": "ece92bd5a79b7c61",
+    "google_rate_limits": "c67d9f79553ff954",
     "groq_limits": "11d9f0be3e0c7329",
-    "openrouter_limits": "2d250fa3e0247078"
+    "openrouter_limits": "00c5a3cabd7bb014"
   }
 }
