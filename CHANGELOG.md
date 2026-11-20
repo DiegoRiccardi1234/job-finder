@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [2.5.2] — 2026-11-20
+
+### Fixed
+- An application attached to an offer from a mail confirmation is dated by the confirmation, not by the moment the queue was answered or the historic sweep ran. A date already recorded is kept.
+
 ## [2.5.1] — 2026-11-20
 
 ### Fixed

@@ -298,7 +298,9 @@ class MailWatcher:
         _, only = rank_candidates(role, titled)
         if only is None or not allow_auto or not self._may_attach_alone(header):
             return None
-        self._db.confirm_application_from_mail(only, header.message_id, rule)
+        self._db.confirm_application_from_mail(
+            only, header.message_id, rule, header.date.isoformat() if header.date else ""
+        )
         self._db.record_mail_seen(
             account=account.address,
             mail_key=header.key,
@@ -556,7 +558,10 @@ class MailWatcher:
                     matched += 1
                     if not dry_run:
                         self._db.confirm_application_from_mail(
-                            result.job_id, header.message_id, result.rule
+                            result.job_id,
+                            header.message_id,
+                            result.rule,
+                            header.date.isoformat() if header.date else "",
                         )
                         pending = [job for job in pending if job.job_id != result.job_id]
                 elif result.verdict == "ambiguous":
@@ -1060,7 +1065,10 @@ class MailWatcher:
                     refused.append(review_id)
                 continue
             if self._db.confirm_application_from_mail(
-                job_id, str(row.get("message_id") or ""), "manual_review"
+                job_id,
+                str(row.get("message_id") or ""),
+                "manual_review",
+                str(row.get("received_at") or ""),
             ):
                 applied += 1
                 self._db.close_mail_review([review_id], "applied")

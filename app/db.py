@@ -978,7 +978,9 @@ class Database:
         return [int(r["id"]) for r in rows if company_matches(str(r["azienda"] or ""), company)]
 
     @_synchronized
-    def confirm_application_from_mail(self, job_id: int, message_id: str, rule: str) -> bool:
+    def confirm_application_from_mail(
+        self, job_id: int, message_id: str, rule: str, applied_at: str = ""
+    ) -> bool:
         """Mark an offer as applied because a confirmation message said so.
 
         The note is a fixed, non-sensitive string on purpose: notes are shown on
@@ -990,6 +992,18 @@ class Database:
         """
         if not self.conn.execute("SELECT 1 FROM jobs WHERE id = ?", (job_id,)).fetchone():
             return False
+        # The date of the application is the date of the CONFIRMATION, not of
+        # the moment someone answered the queue. ``set_job_action`` stamps
+        # "now", which is right for a click and wrong for a message read weeks
+        # later: on a real archive 37 applications carried the evening the
+        # queue was answered (or the day of a historic sweep) instead. Written
+        # first, so the COALESCE below keeps it; an existing date still wins.
+        if applied_at:
+            self.conn.execute(
+                "UPDATE jobs SET applied_at = ? WHERE id = ? "
+                "AND (applied_at IS NULL OR applied_at = '')",
+                (applied_at, job_id),
+            )
         self.set_job_action(job_id=job_id, action="applied", notes=f"auto:mail:{rule}")
         self.conn.execute(
             "UPDATE jobs SET apply_confirmed_by = 'email', apply_confirm_message_id = ?, "
