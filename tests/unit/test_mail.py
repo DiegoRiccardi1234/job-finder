@@ -2345,3 +2345,60 @@ def test_a_greeting_is_never_a_job_title() -> None:
         ]
     )
     assert facts_from_body(raw, company="Dedalus").role == ""
+
+
+def test_an_answered_proposal_dates_the_application_by_the_mail(tmp_path: Path) -> None:
+    """Answering the queue in November must not file a July application as November."""
+    from types import SimpleNamespace
+
+    from app.db import Database
+    from app.services.scan_control import ScanControl
+
+    db = Database(tmp_path / "date.db")
+    try:
+        job_id, *_ = db.upsert_job(
+            {
+                "titolo": "Junior Data Analyst",
+                "azienda": "Reply",
+                "link": "https://www.linkedin.com/jobs/view/42",
+                "descrizione": "Analisi dati.",
+            }
+        )
+        db.add_mail_review(
+            account="me@x.it",
+            mail_key="imap:1:7",
+            kind="attach",
+            received_at="2026-07-28T13:43:00+00:00",
+            company="Reply",
+            candidates=[job_id],
+        )
+        review_id = int(db.conn.execute("SELECT id FROM mail_review").fetchone()[0])
+        watcher = MailWatcher(db, tmp_path, ScanControl())
+        out = watcher.resolve_review([SimpleNamespace(review_id=review_id, job_id=job_id)], [])
+        assert out["applied"] == 1
+        applied_at = db.conn.execute(
+            "SELECT applied_at FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()[0]
+        assert applied_at.startswith("2026-07-28"), "the date of the confirmation, not of the click"
+    finally:
+        db.close()
+
+
+def test_an_application_date_already_known_is_kept(tmp_path: Path) -> None:
+    from app.db import Database
+
+    db = Database(tmp_path / "keep.db")
+    try:
+        job_id, *_ = db.upsert_job(
+            {"titolo": "QA", "azienda": "Acme", "link": "https://x/1", "descrizione": "QA."}
+        )
+        db.conn.execute(
+            "UPDATE jobs SET applied_at = '2026-07-01T09:00:00+00:00' WHERE id = ?", (job_id,)
+        )
+        db.confirm_application_from_mail(job_id, "<m>", "manual_review", "2026-07-20T09:00:00+00:00")
+        applied_at = db.conn.execute(
+            "SELECT applied_at FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()[0]
+        assert applied_at.startswith("2026-07-01")
+    finally:
+        db.close()
