@@ -21,5 +21,12 @@
     "google_rate_limits": "b0637fd3b0cd9e22",
     "groq_limits": "11d9f0be3e0c7329",
     "openrouter_limits": "cb4213ccf01eeebc"
+  },
+  "stable_runs": {
+    "cerebras_pricing": 0,
+    "google_pricing": 0,
+    "google_rate_limits": 0,
+    "groq_limits": 3,
+    "openrouter_limits": 0
   }
 }

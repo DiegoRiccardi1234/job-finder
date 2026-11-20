@@ -123,7 +123,7 @@
   "cerebras": {
     "*": {
       "rpm": 30,
-      "note": "Free tier closes 2026-08-17. Its throttle is per-minute and tight: 94 calls in five minutes saturated it."
+      "note": "The free tier closed on 2026-08-17; since then only a one-off $5 trial (card required, 30 days), then pay as you go. On the old free tier the throttle was per-minute and tight: 94 calls in five minutes saturated it."
     }
   },
   "groq": {

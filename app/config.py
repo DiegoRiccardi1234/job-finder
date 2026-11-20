@@ -18,7 +18,6 @@ from app.install_layout import is_organized, state_dir
 
 LOCAL_SECRETS_FILE = "local_secrets.json"
 SUPPORTED_PROVIDERS = [
-    "cerebras",
     "groq",
     "openai",
     "anthropic",
@@ -28,6 +27,10 @@ SUPPORTED_PROVIDERS = [
     "xai",
     "glm",
     "mistral",
+    # First in this list until its free tier closed on 2026-08-17. The list is
+    # also the default try order, so it kept being tried first for everyone
+    # who never saved an order of their own.
+    "cerebras",
     # Free tier on one token: 10.000 Neurons a day, about fifty scored offers
     # on a 70B. The endpoint carries the account id, discovered from the token.
     "cloudflare",

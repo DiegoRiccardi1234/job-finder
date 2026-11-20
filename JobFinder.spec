@@ -17,9 +17,6 @@ hiddenimports += collect_submodules("mcp_types")
 hiddenimports += [
     "openai",
     "groq",
-    "anthropic",
-    "google.generativeai",
-    "cerebras.cloud.sdk",
     "uvicorn.logging",
     "uvicorn.protocols",
     "uvicorn.protocols.http.auto",

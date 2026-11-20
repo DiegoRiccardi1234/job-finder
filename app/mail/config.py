@@ -79,6 +79,8 @@ PREF_LAST_OK = "mailwatch_last_ok_connect_ts"
 PREF_LAST_ERROR = "mailwatch_last_error"
 PREF_PENDING_DAYS = "mailwatch_pending_days"
 PREF_RECOVERY_DONE = "mailwatch_recovery_done"
+#: The ``MAIL_RULES_VERSION`` the last completed historic sweep ran under.
+PREF_RECOVERY_RULES = "mailwatch_recovery_rules_version"
 PREF_BODY_MODE = "mailwatch_body_mode"
 
 DEFAULT_INTERVAL_MINUTES = 15
@@ -313,6 +315,7 @@ def forget_account(db: Any, data_dir: Path) -> None:
         PREF_LAST_ERROR,
         PREF_LAST_OK,
         PREF_RECOVERY_DONE,
+        PREF_RECOVERY_RULES,
     ):
         db.set_preference(key, "")
     write_secrets(data_dir, secret="", client_id="")

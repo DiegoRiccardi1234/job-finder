@@ -26,11 +26,11 @@ pdf2image==1.17.0
 Pillow==12.2.0
 pillow-avif-plugin==1.5.5  # native AVIF decoding for Pillow
 
-# LLM provider SDKs (optional — install the ones you plan to use).
-# openai/groq are exercised by the dev venv and pinned; the other three are
-# optional extras not installed here, left unpinned on purpose.
+# LLM provider SDKs. Every other provider talks plain HTTP or goes through the
+# openai client (Cerebras, OpenRouter and the compatible endpoints alike).
+# anthropic, google-generativeai and cerebras-cloud-sdk used to be listed here,
+# unpinned, and nothing in app/ imported them: they only made the bundle bigger
+# and the CI install less reproducible. google-generativeai is also the package
+# Google deprecated.
 openai==2.31.0
 groq==1.1.2
-anthropic
-google-generativeai
-cerebras-cloud-sdk

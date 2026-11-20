@@ -1174,12 +1174,14 @@
     "recovery": {
       "start": "Bewerbungen suchen",
       "running": "Suche läuft…",
-      "done": "{n} Nachrichten zu bestätigen. Nichts wurde geändert.",
+      "done": "{total} Nachrichten zu bestätigen: {n} zu Angeboten im Archiv, {imports} neue Bewerbungen, {rejections} Absagen. Es wurde nichts geändert.",
       "truncated": "Es wurden nur die neuesten Nachrichten gelesen.",
       "window": "Zurückblicken",
       "days": "Tage",
       "dry": "Erst zählen (schreibt nichts)",
-      "counted": "Über {days} Tage: {checked} Nachrichten gelesen, {n} wären zu bestätigen. Es wurde nichts geschrieben."
+      "counted": "In {days} Tagen: {checked} Nachrichten gelesen, {total} wären zu bestätigen ({n} zu Angeboten im Archiv, {imports} neue Bewerbungen, {rejections} Absagen). Es wurde nichts geschrieben.",
+      "stale": "Mit diesem Update haben sich die Regeln geändert, die Bewerbungen erkennen. Bereits gelesene Mails behalten ihr altes Urteil, bis du erneut suchst: Nichts wird automatisch übernommen, alles landet zur Bestätigung in der Warteschlange.",
+      "staleRun": "Postfach jetzt neu lesen"
     },
     "review": {
       "title": "Im Postfach gefundene Bewerbungen",

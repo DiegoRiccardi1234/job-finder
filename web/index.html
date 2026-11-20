@@ -746,6 +746,14 @@
                reaching further than that, and a year is ~3.300 messages — worth
                measuring with the dry run before spending, because a message
                recorded as "no match" is never looked at again. -->
+          <!-- Mail already read keeps the verdict the rules of its day gave it;
+               after an update that teaches the reader new shapes, only a new
+               sweep re-reads it. Said here, or the update looks like it did
+               nothing. -->
+          <div id="mailRecoveryStale" class="mail-row hidden" role="status">
+            <p class="job-flag flag-warn" data-i18n="mail.recovery.stale">The recognition rules changed with this update. Mail already read keeps its old verdict until you search again.</p>
+            <button id="mailRecoveryStaleBtn" class="secondary" data-i18n="mail.recovery.staleRun">Search applications again</button>
+          </div>
           <div class="mail-row mail-actions">
             <label class="micro" for="mailRecoveryDays" data-i18n="mail.recovery.window">Look back</label>
             <select id="mailRecoveryDays">

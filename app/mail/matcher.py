@@ -100,9 +100,22 @@ _REJECT_SUBJECT_RE = re.compile(
     # your application: X" about the same job. Anchored to the start of the
     # subject because it is the imperative that distinguishes them: "Candidatura
     # per la posizione di X completata!" is a confirmation and must survive.
-    r"|^\s*complet[ae]\b",
+    r"|^\s*complet[ae]\b"
+    # A reply or a forward is a conversation, not a receipt. "R: Dedalus - La
+    # tua candidatura a Delivery Specialist" was a recruiter announcing that the
+    # selection had been suspended; read as a confirmation it became an
+    # application whose "role" was the greeting line, "Gentile Diego".
+    r"|^\s*(?:re|r|i|fwd?|aw)\s*:",
     re.IGNORECASE,
 )
+
+#: Bumped whenever a rule here or in ``body.py`` changes what a message is
+#: recognised as. ``mail_seen`` freezes every verdict it records, so a release
+#: that teaches the reader a new shape changes nothing about mail already read
+#: until the historic sweep runs again; the app compares this with the version
+#: the last sweep ran under and says so, instead of leaving the user to conclude
+#: that the new release does not work.
+MAIL_RULES_VERSION = 2
 
 # ── gate 1a: does the subject read like a confirmation? ─────────────────────
 _CONFIRM_SUBJECT_RE = re.compile(
@@ -173,6 +186,10 @@ _KNOWN_SENDER_DOMAINS = frozenset(
         "icims.eu",
         "jobgether.com",
         "adeccoapps.com",
+        # Odoo's recruitment module writes from <tenant>.odoo.com. Without it the
+        # sender rule handed back "odoo" as the employer (Next G Cloud, two real
+        # confirmations on one day).
+        "odoo.com",
     }
 )
 
@@ -199,6 +216,10 @@ _SUBJECT_COMPANY_RE = re.compile(
     # An ATS putting its client after a dash: "Conferma ricezione candidatura -
     # Oggi Lavoro S.p.a."
     r"|conferma\s+ricezione\s+candidatura\s*[-–—]\s*(.+?)\s*$"  # noqa: RUF001
+    # JOIN: "Abbiamo ricevuto la tua candidatura per la posizione in it's
+    # prodigy" — "in" names the employer. Read by the loose shape below it was
+    # filed under the company "la posizione in it's prodigy".
+    r"|candidatura\s+per\s+la\s+posizione\s+(?:in|presso)\s+(.+?)\s*$"
     # The agencies, measured: "Grazie per la tua candidatura con Gi Group"
     # (fourteen messages), "…con Wyser", "La tua candidatura presso Loacker",
     # "Grazie per la candidatura in Business Changers".
@@ -245,7 +266,10 @@ _SUBJECT_ROLE_RE = re.compile(
     # Workday for a client: "…applying for the role of Delivery Specialist at X"
     r"|for\s+the\s+role\s+of\s+(.+?)\s+at\s+.+?[!.]?\s*$"
     # Jobgether: "Application received: Fraud Analyst - View your match score"
-    r"|application\s+received:\s*(.+?)\s*$",
+    r"|application\s+received:\s*(.+?)\s*$"
+    # RINA: "Thank you for your application - Junior Site Software Application
+    # Engineer - 15172". The trailing filing number goes with the tail rule.
+    r"|thank\s+you\s+for\s+your\s+application\s*[-–—:]\s*(.+?)\s*$",  # noqa: RUF001
     re.IGNORECASE,
 )
 
@@ -382,10 +406,16 @@ class SubjectFacts:
     rule: str = ""
 
 
+#: Decoration after the last word: "Junior Cloud Software Engineer 🎉". A
+#: closing bracket stays, because "(Remote)" is part of a title.
+_TRAILING_SYMBOLS_RE = re.compile(r"[^\w)\]]+$")
+
+
 def _first_group(match: re.Match[str] | None) -> str:
     if not match:
         return ""
-    return next((g for g in match.groups() if g), "").strip(" .!-–—")  # noqa: RUF001
+    value = next((g for g in match.groups() if g), "")
+    return _TRAILING_SYMBOLS_RE.sub("", value).strip(" .!-–—")  # noqa: RUF001
 
 
 def subject_facts(subject: str) -> SubjectFacts:
@@ -416,7 +446,15 @@ def subject_facts(subject: str) -> SubjectFacts:
         return SubjectFacts(role=role[:120], company=company[:80], rule="subject_role")
     if not company and role_match is None:
         company = _first_group(_SUBJECT_COMPANY_LOOSE_RE.search(flat))
+        if company:
+            # Named apart so the import path knows this "employer" may be a job
+            # title, and can let a body that names the employer correct it.
+            return SubjectFacts(company=company[:80], rule=LOOSE_SUBJECT_RULE)
     return SubjectFacts(company=company[:80], rule="subject_company" if company else "")
+
+
+#: The rule name of the one subject shape that cannot tell a job from an employer.
+LOOSE_SUBJECT_RULE = "subject_company_loose"
 
 
 # A refusal is an outcome, not an application confirmation. Generic updates,
@@ -452,11 +490,22 @@ def rejection_facts(subject: str) -> SubjectFacts:
     return SubjectFacts(role=groups[0].strip()[:120], company=groups[1].strip(" .!")[:80])
 
 
-def classify_rejection(header: MailHeader, applications: list[PendingJob]) -> MatchResult:
-    """Only employer AND role identify an automatic outcome; weaker facts need review."""
+def classify_rejection(
+    header: MailHeader, applications: list[PendingJob], *, role_hint: str = ""
+) -> MatchResult:
+    """Only employer AND role identify an automatic outcome; weaker facts need review.
+
+    ``role_hint`` is the title read from the body when the subject has none.
+    Workday's refusal template ("Grazie per la tua candidatura ma al momento non
+    coincide…") names neither the employer nor the job in the subject, and
+    arrives from a bare ``myworkday.com``: six real ones, all from one employer,
+    and every one reached the review screen with no company and no candidate,
+    so the only possible answer was "ignore". The body names the job.
+    """
     if not is_rejection_subject(header.subject) or header.date is None:
         return MatchResult("no_match")
     facts = rejection_facts(header.subject)
+    role = facts.role or role_hint
     eligible = [job for job in applications if header.date >= job.opened_at - CLOCK_SLACK]
     trusted = is_known_sender(header.from_addr, header.list_id)
     if facts.company:
@@ -465,9 +514,20 @@ def classify_rejection(header: MailHeader, applications: list[PendingJob]) -> Ma
         hits = [job for job in eligible if _same_company(job.company, facts.company)]
     else:
         hits = [job for job in eligible if sender_matches_company(header.from_addr, job.company)]
+        if not hits and trusted and role:
+            # No employer anywhere, but a job title and a hiring platform: the
+            # applications with that title are the honest set of answers. Never
+            # decided alone — without the employer this is a question, so it
+            # returns below as one even when the set has a single member.
+            by_title = [job for job in eligible if _same_role_strict(role, job.title)]
+            return MatchResult(
+                "ambiguous",
+                rule="rejection_role_only",
+                candidates=tuple(j.job_id for j in by_title),
+            )
         if not hits and not trusted:
             return MatchResult("no_match", rule="rejection_no_employer")
-    titled = [job for job in hits if facts.role and same_role(facts.role, job.title)]
+    titled = [job for job in hits if role and same_role(role, job.title)]
     if len(titled) == 1:
         return MatchResult("match", titled[0].job_id, "rejection_company_role")
     return MatchResult(
@@ -631,6 +691,26 @@ def same_role(a: str, b: str) -> bool:
     if len(smaller) < 2:
         return False
     return smaller <= larger
+
+
+def _same_role_strict(a: str, b: str) -> bool:
+    """``same_role`` when the employer is NOT known, so the title is all there is.
+
+    The two-word floor is enough when the company already narrowed the field to
+    a handful of its own postings. Across a whole archive it is not: on a real
+    one, a refusal for "Applied & Agentic AI Junior Software Engineer" offered
+    sixteen applications, every "Junior AI Engineer" and "AI Engineer" in it,
+    and one for "Process Transformation & AI Reinvention Consultant" offered an
+    unrelated "AI Transformation Specialist". Here the titles must carry the
+    same words, or the shorter one must still say four things.
+    """
+    ta, tb = _role_tokens(a), _role_tokens(b)
+    if not ta or not tb:
+        return False
+    if ta == tb:
+        return True
+    smaller, larger = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    return len(smaller) >= 4 and smaller <= larger
 
 
 def rank_candidates(

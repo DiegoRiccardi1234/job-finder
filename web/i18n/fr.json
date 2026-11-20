@@ -1174,12 +1174,14 @@
     "recovery": {
       "start": "Chercher les candidatures",
       "running": "Recherche en cours…",
-      "done": "{n} messages à confirmer. Rien n'a été modifié.",
+      "done": "{total} messages à confirmer : {n} sur des offres déjà archivées, {imports} nouvelles candidatures, {rejections} refus. Rien n'a été modifié.",
       "truncated": "Seuls les messages les plus récents ont été lus.",
       "window": "Remonter",
       "days": "jours",
       "dry": "Compter d'abord (n'écrit rien)",
-      "counted": "Sur {days} jours : {checked} messages lus, {n} seraient à confirmer. Rien n'a été écrit."
+      "counted": "Sur {days} jours : {checked} messages lus, {total} seraient à confirmer ({n} sur des offres archivées, {imports} nouvelles candidatures, {rejections} refus). Rien n'a été écrit.",
+      "stale": "Cette mise à jour a changé les règles qui reconnaissent les candidatures. Le courrier déjà lu garde son ancien verdict jusqu'à une nouvelle recherche : rien n'est appliqué tout seul, tout va dans la file à confirmer.",
+      "staleRun": "Relire la boîte maintenant"
     },
     "review": {
       "title": "Candidatures trouvées dans la boîte mail",

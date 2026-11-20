@@ -2061,3 +2061,287 @@ def test_an_ats_domain_never_supplies_the_employer() -> None:
 def test_an_employer_writing_from_its_own_domain_still_works() -> None:
     assert company_from_sender("noreply@experis.it") == "experis"
     assert company_from_sender("hr@loacker.com") == "loacker"
+
+
+# ── 2.5.1: what a real October queue taught ─────────────────────────────────
+# Every case below was read off a real queue of 128 proposals on 2026-11-20,
+# with the people's names taken out.
+
+
+def test_same_morning_applications_to_different_roles_are_different_rows(
+    tmp_path: Path,
+) -> None:
+    """Four Reply roles on one morning used to become one row and three ghosts."""
+    from app.db import Database
+
+    db = Database(tmp_path / "day.db")
+    try:
+        day = "2026-10-12T07:11:00+00:00"
+        a = db.add_application_from_mail(
+            company="Reply", applied_at=day, message_id="<a>", rule="import", role="AI Platform Engineer"
+        )
+        b = db.add_application_from_mail(
+            company="Reply", applied_at=day, message_id="<b>", rule="import", role="AI Research Engineer"
+        )
+        assert a is not None and b is not None and a != b
+        same = db.add_application_from_mail(
+            company="Reply", applied_at=day, message_id="<c>", rule="import", role="AI Research Engineer"
+        )
+        assert same is None, "the same job announced twice is still one application"
+    finally:
+        db.close()
+
+
+def test_a_titled_message_completes_the_titleless_half_of_the_pair(tmp_path: Path) -> None:
+    from app.db import Database
+
+    db = Database(tmp_path / "pair.db")
+    try:
+        day = "2026-10-03T16:00:00+00:00"
+        stub = db.add_application_from_mail(
+            company="Capgemini", applied_at=day, message_id="<ats>", rule="import"
+        )
+        assert stub is not None
+        again = db.add_application_from_mail(
+            company="Capgemini", applied_at=day, message_id="<li>", rule="import", role="Cobol Developer"
+        )
+        assert again is None, "the LinkedIn half of an ATS confirmation is not a second job"
+        title = db.conn.execute("SELECT titolo FROM jobs WHERE id = ?", (stub,)).fetchone()[0]
+        assert title == "Cobol Developer", "but it does tell us what the job was"
+    finally:
+        db.close()
+
+
+def test_titleless_confirmations_the_user_asked_to_record_stay_separate(tmp_path: Path) -> None:
+    """Five "CANDIDATURA RICEVUTA" from one bank on one afternoon are five applications."""
+    from app.db import Database
+
+    db = Database(tmp_path / "bank.db")
+    try:
+        day = "2026-10-03T16:01:00+00:00"
+        ids = [
+            db.add_application_from_mail(
+                company="Intesa Sanpaolo",
+                applied_at=day,
+                message_id=f"<m{i}>",
+                rule="import",
+                distinct=True,
+            )
+            for i in range(3)
+        ]
+        assert None not in ids and len(set(ids)) == 3
+        # Without the human decision the old grain stands.
+        assert (
+            db.add_application_from_mail(
+                company="Intesa Sanpaolo", applied_at=day, message_id="<auto>", rule="import"
+            )
+            is None
+        )
+    finally:
+        db.close()
+
+
+def test_already_applied_means_the_same_job_once_the_role_is_known(tmp_path: Path) -> None:
+    from app.db import Database
+
+    db = Database(tmp_path / "near.db")
+    try:
+        job = db.add_application_from_mail(
+            company="Reply",
+            applied_at="2026-10-12T07:11:00+00:00",
+            message_id="<a>",
+            rule="import",
+            role="Junior Engineer Gen AI",
+        )
+        assert db.applications_near("Reply", "2026-10-14") == [job], "no role: employer only"
+        assert db.applications_near("Reply", "2026-10-14", role="AI Platform Engineer") == []
+        assert db.applications_near("Reply", "2026-10-14", role="Junior Engineer Gen AI") == [job]
+    finally:
+        db.close()
+
+
+def test_a_new_sweep_refreshes_a_queued_proposal_instead_of_freezing_it(tmp_path: Path) -> None:
+    """The offer collected after the message arrived must become an answer."""
+    from app.db import Database
+
+    db = Database(tmp_path / "queue.db")
+    try:
+        common = {"account": "me@x.it", "mail_key": "imap:1:9", "kind": "attach"}
+        db.add_mail_review(**common, company="Adecco", candidates=[1])
+        db.set_mail_review_role(
+            int(db.conn.execute("SELECT id FROM mail_review").fetchone()[0]), "Credit Risk Analyst"
+        )
+        db.add_mail_review(**common, company="Adecco", role="", candidates=[1, 2])
+        row = db.conn.execute("SELECT candidates_json, role FROM mail_review").fetchone()
+        assert json.loads(row["candidates_json"]) == [1, 2]
+        assert row["role"] == "Credit Risk Analyst", "a title fetched by hand is never wiped"
+        assert db.conn.execute("SELECT COUNT(1) FROM mail_review").fetchone()[0] == 1
+    finally:
+        db.close()
+
+
+def test_the_october_subject_shapes() -> None:
+    subject = "Thank you for your application - Junior Site Software Application Engineer - 15172"
+    assert subject_facts(subject).role == "Junior Site Software Application Engineer"
+
+
+def test_a_reply_or_a_forward_is_a_conversation_not_a_receipt() -> None:
+    assert not is_confirmation_subject("R: Dedalus - La tua candidatura a Delivery Specialist")
+    assert not is_confirmation_subject("Fwd: La tua candidatura è stata inviata a Reply")
+    assert is_confirmation_subject("La tua candidatura è stata inviata a Reply")
+
+
+def test_decoration_after_the_last_word_is_not_part_of_the_name() -> None:
+    from app.mail.matcher import LOOSE_SUBJECT_RULE
+
+    facts = subject_facts("Abbiamo ricevuto la tua candidatura per Junior Cloud Software Engineer \U0001f389")
+    assert facts.company == "Junior Cloud Software Engineer"
+    assert facts.rule == LOOSE_SUBJECT_RULE, "flagged: this shape cannot tell a job from an employer"
+
+
+_CAPGEMINI = [
+    "Dear Candidate,",
+    "Thank you for your interest in the position of Cobol Developer. Our Talent "
+    "Acquisition Team will review your application and be in touch shortly.",
+]
+_RINA = [
+    "Dear Candidate,",
+    "Thank you for your interest in RINA. Our team will review your application for "
+    "the position of Junior Software Application Engineer, and we will be in touch if "
+    "your qualifications match our needs for the role.",
+]
+_WORKDAY_REFUSAL = [
+    "Ciao,",
+    "ti ringraziamo per aver fatto domanda per il ruolo di PLM Specialist - Kubix / "
+    "Lectra .siamo ben consapevoli di quanto tempo occorre.",
+]
+
+
+@pytest.mark.parametrize(
+    ("lines", "role"),
+    [
+        (_CAPGEMINI, "Cobol Developer"),
+        (_RINA, "Junior Software Application Engineer"),
+        (_WORKDAY_REFUSAL, "PLM Specialist - Kubix / Lectra"),
+    ],
+)
+def test_the_october_body_shapes(lines: list[str], role: str) -> None:
+    assert facts_from_body(_body(lines)).role == role
+
+
+def test_the_employer_named_inside_the_thanks_sentence() -> None:
+    raw = _body(
+        [
+            "Ciao,",
+            "grazie per aver inviato la tua candidatura in Next G Cloud!",
+            "Ti confermiamo che abbiamo ricevuto correttamente il tuo CV.",
+        ]
+    )
+    assert facts_from_body(raw).company == "Next G Cloud"
+
+
+def test_a_refusal_naming_only_the_job_offers_the_applications_with_that_title() -> None:
+    applied = [
+        PendingJob(315, "Accenture Italia", "PLM Specialist - Kubix / Lectra", _NOW - timedelta(days=9)),
+        PendingJob(316, "Altro", "Data Analyst", _NOW - timedelta(days=9)),
+    ]
+    header = _header(
+        "Grazie per la tua candidatura ma al momento non coincide con le nostre posizioni aperte",
+        "Workday <noreply@myworkday.com>",
+    )
+    result = classify_rejection(header, applied, role_hint="PLM Specialist - Kubix / Lectra")
+    assert result.verdict == "ambiguous", "without the employer it stays a question"
+    assert result.candidates == (315,)
+    # And without the body, exactly as before: nothing to offer.
+    assert classify_rejection(header, applied).candidates == ()
+
+
+def test_the_screen_says_when_the_rules_outgrew_the_last_sweep(
+    client: TestClient, tmp_path: Path
+) -> None:
+    from app.mail import config as mail_config
+    from app.mail.matcher import MAIL_RULES_VERSION
+
+    client.post(
+        "/api/mail/config",
+        json={"address": "me@libero.it", "auth": "password", "secret": "pw"},
+    )
+    db = client.app.state.container.db  # type: ignore[attr-defined]
+    assert client.get("/api/mail/status").json()["recovery_stale"] is False, "never swept"
+    db.set_preference(mail_config.PREF_RECOVERY_DONE, "1")
+    assert client.get("/api/mail/status").json()["recovery_stale"] is True, "swept by 2.5.0"
+
+    fake = FakeIMAP4("h", 993)
+    watcher = client.app.state.container.mailwatch  # type: ignore[attr-defined]
+    from app.mail.imap_client import ImapMailbox
+
+    watcher._imap_factory = lambda account: ImapMailbox(
+        account, imap_factory=lambda *a, **k: fake
+    )
+    list(watcher.run_historic(30))
+    status = client.get("/api/mail/status").json()
+    assert status["recovery_stale"] is False
+    assert db.get_preference(mail_config.PREF_RECOVERY_RULES, "") == str(MAIL_RULES_VERSION)
+    assert db.get_preference(mail_config.PREF_LAST_OK, ""), "a full sweep proves the connection"
+
+
+def test_a_job_title_in_the_loose_subject_is_moved_out_of_the_company(
+    client: TestClient, tmp_path: Path
+) -> None:
+    client.post(
+        "/api/mail/config",
+        json={"address": "me@libero.it", "auth": "password", "secret": "pw"},
+    )
+    _tick_with(
+        client,
+        _confirmation(
+            "Next G Cloud <recruiting@next-g-cloud2.odoo.com>",
+            "Abbiamo ricevuto la tua candidatura per Junior Cloud Software Engineer \U0001f389",
+            "Ciao,\ngrazie per aver inviato la tua candidatura in Next G Cloud!\n",
+        ),
+    )
+    items = client.get("/api/mail/review").json()["items"]
+    assert len(items) == 1
+    assert items[0]["company"] == "Next G Cloud"
+    assert items[0]["role"] == "Junior Cloud Software Engineer"
+
+
+def test_join_names_the_employer_after_la_posizione_in() -> None:
+    facts = subject_facts("Abbiamo ricevuto la tua candidatura per la posizione in it's prodigy")
+    assert facts.company == "it's prodigy"
+    assert facts.role == ""
+
+
+def test_a_title_alone_across_the_whole_archive_needs_more_than_two_words() -> None:
+    applied = [
+        PendingJob(158, "Altro", "Junior AI Engineer", _NOW - timedelta(days=9)),
+        PendingJob(529, "T61E", "AI Transformation Specialist", _NOW - timedelta(days=9)),
+        PendingJob(566, "Accenture", "AI Native Software Engineering", _NOW - timedelta(days=9)),
+    ]
+    header = _header(
+        "Grazie per la tua candidatura ma al momento non coincide con le nostre posizioni aperte",
+        "Workday <noreply@myworkday.com>",
+    )
+    wide = classify_rejection(
+        header, applied, role_hint="Applied & Agentic AI Junior Software Engineer"
+    )
+    assert wide.candidates == (), "sixteen 'AI Engineer' rows are not an answer"
+    loose = classify_rejection(
+        header, applied, role_hint="Process Transformation & AI Reinvention Consultant"
+    )
+    assert loose.candidates == ()
+    near = classify_rejection(header, applied, role_hint="Deep AI Native Software Engineering")
+    assert near.candidates == (566,)
+
+
+def test_a_greeting_is_never_a_job_title() -> None:
+    raw = _body(["Hi Diego", "Thank you for applying.", "Regards"])
+    assert facts_from_body(raw).role == ""
+    raw = _body(
+        [
+            "La tua candidatura è stata inviata a Dedalus",
+            "Gentile Diego",
+            "Dedalus",
+        ]
+    )
+    assert facts_from_body(raw, company="Dedalus").role == ""

@@ -1174,12 +1174,14 @@
     "recovery": {
       "start": "Buscar candidaturas",
       "running": "Buscando…",
-      "done": "{n} mensajes por confirmar. No se ha cambiado nada.",
+      "done": "{total} mensajes por confirmar: {n} sobre ofertas ya archivadas, {imports} candidaturas nuevas, {rejections} rechazos. No se ha cambiado nada.",
       "truncated": "Solo se leyeron los mensajes más recientes.",
       "window": "Mirar atrás",
       "days": "días",
       "dry": "Contar primero (no escribe nada)",
-      "counted": "En {days} días: {checked} mensajes leídos, {n} habría que confirmar. No se escribió nada."
+      "counted": "En {days} días: {checked} mensajes leídos, {total} habría que confirmar ({n} sobre ofertas archivadas, {imports} candidaturas nuevas, {rejections} rechazos). No se ha escrito nada.",
+      "stale": "Con esta actualización han cambiado las reglas que reconocen las candidaturas. El correo ya leído conserva su veredicto antiguo hasta que vuelvas a buscar: nada se aplica solo, todo va a la cola para que lo confirmes.",
+      "staleRun": "Volver a leer el correo ahora"
     },
     "review": {
       "title": "Candidaturas encontradas en el correo",

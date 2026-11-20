@@ -27,6 +27,9 @@ from app.providers.model_selector import choose_best_model
 
 log = get_logger(__name__)
 
+#: (provider, base URL) pairs whose catalog failure has already been logged.
+_LIST_FAILURES_LOGGED: set[tuple[str, str]] = set()
+
 try:
     from openai import OpenAI
 except ImportError:  # pragma: no cover
@@ -91,7 +94,16 @@ class OpenAICompatibleProvider(LLMProvider):
                 self.key_invalid = True
                 log.warning("%s key marked invalid (401); will skip until reload.", self.name)
             else:
-                log.warning("%s list_models failed: %s", self.name, exc)
+                # Once per process and endpoint. A local server that is simply
+                # not running (Ollama, kept as the safety net) failed the same
+                # way on every catalog refresh: 247 identical warnings in four
+                # months of one real log, burying everything else in it.
+                key = (self.name, str(getattr(self.client, "base_url", "") or ""))
+                if key in _LIST_FAILURES_LOGGED:
+                    log.debug("%s list_models failed again: %s", self.name, exc)
+                else:
+                    _LIST_FAILURES_LOGGED.add(key)
+                    log.warning("%s list_models failed: %s", self.name, exc)
             return []
 
     def select_model(self, preferred_model: str | None = None) -> str:

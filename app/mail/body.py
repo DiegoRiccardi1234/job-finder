@@ -97,13 +97,29 @@ _LABELLED_ROLE_RE = re.compile(
 #: of the paragraph comes along.
 _INLINE_ROLE_RE = re.compile(
     r"(?i)candidatura\s+per\s+(?:la\s+posizione|il\s+ruolo)\s*(?:di\s+)?(.+?)\s*(?:[.!]|$)"
-    r"|application\s+for\s+the\s+(?:position|role)\s+(?:of\s+)?(.+?)\s*(?:[.!]|$)"
+    # RINA: "…review your application for the position of X, and we will be in
+    # touch…". Without the comma stop the rest of the sentence became the title.
+    r"|application\s+for\s+the\s+(?:position|role)\s+(?:of\s+)?(.+?)\s*(?:[.!]|,\s*and\s|$)"
+    # Capgemini (SuccessFactors), six real ones: "Thank you for your interest in
+    # the position of Cobol Developer. Our Talent Acquisition Team…"
+    r"|interest\s+in\s+the\s+(?:position|role)\s+of\s+(.+?)\s*(?:[.!]|$)"
+    # Workday's Italian refusal: "ti ringraziamo per aver fatto domanda per il
+    # ruolo di PLM Specialist - Kubix / Lectra .siamo…" (sic, the space).
+    r"|(?:fatto\s+domanda|candidat[oa])\s+per\s+il\s+ruolo\s+di\s+(.+?)\s*(?:[.!]|$)"
     # Randstad, four times in one real queue: "grazie per esserti candidato
     # all'offerta X CX570302." The apostrophe is typographic in the wild.
     r"|candidat[oa]\s+all['’\s]*offerta\s+(.+?)\s*(?:[.!]|$)"  # noqa: RUF001
     # Bending Spoons: "apply for the X job at Y." The employer follows the job,
     # so the capture has to stop at "job at" and not run to the full stop.
     r"|appl(?:y|ied)\s+for\s+the\s+(.+?)\s+(?:job|position|role)\s+at\s+"
+)
+
+#: The employer inside the confirmation sentence: "grazie per aver inviato la tua
+#: candidatura in Next G Cloud!". Only ever a fallback for a missing employer, and
+#: still put through ``_looks_like_a_company``.
+_INLINE_COMPANY_RE = re.compile(
+    r"(?i)(?:inviato|inviata|inoltrato|inoltrata)\s+la\s+tua\s+candidatura\s+(?:in|presso|a)\s+"
+    r"(.+?)\s*[!.]"
 )
 
 #: A reference code glued to a role. Workday puts it in front ("R00279839 Junior
@@ -138,9 +154,17 @@ def _looks_like_a_company(line: str) -> bool:
     return bool(canonical_company(line))
 
 
+#: A salutation is the line a body opens with, never a job: "Hi Diego",
+#: "Gentile Diego" were both read as titles from real messages.
+_GREETING_RE = re.compile(
+    r"(?i)^(?:hi|hello|hey|dear|ciao|gentile|salve|buongiorno|buonasera|egregi[oa])\b"
+)
+
+
 def _clean_role(role: str) -> str:
     role = _REF_CODE_TAIL_RE.sub("", _REF_CODE_RE.sub("", role.strip()))
-    return role.strip(" .,;:-–—")  # noqa: RUF001
+    role = role.strip(" .,;:-–—")  # noqa: RUF001
+    return "" if _GREETING_RE.match(role) else role
 
 
 def facts_from_body(raw: bytes, *, company: str = "", role: str = "") -> BodyFacts:
@@ -181,6 +205,8 @@ def facts_from_body(raw: bytes, *, company: str = "", role: str = "") -> BodyFac
                 continue
             if not (_MIN_ROLE <= len(title) <= _MAX_ROLE):
                 continue
+            if not _clean_role(title):
+                continue
             if company:
                 # The employer is known: the line below the title has to name it,
                 # which is the corroboration the whole package is built on.
@@ -212,6 +238,15 @@ def facts_from_body(raw: bytes, *, company: str = "", role: str = "") -> BodyFac
             candidate = _clean_role(next((g for g in match.groups() if g), ""))
             if _MIN_ROLE <= len(candidate) <= _MAX_ROLE and not _STOP.search(candidate):
                 found_role, rule = candidate, "body_inline"
+                break
+
+    # 4. the employer inside the sentence, when nothing else named one
+    if not found_company:
+        for line in lines:
+            match = _INLINE_COMPANY_RE.search(line)
+            if match and _looks_like_a_company(match.group(1).strip()):
+                found_company = match.group(1).strip()
+                rule = rule or "body_inline_company"
                 break
 
     return BodyFacts(role=found_role, company=found_company, rule=rule)

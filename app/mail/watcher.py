@@ -51,6 +51,8 @@ from app.mail.graph_client import GraphMailbox
 from app.mail.imap_client import ImapMailbox
 from app.mail.matcher import (
     CLOCK_SLACK,
+    LOOSE_SUBJECT_RULE,
+    MAIL_RULES_VERSION,
     MailHeader,
     PendingJob,
     classify,
@@ -354,8 +356,18 @@ class MailWatcher:
         self._db.set_preference(mail_config.PREF_STATE, state)
         self._db.set_preference(mail_config.PREF_LAST_ERROR, error)
 
+    def status_rules_stale(self) -> bool:
+        """True when the last historic sweep ran under older recognition rules."""
+        if str(self._db.get_preference(mail_config.PREF_RECOVERY_DONE, "") or "") != "1":
+            return False
+        stored = str(self._db.get_preference(mail_config.PREF_RECOVERY_RULES, "") or "")
+        return stored != str(MAIL_RULES_VERSION)
+
     def status(self) -> dict[str, Any]:
         account = self.account()
+        recovery_done = (
+            str(self._db.get_preference(mail_config.PREF_RECOVERY_DONE, "") or "") == "1"
+        )
         return {
             "configured": bool(account and account.configured),
             "address": account.address if account else "",
@@ -373,8 +385,12 @@ class MailWatcher:
             "review_count": len(self.review_items()),
             "body_mode": self.body_mode(),
             "attach_mode": self.attach_mode(),
-            "recovery_done": str(self._db.get_preference(mail_config.PREF_RECOVERY_DONE, "") or "")
-            == "1",
+            "recovery_done": recovery_done,
+            # The recognition rules changed since the last sweep, and mail
+            # already read keeps the verdict the OLD rules gave it: only a new
+            # sweep re-reads it. Said on screen, because otherwise an update
+            # that teaches the reader new shapes looks like it did nothing.
+            "recovery_stale": self.status_rules_stale(),
             "running": self._control.running,
         }
 
@@ -529,7 +545,7 @@ class MailWatcher:
         try:
             for header in headers:
                 rejection = self._process_rejection(
-                    account, header, dry_run=dry_run, allow_auto=True
+                    account, header, dry_run=dry_run, allow_auto=True, reader=reader
                 )
                 if rejection:
                     rejected += int(rejection == "rejected")
@@ -596,6 +612,7 @@ class MailWatcher:
         *,
         dry_run: bool,
         allow_auto: bool,
+        reader: _BodyReader | None = None,
     ) -> str:
         if not is_rejection_subject(header.subject):
             return ""
@@ -607,7 +624,17 @@ class MailWatcher:
             )
             if job is not None
         ]
-        result = classify_rejection(header, applications)
+        # A refusal whose subject names no job (Workday's template) is
+        # unanswerable without the body, so the title is read before deciding.
+        # Only in "always": in "ask" the button on the row does it on request.
+        role_hint = ""
+        if (
+            reader is not None
+            and not rejection_facts(header.subject).role
+            and self.body_mode() == mail_config.BODY_MODE_ALWAYS
+        ):
+            role_hint = reader.facts(header.key).role[:120]
+        result = classify_rejection(header, applications, role_hint=role_hint)
         if result.verdict == "no_match":
             return ""
         verdict = "rejection_review"
@@ -623,8 +650,13 @@ class MailWatcher:
             if verdict == "rejection_review":
                 facts = rejection_facts(header.subject)
                 ids = result.candidates or ((result.job_id,) if result.job_id else ())
-                company = facts.company or next(
-                    (job.company for job in applications if job.job_id in ids), ""
+                # Matched by title alone, the candidates can belong to different
+                # employers: naming the first one's would put a company on the
+                # card that the message never mentioned.
+                companies = {job.company for job in applications if job.job_id in ids}
+                title_only = result.rule == "rejection_role_only"
+                company = facts.company or (
+                    next(iter(companies)) if len(companies) == 1 and not title_only else ""
                 )
                 self._db.add_mail_review(
                     account=account.address,
@@ -635,7 +667,7 @@ class MailWatcher:
                     company=company,
                     sender=_safe_sender(header),
                     rule=result.rule,
-                    role=facts.role,
+                    role=facts.role or role_hint,
                     candidates=ids,
                 )
             self._db.record_mail_seen(
@@ -760,6 +792,25 @@ class MailWatcher:
         if not company and reader is not None and self.body_mode() != mail_config.BODY_MODE_NEVER:
             found = reader.facts(header.key, role=role)
             company, role = found.company[:80], (found.role or role)[:120]
+        elif (
+            getattr(evidence, "rule", "") == LOOSE_SUBJECT_RULE
+            and not role
+            and reader is not None
+            and self.body_mode() != mail_config.BODY_MODE_NEVER
+        ):
+            # "Abbiamo ricevuto la tua candidatura per X" — X is an employer or a
+            # job, and the subject cannot say which. When the body names an
+            # employer that is NOT X, X was the job: two real confirmations
+            # ("…per Junior Cloud Software Engineer 🎉", body: "…la tua
+            # candidatura in Next G Cloud!") were queued with the job title as
+            # the company.
+            from app.services.scan.companies import company_matches
+
+            found = reader.facts(header.key)
+            if found.company and not company_matches(found.company, company):
+                company, role = found.company[:80], (found.role or company)[:120]
+            elif found.role:
+                role = found.role[:120]
         if not company:
             # Nothing to file it under. A stub with an empty company collides in
             # ``add_application_from_mail``, whose hash is company + day: two of
@@ -775,7 +826,13 @@ class MailWatcher:
             return
 
         day = evidence.sent_at.date().isoformat()
-        if self._db.applications_near(company, day):
+        # The title before the dedup, not after: with the role known, "already
+        # recorded" means the same job at that employer, not any job there that
+        # week — which is what closed three of four same-morning Reply
+        # applications as duplicates of the first.
+        if not role and reader is not None and self.body_mode() == mail_config.BODY_MODE_ALWAYS:
+            role = reader.facts(header.key, company=company).role[:120]
+        if self._db.applications_near(company, day, role=role):
             # Already recorded, by hand or by an earlier sweep. Nothing to ask.
             self._db.record_mail_seen(
                 account=account.address,
@@ -789,11 +846,6 @@ class MailWatcher:
                 overwrite=True,
             )
             return
-        # In "always" the title is read here, once, while the sweep is already
-        # talking to the server. A failure is not an error: the application is
-        # recorded titleless, which is what "never" produces anyway.
-        if not role and reader is not None and self.body_mode() == mail_config.BODY_MODE_ALWAYS:
-            role = reader.facts(header.key, company=company).role[:120]
         candidates = self._db.open_offers_from(company)
         if role and candidates:
             titles = {row["id"]: str(row["titolo"] or "") for row in self._db.list_jobs(limit=2000)}
@@ -873,19 +925,25 @@ class MailWatcher:
             # written off before the import existed, and a 365-day recovery
             # could not see one of them. Re-reading costs one IMAP fetch, and
             # both queues are keyed by message, so nothing is proposed twice.
-            headers = self._headers_since(
-                account,
-                since,
-                MAX_HISTORIC,
-                seen_verdicts=mail_config.DECIDED_VERDICTS | {"rejected"},
-            )
+            # After a change to the recognition rules, "already applied" is
+            # re-read as well. That verdict was written by the employer-only
+            # dedup, which closed a second application to the same company
+            # within a week as a duplicate of the first; re-reading it under
+            # the role-aware rule costs one fetch and recovers the ones that
+            # were genuinely different jobs. A true duplicate is closed again.
+            settled = mail_config.DECIDED_VERDICTS | {"rejected"}
+            if self.status_rules_stale():
+                settled = settled - {"already_applied"}
+            headers = self._headers_since(account, since, MAX_HISTORIC, seen_verdicts=settled)
             truncated = len(headers) >= MAX_HISTORIC
             found = 0
             imports = 0
             rejection_reviews = 0
             reader = _BodyReader(self, account, MAX_BODY_READS_PER_SWEEP)
             for index, header in enumerate(headers, start=1):
-                if self._process_rejection(account, header, dry_run=dry_run, allow_auto=False):
+                if self._process_rejection(
+                    account, header, dry_run=dry_run, allow_auto=False, reader=reader
+                ):
                     rejection_reviews += 1
                     if index % 25 == 0:
                         yield {
@@ -928,8 +986,14 @@ class MailWatcher:
                     yield {"status": "progress", "current": index, "total": len(headers)}
             reader.close()
             if not dry_run:
+                now = str(int(self._clock()))
                 self._db.set_preference(mail_config.PREF_RECOVERY_DONE, "1")
-                self._db.set_preference("mailwatch_last_success_ts", str(int(self._clock())))
+                self._db.set_preference(mail_config.PREF_RECOVERY_RULES, str(MAIL_RULES_VERSION))
+                self._db.set_preference("mailwatch_last_success_ts", now)
+                # A sweep that read the whole mailbox proves the connection as
+                # much as the routine check does; without this, "last good
+                # connection" stayed on the date of the last automatic run.
+                self._db.set_preference(mail_config.PREF_LAST_OK, now)
             yield {
                 "status": "complete",
                 "proposals": found,
@@ -1022,6 +1086,10 @@ class MailWatcher:
                 message_id=str(row.get("message_id") or ""),
                 rule="import",
                 role=str(row.get("role") or ""),
+                # A person looked at this message and said "record it": two
+                # titleless confirmations from one employer on one day are then
+                # two applications, not one collapsed into the other.
+                distinct=True,
             )
             if new_id is not None:
                 created.append(new_id)
