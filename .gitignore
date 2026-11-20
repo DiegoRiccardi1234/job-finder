@@ -44,3 +44,6 @@ CANDIDATURE.md
 # source folder might one day hold — the same slip that hid app/data/ for months.
 /graphify-out/
 VINCOLI.md
+
+# Sistema giorno/notte: repo pubblico, i quaderni restano locali.
+.giorno-notte/
