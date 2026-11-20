@@ -1174,12 +1174,14 @@
     "recovery": {
       "start": "Cerca le candidature",
       "running": "Ricerca in corso…",
-      "done": "{n} messaggi da confermare. Non è stato cambiato nulla.",
+      "done": "{total} messaggi da confermare: {n} su offerte già in archivio, {imports} candidature nuove, {rejections} rifiuti. Non è stato cambiato nulla.",
       "truncated": "Sono stati letti solo i messaggi più recenti.",
       "window": "Guarda indietro",
       "days": "giorni",
       "dry": "Conta prima (non scrive nulla)",
-      "counted": "Su {days} giorni: {checked} messaggi letti, {n} sarebbero da confermare. Non è stato scritto niente."
+      "counted": "Su {days} giorni: {checked} messaggi letti, {total} sarebbero da confermare ({n} su offerte in archivio, {imports} candidature nuove, {rejections} rifiuti). Non è stato scritto niente.",
+      "stale": "Con questo aggiornamento le regole che riconoscono le candidature sono cambiate. Le mail già lette tengono il giudizio vecchio finché non rilanci la ricerca: non viene applicato niente da solo, tutto finisce in coda da confermare.",
+      "staleRun": "Rileggi la posta adesso"
     },
     "review": {
       "title": "Candidature trovate nella posta",

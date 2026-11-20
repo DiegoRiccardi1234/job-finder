@@ -63,10 +63,17 @@ jobs:
             echo
             echo "Run: \`python scripts/watch_provider_limits.py\`"
           } > issue-body.md
-          gh issue create \
-            --title "Provider limits: something moved ($(date -u +%Y-%m-%d))" \
-            --body-file issue-body.md \
-            --label "providers" || \
-          gh issue create \
-            --title "Provider limits: something moved ($(date -u +%Y-%m-%d))" \
-            --body-file issue-body.md
+          # One open issue at a time: a new finding is a comment on it, so the
+          # list does not grow by one identical issue every Monday.
+          open_issue=$(gh issue list --state open --search "Provider limits: something moved in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$open_issue" ]; then
+            gh issue comment "$open_issue" --body-file issue-body.md
+          else
+            gh issue create \
+              --title "Provider limits: something moved ($(date -u +%Y-%m-%d))" \
+              --body-file issue-body.md \
+              --label "providers" || \
+            gh issue create \
+              --title "Provider limits: something moved ($(date -u +%Y-%m-%d))" \
+              --body-file issue-body.md
+          fi

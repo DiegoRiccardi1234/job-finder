@@ -96,6 +96,8 @@ export async function loadMailboxStatus() {
   // only way to learn there were proposals waiting was to open Settings and
   // scroll to the bottom of the third card.
   setMailBadge(status.review_count);
+  const stale = $("mailRecoveryStale");
+  if (stale) stale.classList.toggle("hidden", !(status.configured && status.recovery_stale));
   await loadMailReview();
 }
 
@@ -376,13 +378,22 @@ export function wireMailbox() {
         source.close();
         const truncated = data.truncated ? ` ${t("mail.recovery.truncated")}` : "";
         const key = data.dry_run ? "mail.recovery.counted" : "mail.recovery.done";
+        // All three kinds land in the same queue. The line used to count only
+        // the offers already in the archive, so a sweep that found 34 new
+        // applications and a refusal reported "56 messages" and hid the rest.
+        const proposals = Number(data.proposals ?? 0);
+        const imports = Number(data.imports ?? 0);
+        const rejections = Number(data.rejection_reviews ?? 0);
         _showOutput(
           t(key)
-            .replace("{n}", String(data.proposals ?? 0))
+            .replace("{total}", String(proposals + imports + rejections))
+            .replace("{n}", String(proposals))
+            .replace("{imports}", String(imports))
+            .replace("{rejections}", String(rejections))
             .replace("{checked}", String(data.checked ?? 0))
             .replace("{days}", String(data.days ?? days)) + truncated,
         );
-        if (!data.dry_run) await loadMailReview();
+        if (!data.dry_run) await loadMailboxStatus();
       } else if (data.status === "error") {
         source.close();
         _showOutput(`${t("mail.state.error")}: ${data.error}`);
@@ -393,6 +404,8 @@ export function wireMailbox() {
 
   $("mailRecoveryDryBtn")?.addEventListener("click", () => _runRecovery(true));
   $("mailRecoveryBtn")?.addEventListener("click", () => _runRecovery(false));
+  // Re-reading never applies anything: every hit is a proposal in the queue.
+  $("mailRecoveryStaleBtn")?.addEventListener("click", () => _runRecovery(false));
 
   $("mailReviewList")?.addEventListener("click", async (event) => {
     const button = event.target.closest?.(".mail-review-role-btn");

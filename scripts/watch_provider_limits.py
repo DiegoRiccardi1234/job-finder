@@ -55,6 +55,33 @@ def _fingerprint(html: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+#: A page fingerprint is worth a human's attention only once it had held still
+#: for this many weekly runs. Measured over twelve snapshots (Aug-Nov 2026): the
+#: Google and OpenRouter pages, and Cerebras too, re-rendered almost every week
+#: with nothing a reader would call a change, and every one of those weeks
+#: opened an issue — fourteen of them, open, all saying the same thing. A page
+#: that changes every week is not telling anyone anything.
+STABLE_RUNS_BEFORE_ALERT = 3
+
+#: Where a model id would have to appear for its withdrawal to matter.
+_CODE_ROOTS = ("app", "web/modules")
+
+
+def _referenced_in_code(model_ids: list[str]) -> list[str]:
+    """The withdrawn free models the app itself names somewhere."""
+    root = SNAPSHOT.parents[2]
+    text = []
+    for base in _CODE_ROOTS:
+        for path in (root / base).rglob("*"):
+            if path.suffix in {".py", ".js", ".json"} and path.resolve() != SNAPSHOT:
+                try:
+                    text.append(path.read_text(encoding="utf-8", errors="replace"))
+                except OSError:
+                    continue
+    blob = "\n".join(text)
+    return [m for m in model_ids if m in blob]
+
+
 def free_openrouter_models() -> list[str]:
     data = json.loads(_get("https://openrouter.ai/api/v1/models"))
     return sorted(
@@ -67,7 +94,7 @@ def main() -> int:
     if SNAPSHOT.exists():
         previous = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 
-    current: dict[str, Any] = {"openrouter_free_models": [], "pages": {}}
+    current: dict[str, Any] = {"openrouter_free_models": [], "pages": {}, "stable_runs": {}}
     problems: list[str] = []
 
     try:
@@ -83,21 +110,39 @@ def main() -> int:
             problems.append(f"could not read {name} ({url}): {exc}")
             current["pages"][name] = previous.get("pages", {}).get(name, "")
 
+    # Two lists: what deserves a person (changes) and what is only worth a line
+    # in the log (notes). Only the first one opens an issue.
     changes: list[str] = []
+    notes: list[str] = []
     before = set(previous.get("openrouter_free_models") or [])
     after = set(current["openrouter_free_models"])
     if before and after != before:
         gone = sorted(before - after)
         new = sorted(after - before)
         if new:
-            changes.append(f"OpenRouter: {len(new)} new free model(s): {', '.join(new)}")
+            notes.append(f"OpenRouter: {len(new)} new free model(s): {', '.join(new)}")
         if gone:
-            changes.append(f"OpenRouter: {len(gone)} free model(s) withdrawn: {', '.join(gone)}")
+            notes.append(f"OpenRouter: {len(gone)} free model(s) withdrawn: {', '.join(gone)}")
+            used = _referenced_in_code(gone)
+            if used:
+                changes.append(
+                    f"OpenRouter withdrew free model(s) the app names: {', '.join(used)}"
+                )
 
+    stable_before = previous.get("stable_runs") or {}
     for name, digest in current["pages"].items():
         old = (previous.get("pages") or {}).get(name)
+        held = int(stable_before.get(name, 0) or 0)
         if old and digest and old != digest:
-            changes.append(f"{name}: the page changed — {WATCHED_PAGES[name]}")
+            if held >= STABLE_RUNS_BEFORE_ALERT:
+                changes.append(
+                    f"{name}: the page changed after {held} quiet weeks — {WATCHED_PAGES[name]}"
+                )
+            else:
+                notes.append(f"{name}: re-rendered again (not stable, no alert)")
+            current["stable_runs"][name] = 0
+        else:
+            current["stable_runs"][name] = held + 1 if old else 0
 
     SNAPSHOT.write_text(
         json.dumps(current, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -105,8 +150,10 @@ def main() -> int:
 
     for line in problems:
         print(f"WARN {line}")
+    for line in notes:
+        print(f"NOTE {line}")
     if not changes:
-        print("Nothing moved.")
+        print("Nothing that needs a person.")
         return 0
     print("CHANGES")
     for line in changes:

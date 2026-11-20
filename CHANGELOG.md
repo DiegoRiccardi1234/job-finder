@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.5.1] — 2026-11-20
+
+### Fixed
+- Applications from the mailbox: several roles sent to the same employer on the same day are now separate applications. The day alone used to merge them, and a role-blind seven-day window marked the later ones "already applied".
+- The review queue refreshes its candidate offers on every sweep, so an offer collected after the confirmation arrived can be chosen; a title fetched by hand is never wiped.
+- Confirmations the reader missed or misread: the role in "interest in the position of X", "application for the position of X, and we will…", "Thank you for your application - X - 123"; the employer in "…la tua candidatura in X!" and "per la posizione in X"; job titles with trailing emoji no longer taken as the company; Odoo recruiting as a known sender; replies and forwards ("R:", "Fwd:") and greeting lines are no longer read as confirmations or titles.
+- Refusals that name only the job (Workday's template) read the title from the body and offer the applications with that title, never deciding alone.
+- Recording a titleless confirmation explicitly from the queue keeps each message as its own application.
+- Provider defaults: Cerebras is no longer shown as free (its free tier closed on 2026-08-17) nor tried first by default; the retired fallback models for Anthropic and OpenRouter are replaced.
+- A local endpoint that is not running logs its catalog failure once per session instead of on every refresh.
+
+### Changed
+- The Mail tab says when an update changed the recognition rules and offers to re-read the mailbox; the sweep summary counts new applications and rejections, not only proposals; a full sweep also updates the last successful connection.
+- The weekly provider watch opens an issue only for pages that had been stable or for withdrawn free models the app names, and comments on the open issue instead of adding a new one.
+- Removed three provider SDKs that nothing imported (anthropic, google-generativeai, cerebras-cloud-sdk) from the requirements and the Windows bundle.
+
 ## [2.5.0] — 2026-11-03
 
 ### Added

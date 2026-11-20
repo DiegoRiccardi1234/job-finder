@@ -10,4 +10,7 @@ from app.providers.openai_compat import OpenAICompatibleProvider
 class OpenRouterProvider(OpenAICompatibleProvider):
     name = "openrouter"
     base_url = "https://openrouter.ai/api/v1"
-    default_model = "google/gemini-pro"
+    # Only used when the catalog cannot be read. "google/gemini-pro" is gone
+    # from OpenRouter (checked 2026-11-20); the free router always resolves to a
+    # live free model.
+    default_model = "openrouter/free"

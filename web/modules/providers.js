@@ -148,9 +148,12 @@ const PROVIDER_CATALOG = [
     label: "Cerebras",
     icon: "bolt",
     placeholder: "sk-...",
-    free: true,
+    // The free tier closed on 2026-08-17. What is left is a one-off $5 trial
+    // that needs a card and expires in 30 days, then pay as you go (official
+    // rate-limits FAQ, read 2026-11-20).
+    free: false,
     signup: "https://cloud.cerebras.ai",
-    hint: "1M tokens/day · 8K context on free · no card",
+    hint: "pay as you go · $5 trial for 30 days, card required",
   },
   {
     name: "openrouter",

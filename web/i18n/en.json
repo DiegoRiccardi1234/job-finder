@@ -1174,12 +1174,14 @@
     "recovery": {
       "start": "Find applications",
       "running": "Searching…",
-      "done": "{n} messages to confirm. Nothing has been changed.",
+      "done": "{total} messages to confirm: {n} about offers already in the archive, {imports} new applications, {rejections} rejections. Nothing has been changed.",
       "truncated": "Only the most recent messages were read.",
       "window": "Look back",
       "days": "days",
       "dry": "Count first (writes nothing)",
-      "counted": "Over {days} days: {checked} messages read, {n} would need confirming. Nothing was written."
+      "counted": "Over {days} days: {checked} messages read, {total} would need confirming ({n} about offers in the archive, {imports} new applications, {rejections} rejections). Nothing was written.",
+      "stale": "This update changed the rules that recognise applications. Mail already read keeps its old verdict until you search again: nothing is applied on its own, everything goes to the queue for you to confirm.",
+      "staleRun": "Re-read the mailbox now"
     },
     "review": {
       "title": "Applications found in your mailbox",

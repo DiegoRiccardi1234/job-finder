@@ -668,11 +668,25 @@ class Database:
         role: str = "",
         candidates: Sequence[int] = (),
     ) -> None:
-        """Queue a proposal. Idempotent per message, so a re-sweep does not double it."""
+        """Queue a proposal. Idempotent per message, so a re-sweep does not double it.
+
+        A re-sweep REFRESHES the row instead of ignoring it. It used to be
+        ``INSERT OR IGNORE``, which froze the candidate offers at the moment the
+        message was first queued: an offer collected by a later scan could never
+        become an answer. On a real queue that was six confirmations whose exact
+        posting was in the archive and not on the screen. The employer and the
+        title are refreshed only when the new reading found one, so a title
+        fetched by hand is never wiped by a sweep that could not read the body.
+        """
         self.conn.execute(
-            "INSERT OR IGNORE INTO mail_review"
+            "INSERT INTO mail_review"
             "(account, mail_key, message_id, received_at, kind, company, sender, rule, role, "
-            "candidates_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "candidates_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(account, mail_key) DO UPDATE SET "
+            "candidates_json = excluded.candidates_json, "
+            "company = COALESCE(NULLIF(excluded.company, ''), mail_review.company), "
+            "role = COALESCE(NULLIF(excluded.role, ''), mail_review.role), "
+            "rule = COALESCE(NULLIF(excluded.rule, ''), mail_review.rule)",
             (
                 account,
                 mail_key,
@@ -778,7 +792,14 @@ class Database:
 
     @_synchronized
     def add_application_from_mail(
-        self, *, company: str, applied_at: str, message_id: str, rule: str, role: str = ""
+        self,
+        *,
+        company: str,
+        applied_at: str,
+        message_id: str,
+        rule: str,
+        role: str = "",
+        distinct: bool = False,
     ) -> int | None:
         """Record an application to a company the archive has never seen.
 
@@ -806,10 +827,52 @@ class Database:
         CV was used three months ago is not knowable and today's active profile
         is a guess wearing a fact's clothes; and every scoring column, which is
         the shape the archive already uses for "collected, not judged".
+
+        **The day stopped being enough (2.5.1).** "No (company, day) pair carries
+        more than one confirmation" held for the year it was measured on and
+        then stopped: on 3 and 12 October one real mailbox carried four Reply
+        roles, four agap2 roles and three M.C. Engineering roles, each pair of
+        them on the same day — and every second one would have been closed as
+        "already recorded" without being written. So the role, when known, is
+        part of the key:
+
+        * same employer, same day, **same role** → the same application;
+        * same employer, same day, a **titleless** row → the other half of the
+          LinkedIn/ATS pair, which this message can now complete with its title;
+        * same employer, same day, **different role** → a new application.
+
+        Without a role the old grain stays, unless the user explicitly asked for
+        this message to be recorded (``distinct``): five confirmations from one
+        bank on one afternoon, none naming the job, are five applications, and
+        only a human can say so.
         """
         canonical = canonical_company(company) or company.strip().lower()
         day = (applied_at or "")[:10]
-        job_hash = hashlib.sha256(f"mail|{canonical}|{day}".encode()).hexdigest()
+        role = role.strip()
+        same_day = self._applications_on_day(company, day)
+        if role:
+            from app.mail.matcher import same_role
+
+            for row in same_day:
+                title = str(row["titolo"] or "").strip()
+                if title and (title.casefold() == role.casefold() or same_role(title, role)):
+                    return None
+            stub = next((r for r in same_day if not str(r["titolo"] or "").strip()), None)
+            if stub is not None:
+                self.conn.execute(
+                    "UPDATE jobs SET titolo = ?, updated_at = ? WHERE id = ?",
+                    (role, now_iso(), int(stub["id"])),
+                )
+                self.conn.commit()
+                return None
+            key = f"mail|{canonical}|{day}|{' '.join(role.casefold().split())}"
+        elif distinct:
+            key = f"mail|{canonical}|{day}|msg:{message_id}"
+        else:
+            if same_day:
+                return None
+            key = f"mail|{canonical}|{day}"
+        job_hash = hashlib.sha256(key.encode()).hexdigest()
         if self.conn.execute("SELECT 1 FROM jobs WHERE job_hash = ?", (job_hash,)).fetchone():
             return None
         stamp = now_iso()
@@ -846,24 +909,57 @@ class Database:
         self.conn.commit()
         return job_id
 
-    def applications_near(self, company: str, day: str, window_days: int = 7) -> list[int]:
+    def _applications_on_day(self, company: str, day: str) -> list[Any]:
+        """Applications to this employer recorded on exactly that day, any source."""
+        if not day or not (canonical_company(company) or company.strip()):
+            return []
+        rows = self.conn.execute(
+            "SELECT id, titolo, azienda FROM jobs WHERE applied_at IS NOT NULL "
+            "AND applied_at <> '' AND date(applied_at) = date(?)",
+            (day,),
+        ).fetchall()
+        from app.services.scan.companies import company_matches
+
+        return [r for r in rows if company_matches(str(r["azienda"] or ""), company)]
+
+    def applications_near(
+        self, company: str, day: str, window_days: int = 7, *, role: str = ""
+    ) -> list[int]:
         """Offers from this company already marked applied around that date.
 
         The third and last dedup level: the application may well be in the
         archive already, entered by hand or matched by an earlier sweep, and a
         second stub for it would be a duplicate nobody asked for.
+
+        With a ``role`` the employer alone no longer settles it. A week either
+        side was a safe window while nobody applied to the same company twice in
+        a week; on a real October one person sent four roles to Reply in one
+        morning, and the first one recorded made the other three "already
+        applied". Now an application counts only if it has the same title, or
+        no title at all on the same day (the other half of a LinkedIn/ATS pair).
         """
         canonical = canonical_company(company)
         if not canonical or not day:
             return []
         rows = self.conn.execute(
-            "SELECT id, azienda FROM jobs WHERE applied_at IS NOT NULL AND applied_at <> '' "
-            "AND date(applied_at) BETWEEN date(?, ?) AND date(?, ?)",
+            "SELECT id, azienda, titolo, applied_at FROM jobs WHERE applied_at IS NOT NULL "
+            "AND applied_at <> '' AND date(applied_at) BETWEEN date(?, ?) AND date(?, ?)",
             (day, f"-{window_days} days", day, f"+{window_days} days"),
         ).fetchall()
         from app.services.scan.companies import company_matches
 
-        return [int(r["id"]) for r in rows if company_matches(str(r["azienda"] or ""), company)]
+        hits = [r for r in rows if company_matches(str(r["azienda"] or ""), company)]
+        if role.strip():
+            from app.mail.matcher import same_role
+
+            def is_this_one(row: Any) -> bool:
+                title = str(row["titolo"] or "").strip()
+                if not title:
+                    return str(row["applied_at"] or "")[:10] == day[:10]
+                return title.casefold() == role.strip().casefold() or same_role(title, role)
+
+            hits = [r for r in hits if is_this_one(r)]
+        return [int(r["id"]) for r in hits]
 
     def open_offers_from(self, company: str) -> list[int]:
         """Open, unapplied offers from this company — the ones worth asking about.

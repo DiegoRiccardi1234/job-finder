@@ -22,7 +22,9 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 class AnthropicProvider(LLMProvider):
     name = "anthropic"
-    default_model = "claude-3-5-sonnet-latest"
+    # Only used when the model catalog cannot be read. The previous value was
+    # retired by Anthropic, so the fallback itself failed.
+    default_model = "claude-opus-5-5"
 
     def __init__(self, api_key: str | None):
         self.api_key = api_key
